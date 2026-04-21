@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34511.84
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimeCalculation", "TimeCalculation\TimeCalculation.csproj", "{33859089-A4CC-4F27-B557-A8746EF85AAA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimeCalculationTests", "TimeCalculationTests\TimeCalculationTests.csproj", "{0EB51963-8AAE-49EB-B647-90A24B7A1C30}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{33859089-A4CC-4F27-B557-A8746EF85AAA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{33859089-A4CC-4F27-B557-A8746EF85AAA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{33859089-A4CC-4F27-B557-A8746EF85AAA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{33859089-A4CC-4F27-B557-A8746EF85AAA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0EB51963-8AAE-49EB-B647-90A24B7A1C30}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0EB51963-8AAE-49EB-B647-90A24B7A1C30}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0EB51963-8AAE-49EB-B647-90A24B7A1C30}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0EB51963-8AAE-49EB-B647-90A24B7A1C30}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {94E7E790-B58E-4B87-982B-24DAF85C66F6}
+	EndGlobalSection
+EndGlobal
