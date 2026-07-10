@@ -1,17 +1,18 @@
-﻿using TimeCalculation.Model;
+using TimeCalculation.Model;
 
 namespace TimeCalculation.Calculation;
 
 public class WeightedOvertimeCalculator : IWeightedOvertimeCalculator
 {
-    public double CalculateOvertime(Week week, Employee employee)
+    public decimal CalculateOvertime(Week week, Employee employee)
     {
         var totalHours = week.Shifts.Sum(s => s.PunchPairs.Sum(p => p.TotalHours));
         if (totalHours <= 40) return 0;
 
-        var overtime = totalHours - 40;
-        var rate = employee.MinimumWage * 1.5f; // Example: 1.5x
-        return overtime * rate;
+        var overtimeHours = totalHours - 40;
+        // Spread non-discretionary bonus across all hours to derive the weighted regular rate,
+        // then return only the half-time premium (straight time already paid by the caller).
+        var weightedRate = (totalHours * employee.MinimumWage + week.NonDiscretionaryBonus) / totalHours;
+        return 0.5m * weightedRate * overtimeHours;
     }
 }
-

@@ -1,10 +1,12 @@
-﻿using NodaTime;
+using NodaTime;
 
 namespace TimeCalculation.Model;
 
-public class Shift
+public record Shift
 {
-    public int Id { get; set; }
-    public int EmployeeId { get; set; }
-    public List<PunchPair> PunchPairs { get; set; } = new();
+    public IReadOnlyList<PunchPair> PunchPairs { get; init; } = [];
+    public IReadOnlyList<Punch> FixedEntries { get; init; } = [];
+    public LocalDate ShiftDate { get; init; }
+
+    public decimal TotalHours => PunchPairs.Sum(p => p.TotalHours);
 }
