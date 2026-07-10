@@ -76,6 +76,20 @@ public class Stage3_PairPunchesTests
     }
 
     [Fact]
+    public void ConsecutiveOrphanOuts_ProduceTwoIncompletePairs()
+    {
+        // Two Out punches in a row with no preceding In — must not crash,
+        // and neither punch should be dropped
+        var punches = new[] { Out(At(0, 9)), Out(At(0, 10)) };
+        var (pairs, _) = Stage3_PairPunches.Execute(punches, TestEntityCreator.CreateContext());
+
+        Assert.Equal(2, pairs.Count);
+        Assert.All(pairs, p => Assert.True(p.IsMissingPunch));
+        Assert.Equal(punches[0], pairs[0].OutPunch);
+        Assert.Equal(punches[1], pairs[1].OutPunch);
+    }
+
+    [Fact]
     public void FixedDollarEntry_IsSeparatedFromPairs()
     {
         var punches = new[] { In(At(0, 9)), Dollar(At(0, 10)), Out(At(0, 17)) };

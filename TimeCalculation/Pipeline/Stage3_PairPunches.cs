@@ -16,6 +16,10 @@ namespace TimeCalculation.Pipeline;
 /// Orphan handling:
 ///   • An In with no following Out, An Out with no preceding In, A pair exceeding MaxShiftLengthHours
 ///     → In treated as orphan, incomplete pairs created.
+///
+/// Invariant: pendingPair is always either null or holds an InPunch waiting for its Out — an
+/// orphan Out (no preceding In available) is finalized into the result immediately rather than
+/// held pending, so it can never be dereferenced as if it had an InPunch.
 /// </summary>
 public static class Stage3_PairPunches
 {
@@ -44,29 +48,28 @@ public static class Stage3_PairPunches
                 pendingPair = new PunchPair { InPunch = punch };
                 continue;
             }
-            
+
             if (punch.Kind == PunchKind.Out)
             {
-                if (pendingPair is not null)
-                {
-                    var pendingIn = pendingPair.InPunch;
-                    var rule = ctx.GetRuleAt(pendingIn.EffectiveTime);
-                    var hoursBetweenPunches = (decimal)(punch.EffectiveTime - pendingIn.EffectiveTime).TotalHours;
-
-                    if (hoursBetweenPunches > rule.MaxShiftLengthHours)
-                    {
-                        pairs.Add(pendingPair);
-                        pendingPair = new PunchPair { OutPunch = punch };
-                    }
-                    else
-                    {
-                        pendingPair.OutPunch = punch;
-                    }
-                }
-
                 if (pendingPair is null)
                 {
-                    pendingPair = new PunchPair() { OutPunch = punch };
+                    pairs.Add(new PunchPair { OutPunch = punch });
+                    continue;
+                }
+
+                var pendingIn = pendingPair.InPunch!;
+                var rule = ctx.GetRuleAt(pendingIn.EffectiveTime);
+                var hoursBetweenPunches = (decimal)(punch.EffectiveTime - pendingIn.EffectiveTime).TotalHours;
+
+                if (hoursBetweenPunches > rule.MaxShiftLengthHours)
+                {
+                    pairs.Add(pendingPair);
+                    pairs.Add(new PunchPair { OutPunch = punch });
+                    pendingPair = null;
+                }
+                else
+                {
+                    pendingPair.OutPunch = punch;
                 }
             }
         }
