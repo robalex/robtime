@@ -82,7 +82,7 @@ public class DstTests
         var ctx   = TestEntityCreator.CreateContext(rule, emp, rounding);
         var punch = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 3, 12, 6, 55), PunchKind.In, emp, Eastern);
 
-        var result = Stage1_RoundPunches.Execute([punch], ctx);
+        var result = PunchRounder.Execute([punch], ctx);
 
         Assert.Equal(Instant.FromUtc(2023, 3, 12, 7, 0), result[0].EffectiveTime);
     }
@@ -99,7 +99,7 @@ public class DstTests
         var ctx   = TestEntityCreator.CreateContext(rule, emp, rounding);
         var punch = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 11, 5, 6, 28), PunchKind.In, emp, Eastern);
 
-        var result = Stage1_RoundPunches.Execute([punch], ctx);
+        var result = PunchRounder.Execute([punch], ctx);
 
         Assert.Equal(Instant.FromUtc(2023, 11, 5, 6, 30), result[0].EffectiveTime);
     }
@@ -114,7 +114,7 @@ public class DstTests
         var ctx  = TestEntityCreator.CreateContext(new PayRule { ShiftDateStrategy = ShiftDateStrategy.FirstPunchLocalDate }, emp);
         var shift = MakeShift(Instant.FromUtc(2023, 3, 12, 4, 0), Instant.FromUtc(2023, 3, 12, 8, 0), emp);
 
-        Assert.Equal(new LocalDate(2023, 3, 11), Stage6_DateShifts.Execute([shift], ctx)[0].ShiftDate);
+        Assert.Equal(new LocalDate(2023, 3, 11), ShiftDater.Execute([shift], ctx)[0].ShiftDate);
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class DstTests
         var ctx  = TestEntityCreator.CreateContext(new PayRule { ShiftDateStrategy = ShiftDateStrategy.FirstPunchLocalDate }, emp);
         var shift = MakeShift(Instant.FromUtc(2023, 11, 5, 3, 0), Instant.FromUtc(2023, 11, 5, 8, 0), emp);
 
-        Assert.Equal(new LocalDate(2023, 11, 4), Stage6_DateShifts.Execute([shift], ctx)[0].ShiftDate);
+        Assert.Equal(new LocalDate(2023, 11, 4), ShiftDater.Execute([shift], ctx)[0].ShiftDate);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class DstTests
         var ctx  = TestEntityCreator.CreateContext(new PayRule { ShiftDateStrategy = ShiftDateStrategy.FirstPunchLocalDate }, emp);
         var shift = MakeShift(Instant.FromUtc(2023, 11, 5, 6, 30), Instant.FromUtc(2023, 11, 5, 8, 0), emp);
 
-        Assert.Equal(new LocalDate(2023, 11, 5), Stage6_DateShifts.Execute([shift], ctx)[0].ShiftDate);
+        Assert.Equal(new LocalDate(2023, 11, 5), ShiftDater.Execute([shift], ctx)[0].ShiftDate);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class DstTests
         var ctx  = TestEntityCreator.CreateContext(new PayRule { ShiftDateStrategy = ShiftDateStrategy.MajorityHoursLocalDate }, emp);
         var shift = MakeShift(Instant.FromUtc(2023, 3, 12, 4, 0), Instant.FromUtc(2023, 3, 12, 8, 0), emp);
 
-        Assert.Equal(new LocalDate(2023, 3, 12), Stage6_DateShifts.Execute([shift], ctx)[0].ShiftDate);
+        Assert.Equal(new LocalDate(2023, 3, 12), ShiftDater.Execute([shift], ctx)[0].ShiftDate);
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public class DstTests
         var ctx  = TestEntityCreator.CreateContext(new PayRule { ShiftDateStrategy = ShiftDateStrategy.MajorityHoursLocalDate }, emp);
         var shift = MakeShift(Instant.FromUtc(2023, 11, 5, 3, 0), Instant.FromUtc(2023, 11, 5, 8, 0), emp);
 
-        Assert.Equal(new LocalDate(2023, 11, 5), Stage6_DateShifts.Execute([shift], ctx)[0].ShiftDate);
+        Assert.Equal(new LocalDate(2023, 11, 5), ShiftDater.Execute([shift], ctx)[0].ShiftDate);
     }
 
     // ── Arizona: UTC-7 year-round, no DST ────────────────────────────────────
@@ -177,7 +177,7 @@ public class DstTests
     }
 
     [Fact]
-    public void Arizona_Stage6_ShiftDate_CorrectDuringSummerDst()
+    public void Arizona_ShiftDate_CorrectDuringSummerDst()
     {
         // 9 AM Jun 15 Arizona = 16:00 UTC — local date must be June 15 (UTC-7, not UTC-6)
         // If UTC-6 were used by mistake, 16:00 UTC = 10 AM Jun 15, still Jun 15 — but
@@ -191,11 +191,11 @@ public class DstTests
         // 8 PM Jun 14 Arizona = 03:00 UTC Jun 15 (UTC-7); if UTC-6 were used = 9 PM Jun 14 → still Jun 14
         var shift = MakeShift(Instant.FromUtc(2023, 6, 15, 3, 0), Instant.FromUtc(2023, 6, 15, 7, 0), emp);
 
-        Assert.Equal(new LocalDate(2023, 6, 14), Stage6_DateShifts.Execute([shift], ctx)[0].ShiftDate);
+        Assert.Equal(new LocalDate(2023, 6, 14), ShiftDater.Execute([shift], ctx)[0].ShiftDate);
     }
 
     [Fact]
-    public void Arizona_Stage6_NoDstTransitionInSpringOrFall()
+    public void Arizona_ShiftDate_NoDstTransitionInSpringOrFall()
     {
         // Run a shift on spring-forward day — Arizona should be unaffected and hours unchanged
         // 9 AM Mar 12 Arizona (16:00 UTC) → 5 PM Mar 12 Arizona (00:00 UTC Mar 13) = 8 hrs
@@ -203,7 +203,7 @@ public class DstTests
         var ctx  = TestEntityCreator.CreateContext(new PayRule { ShiftDateStrategy = ShiftDateStrategy.FirstPunchLocalDate }, emp);
         var shift = MakeShift(Instant.FromUtc(2023, 3, 12, 16, 0), Instant.FromUtc(2023, 3, 13, 0, 0), emp);
 
-        var result = Stage6_DateShifts.Execute([shift], ctx);
+        var result = ShiftDater.Execute([shift], ctx);
 
         Assert.Equal(new LocalDate(2023, 3, 12), result[0].ShiftDate);
         Assert.Equal(8m, result[0].TotalHours);

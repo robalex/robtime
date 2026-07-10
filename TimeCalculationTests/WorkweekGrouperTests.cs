@@ -6,7 +6,7 @@ using Xunit;
 
 namespace TimeCalculationTests;
 
-public class Stage10_GroupIntoWeeksTests
+public class WorkweekGrouperTests
 {
     private readonly Employee _emp = new() { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 15m };
 
@@ -26,7 +26,7 @@ public class Stage10_GroupIntoWeeksTests
     {
         // Default anchor = Sunday. Sat Jan 7 and Sun Jan 8 fall in different weeks.
         var days = new[] { DayOn(new LocalDate(2023, 1, 7)), DayOn(new LocalDate(2023, 1, 8)) };
-        var weeks = Stage10_GroupIntoWeeks.Execute(days, TestEntityCreator.CreateContext(employee: _emp));
+        var weeks = WorkweekGrouper.Execute(days, TestEntityCreator.CreateContext(employee: _emp));
 
         Assert.Equal(2, weeks.Count);
         Assert.Equal(new LocalDate(2023, 1, 1), weeks[0].StartDate);   // week of Sun Jan 1
@@ -43,7 +43,7 @@ public class Stage10_GroupIntoWeeksTests
             DayOn(new LocalDate(2023, 1, 4)), DayOn(new LocalDate(2023, 1, 5)),
             DayOn(new LocalDate(2023, 1, 6)),
         };
-        var weeks = Stage10_GroupIntoWeeks.Execute(days, TestEntityCreator.CreateContext(employee: _emp));
+        var weeks = WorkweekGrouper.Execute(days, TestEntityCreator.CreateContext(employee: _emp));
 
         Assert.Single(weeks);
         Assert.Equal(new LocalDate(2023, 1, 1), weeks[0].StartDate);
@@ -59,7 +59,7 @@ public class Stage10_GroupIntoWeeksTests
 
         // Sun Jan 8 belongs to the Mon Jan 2 week; Mon Jan 9 starts a new week.
         var days = new[] { DayOn(new LocalDate(2023, 1, 8)), DayOn(new LocalDate(2023, 1, 9)) };
-        var weeks = Stage10_GroupIntoWeeks.Execute(days, ctx);
+        var weeks = WorkweekGrouper.Execute(days, ctx);
 
         Assert.Equal(2, weeks.Count);
         Assert.Equal(new LocalDate(2023, 1, 2), weeks[0].StartDate);
@@ -73,7 +73,7 @@ public class Stage10_GroupIntoWeeksTests
         var days = Enumerable.Range(1, 7)
             .Select(d => DayOn(new LocalDate(2023, 1, d)))
             .ToArray();
-        var weeks = Stage10_GroupIntoWeeks.Execute(days, TestEntityCreator.CreateContext(employee: _emp));
+        var weeks = WorkweekGrouper.Execute(days, TestEntityCreator.CreateContext(employee: _emp));
 
         Assert.Single(weeks);
         Assert.Equal(new[] { 1, 2, 3, 4, 5, 6, 7 }, weeks[0].Days.Select(d => d.ConsecutiveDayNumber));
@@ -88,7 +88,7 @@ public class Stage10_GroupIntoWeeksTests
             DayOn(new LocalDate(2023, 1, 1)), DayOn(new LocalDate(2023, 1, 2)),
             DayOn(new LocalDate(2023, 1, 4)), DayOn(new LocalDate(2023, 1, 5)),
         };
-        var weeks = Stage10_GroupIntoWeeks.Execute(days, TestEntityCreator.CreateContext(employee: _emp));
+        var weeks = WorkweekGrouper.Execute(days, TestEntityCreator.CreateContext(employee: _emp));
 
         Assert.Single(weeks);
         Assert.Equal(new[] { 1, 2, 1, 2 }, weeks[0].Days.Select(d => d.ConsecutiveDayNumber));
@@ -102,7 +102,7 @@ public class Stage10_GroupIntoWeeksTests
             DayOn(new LocalDate(2023, 1, 4)), DayOn(new LocalDate(2023, 1, 2)),
             DayOn(new LocalDate(2023, 1, 3)),
         };
-        var weeks = Stage10_GroupIntoWeeks.Execute(days, TestEntityCreator.CreateContext(employee: _emp));
+        var weeks = WorkweekGrouper.Execute(days, TestEntityCreator.CreateContext(employee: _emp));
 
         Assert.Single(weeks);
         Assert.Equal(

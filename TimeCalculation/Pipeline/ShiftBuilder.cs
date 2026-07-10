@@ -11,7 +11,7 @@ namespace TimeCalculation.Pipeline;
 /// FixedDollar/FixedHours entries are attached to the nearest shift by punch time.
 /// If no shifts exist, they are returned as standalone single-entry shifts.
 /// </summary>
-public static class Stage5_BuildShifts
+public static class ShiftBuilder
 {
     public static IReadOnlyList<Shift> Execute(
         IReadOnlyList<PunchPair> pairs,

@@ -8,7 +8,7 @@ namespace TimeCalculation.Pipeline;
 /// ascending.  WorkDays are the unit for daily-overtime and consecutive-day rules.
 /// A date with no shifts produces no WorkDay.
 /// </summary>
-public static class Stage9_GroupIntoDays
+public static class WorkDayGrouper
 {
     public static IReadOnlyList<WorkDay> Execute(IReadOnlyList<Shift> shifts, PipelineContext ctx)
         => shifts

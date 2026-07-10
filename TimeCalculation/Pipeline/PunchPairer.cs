@@ -23,7 +23,7 @@ namespace TimeCalculation.Pipeline;
 /// orphan Out (no preceding In available) is finalized into the result immediately rather than
 /// held pending, so it can never be dereferenced as if it had an InPunch.
 /// </summary>
-public static class Stage3_PairPunches
+public static class PunchPairer
 {
     public static (IReadOnlyList<PunchPair> Pairs, IReadOnlyList<Punch> FixedEntries) Execute(
         IReadOnlyList<Punch> punches, PipelineContext ctx)

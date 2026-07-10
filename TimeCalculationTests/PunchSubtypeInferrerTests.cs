@@ -6,7 +6,7 @@ using Xunit;
 
 namespace TimeCalculationTests;
 
-public class Stage2_InferPunchSubtypesTests
+public class PunchSubtypeInferrerTests
 {
     private readonly Employee _emp = new() { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 15m };
     private static Instant At(int hour, int minute = 0) => Instant.FromUtc(2023, 1, 2, hour, minute);
@@ -18,7 +18,7 @@ public class Stage2_InferPunchSubtypesTests
         TestEntityCreator.CreateTestPunch(t, PunchKind.Out, _emp) with { Subtype = subtype };
 
     private static IReadOnlyList<Punch> Run(IReadOnlyList<Punch> punches, PayRule? rule = null)
-        => Stage2_InferPunchSubtypes.Execute(punches, TestEntityCreator.CreateContext(rule));
+        => PunchSubtypeInferrer.Execute(punches, TestEntityCreator.CreateContext(rule));
 
     [Fact]
     public void ShortMidShiftGap_ClassifiedAsBreak()

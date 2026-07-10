@@ -6,7 +6,7 @@ using Xunit;
 
 namespace TimeCalculationTests;
 
-public class Stage3_PairPunchesTests
+public class PunchPairerTests
 {
     private readonly Employee _emp = new() { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 15m };
     private static Instant At(int dayOffset, int hour) => Instant.FromUtc(2023, 1, 2 + dayOffset, hour, 0);
@@ -18,7 +18,7 @@ public class Stage3_PairPunchesTests
     [Fact]
     public void NoPunches_ReturnsEmpty()
     {
-        var (pairs, fixedEntries) = Stage3_PairPunches.Execute([], TestEntityCreator.CreateContext());
+        var (pairs, fixedEntries) = PunchPairer.Execute([], TestEntityCreator.CreateContext());
         Assert.Empty(pairs);
         Assert.Empty(fixedEntries);
     }
@@ -26,7 +26,7 @@ public class Stage3_PairPunchesTests
     [Fact]
     public void InThenOut_ProducesOnePair()
     {
-        var (pairs, _) = Stage3_PairPunches.Execute(
+        var (pairs, _) = PunchPairer.Execute(
             [In(At(0, 9)), Out(At(0, 17))],
             TestEntityCreator.CreateContext());
         Assert.Single(pairs);
@@ -37,7 +37,7 @@ public class Stage3_PairPunchesTests
     [Fact]
     public void LoneIn_ProducesIncompletePair()
     {
-        var (pairs, _) = Stage3_PairPunches.Execute([In(At(0, 9))], TestEntityCreator.CreateContext());
+        var (pairs, _) = PunchPairer.Execute([In(At(0, 9))], TestEntityCreator.CreateContext());
         Assert.Single(pairs);
         Assert.True(pairs[0].IsMissingPunch);
         Assert.Equal(0m, pairs[0].TotalHours);
@@ -46,7 +46,7 @@ public class Stage3_PairPunchesTests
     [Fact]
     public void OrphanOut_ProducesIncompletePair()
     {
-        var (pairs, _) = Stage3_PairPunches.Execute([Out(At(0, 17))], TestEntityCreator.CreateContext());
+        var (pairs, _) = PunchPairer.Execute([Out(At(0, 17))], TestEntityCreator.CreateContext());
         Assert.Single(pairs);
         Assert.True(pairs[0].IsMissingPunch);
         Assert.Equal(0m, pairs[0].TotalHours);
@@ -56,7 +56,7 @@ public class Stage3_PairPunchesTests
     public void TwoCompletePairs_ProducesTwoPairs()
     {
         var punches = new[] { In(At(0, 9)), Out(At(0, 17)), In(At(1, 9)), Out(At(1, 17)) };
-        var (pairs, _) = Stage3_PairPunches.Execute(punches, TestEntityCreator.CreateContext());
+        var (pairs, _) = PunchPairer.Execute(punches, TestEntityCreator.CreateContext());
         Assert.Equal(2, pairs.Count);
         Assert.All(pairs, p => Assert.False(p.IsMissingPunch));
     }
@@ -68,7 +68,7 @@ public class Stage3_PairPunchesTests
         var ctx  = TestEntityCreator.CreateContext(rule);
         var inP  = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 2, 6,  0), PunchKind.In,  _emp);
         var outP = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 3, 2,  0), PunchKind.Out, _emp);
-        var (pairs, _) = Stage3_PairPunches.Execute([inP, outP], ctx);
+        var (pairs, _) = PunchPairer.Execute([inP, outP], ctx);
         Assert.Equal(2, pairs.Count);
         Assert.All(pairs, p => Assert.True(p.IsMissingPunch));
         Assert.Equal(inP, pairs[0].InPunch);
@@ -81,7 +81,7 @@ public class Stage3_PairPunchesTests
         // Two Out punches in a row with no preceding In — must not crash,
         // and neither punch should be dropped
         var punches = new[] { Out(At(0, 9)), Out(At(0, 10)) };
-        var (pairs, _) = Stage3_PairPunches.Execute(punches, TestEntityCreator.CreateContext());
+        var (pairs, _) = PunchPairer.Execute(punches, TestEntityCreator.CreateContext());
 
         Assert.Equal(2, pairs.Count);
         Assert.All(pairs, p => Assert.True(p.IsMissingPunch));
@@ -93,7 +93,7 @@ public class Stage3_PairPunchesTests
     public void FixedDollarEntry_IsSeparatedFromPairs()
     {
         var punches = new[] { In(At(0, 9)), Dollar(At(0, 10)), Out(At(0, 17)) };
-        var (pairs, fixedEntries) = Stage3_PairPunches.Execute(punches, TestEntityCreator.CreateContext());
+        var (pairs, fixedEntries) = PunchPairer.Execute(punches, TestEntityCreator.CreateContext());
         Assert.Single(pairs);
         Assert.Single(fixedEntries);
         Assert.Equal(PunchKind.FixedDollar, fixedEntries[0].Kind);
@@ -104,7 +104,7 @@ public class Stage3_PairPunchesTests
     {
         var rule = new PayRule { Id = 99 };
         var ctx  = TestEntityCreator.CreateContext(rule);
-        var (pairs, _) = Stage3_PairPunches.Execute([In(At(0, 9)), Out(At(0, 17))], ctx);
+        var (pairs, _) = PunchPairer.Execute([In(At(0, 9)), Out(At(0, 17))], ctx);
         Assert.Equal(99, pairs[0].AppliedRule?.Id);
     }
 
@@ -124,7 +124,7 @@ public class Stage3_PairPunchesTests
         // 22:00 Jan 2 → 06:00 Jan 3 spans the midnight Jan 3 boundary
         var inP  = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 2, 22, 0), PunchKind.In,  employee);
         var outP = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 3, 6,  0), PunchKind.Out, employee);
-        var (pairs, _) = Stage3_PairPunches.Execute([inP, outP], ctx);
+        var (pairs, _) = PunchPairer.Execute([inP, outP], ctx);
 
         Assert.Equal(2, pairs.Count);
         Assert.All(pairs, p => Assert.True(p.IsSplit));
@@ -157,14 +157,14 @@ public class Stage3_PairPunchesTests
         // 22:00 Jan 2 → 06:00 Jan 3 spans the midnight Jan 3 position-change boundary
         var inP  = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 2, 22, 0), PunchKind.In,  employee);
         var outP = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 3, 6,  0), PunchKind.Out, employee);
-        var (pairs, _) = Stage3_PairPunches.Execute([inP, outP], ctx);
+        var (pairs, _) = PunchPairer.Execute([inP, outP], ctx);
 
         Assert.Equal(2, pairs.Count);
         Assert.All(pairs, p => Assert.True(p.IsSplit));
         Assert.Equal(2m, pairs[0].TotalHours);   // 22:00 → midnight = 2 hrs
         Assert.Equal(6m, pairs[1].TotalHours);   // midnight → 06:00 = 6 hrs
 
-        var enriched = Stage4_EnrichPairs.Execute(pairs, ctx);
+        var enriched = PairEnricher.Execute(pairs, ctx);
         Assert.Equal(posA, enriched[0].Position);
         Assert.Equal(15m, enriched[0].Rate);
         Assert.Equal(posB, enriched[1].Position);

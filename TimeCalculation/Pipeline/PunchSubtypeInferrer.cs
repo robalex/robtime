@@ -20,7 +20,7 @@ namespace TimeCalculation.Pipeline;
 /// leave this stage with a resolved (non-null) Subtype; FixedDollar/FixedHours
 /// punches pass through untouched.
 /// </summary>
-public static class Stage2_InferPunchSubtypes
+public static class PunchSubtypeInferrer
 {
     public static IReadOnlyList<Punch> Execute(IReadOnlyList<Punch> punches, PipelineContext ctx)
     {

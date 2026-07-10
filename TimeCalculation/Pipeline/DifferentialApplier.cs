@@ -14,7 +14,7 @@ namespace TimeCalculation.Pipeline;
 ///   Multiplier  → Σ (segmentHours × pairRate × AdjustmentValue)   (rate-weighted per pair)
 ///   FixedBonus  → AdjustmentValue once, when the shift qualifies
 /// </summary>
-public static class Stage8_ApplyDifferentials
+public static class DifferentialApplier
 {
     private const int SecondsPerDay = 86_400;
 

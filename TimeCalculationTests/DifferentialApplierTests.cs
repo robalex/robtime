@@ -6,7 +6,7 @@ using Xunit;
 
 namespace TimeCalculationTests;
 
-public class Stage8_ApplyDifferentialsTests
+public class DifferentialApplierTests
 {
     private readonly Employee _emp = new() { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 15m };
 
@@ -32,7 +32,7 @@ public class Stage8_ApplyDifferentialsTests
     {
         var ctx = TestEntityCreator.CreateContext(employee: _emp);
         var shift = ShiftUtc(9, 17);
-        var result = Stage8_ApplyDifferentials.Execute([shift], ctx);
+        var result = DifferentialApplier.Execute([shift], ctx);
         Assert.Empty(result[0].Differentials);
     }
 
@@ -49,7 +49,7 @@ public class Stage8_ApplyDifferentialsTests
             AdjustmentValue = 2m,
         };
         var shift = ShiftUtc(20, 26); // 20:00 → 02:00 next day
-        var result = Stage8_ApplyDifferentials.Execute([shift], Ctx(_emp, rule));
+        var result = DifferentialApplier.Execute([shift], Ctx(_emp, rule));
 
         Assert.Single(result[0].Differentials);
         var diff = result[0].Differentials[0];
@@ -69,7 +69,7 @@ public class Stage8_ApplyDifferentialsTests
             AdjustmentValue = 0.10m,
         };
         var shift = ShiftUtc(9, 17, rate: 20m);
-        var result = Stage8_ApplyDifferentials.Execute([shift], Ctx(_emp, rule));
+        var result = DifferentialApplier.Execute([shift], Ctx(_emp, rule));
 
         Assert.Equal(8m, result[0].Differentials[0].Hours);
         Assert.Equal(16m, result[0].Differentials[0].Amount);
@@ -89,8 +89,8 @@ public class Stage8_ApplyDifferentialsTests
         var monday = ShiftUtc(9, 17, day: 2);        // Jan 2 2023 = Monday
         var saturday = ShiftUtc(9, 17, day: 7);      // Jan 7 2023 = Saturday
 
-        var mon = Stage8_ApplyDifferentials.Execute([monday], Ctx(_emp, rule));
-        var sat = Stage8_ApplyDifferentials.Execute([saturday], Ctx(_emp, rule));
+        var mon = DifferentialApplier.Execute([monday], Ctx(_emp, rule));
+        var sat = DifferentialApplier.Execute([saturday], Ctx(_emp, rule));
 
         Assert.Empty(mon[0].Differentials);
         Assert.Single(sat[0].Differentials);
@@ -109,8 +109,8 @@ public class Stage8_ApplyDifferentialsTests
         };
         var holidays = new HolidayCalendar([new LocalDate(2023, 1, 2)]);
 
-        var onHoliday = Stage8_ApplyDifferentials.Execute([ShiftUtc(9, 17, day: 2)], Ctx(_emp, rule, holidays));
-        var offHoliday = Stage8_ApplyDifferentials.Execute([ShiftUtc(9, 17, day: 3)], Ctx(_emp, rule, holidays));
+        var onHoliday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 2)], Ctx(_emp, rule, holidays));
+        var offHoliday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 3)], Ctx(_emp, rule, holidays));
 
         Assert.Single(onHoliday[0].Differentials);
         Assert.Equal(50m, onHoliday[0].Differentials[0].Amount);   // fixed bonus once
@@ -131,7 +131,7 @@ public class Stage8_ApplyDifferentialsTests
             MinHoursInWindow = 3m,
         };
         var shift = ShiftUtc(4, 8);   // 04:00–08:00 → only 2 hrs before 06:00
-        var result = Stage8_ApplyDifferentials.Execute([shift], Ctx(_emp, rule));
+        var result = DifferentialApplier.Execute([shift], Ctx(_emp, rule));
 
         Assert.Empty(result[0].Differentials);
     }
@@ -149,7 +149,7 @@ public class Stage8_ApplyDifferentialsTests
             MinHoursInWindow = 3m,
         };
         var shift = ShiftUtc(2, 8);   // 02:00–08:00 → 4 hrs before 06:00
-        var result = Stage8_ApplyDifferentials.Execute([shift], Ctx(_emp, rule));
+        var result = DifferentialApplier.Execute([shift], Ctx(_emp, rule));
 
         Assert.Single(result[0].Differentials);
         Assert.Equal(4m, result[0].Differentials[0].Hours);

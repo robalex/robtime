@@ -23,19 +23,19 @@ public static class PayCalculator
         Func<Shift, IReadOnlyList<OverrideKind>>? overridesForShift = null)
     {
         // Stages 1–6: punches → dated shifts
-        var rounded = Stage1_RoundPunches.Execute(punches, ctx);
-        var subtyped = Stage2_InferPunchSubtypes.Execute(rounded, ctx);
-        var (pairs, fixedEntries) = Stage3_PairPunches.Execute(subtyped, ctx);
-        var enriched = Stage4_EnrichPairs.Execute(pairs, ctx);
-        var shifts = Stage5_BuildShifts.Execute(enriched, fixedEntries, ctx);
-        var dated = Stage6_DateShifts.Execute(shifts, ctx);
+        var rounded = PunchRounder.Execute(punches, ctx);
+        var subtyped = PunchSubtypeInferrer.Execute(rounded, ctx);
+        var (pairs, fixedEntries) = PunchPairer.Execute(subtyped, ctx);
+        var enriched = PairEnricher.Execute(pairs, ctx);
+        var shifts = ShiftBuilder.Execute(enriched, fixedEntries, ctx);
+        var dated = ShiftDater.Execute(shifts, ctx);
 
         // Stage 8: differentials (needed before grouping so the regular rate sees them)
-        var withDiffs = Stage8_ApplyDifferentials.Execute(dated, ctx);
+        var withDiffs = DifferentialApplier.Execute(dated, ctx);
 
         // Stages 9–10: group into days then workweeks
-        var days = Stage9_GroupIntoDays.Execute(withDiffs, ctx);
-        var weeks = Stage10_GroupIntoWeeks.Execute(days, ctx);
+        var days = WorkDayGrouper.Execute(withDiffs, ctx);
+        var weeks = WorkweekGrouper.Execute(days, ctx);
 
         var weekPays = new List<WorkweekPay>(weeks.Count);
         foreach (var week in weeks)
@@ -49,7 +49,7 @@ public static class PayCalculator
 
             // Stage 7: premiums per shift, priced at this week's regular rate
             var weekShifts = week.Days.SelectMany(d => d.Shifts).ToList();
-            var withPremiums = Stage7_ApplyPremiums.Execute(
+            var withPremiums = PremiumApplier.Execute(
                 weekShifts, ctx, _ => regularRate.RegularRate, overridesForShift);
 
             // Stage 13: summarize

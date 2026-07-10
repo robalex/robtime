@@ -9,7 +9,7 @@ namespace TimeCalculation.Pipeline;
 ///   FirstPunchLocalDate  — date of the first In punch in the employee's timezone (default).
 ///   MajorityHoursLocalDate — date on which the majority of worked hours fall.
 /// </summary>
-public static class Stage6_DateShifts
+public static class ShiftDater
 {
     public static IReadOnlyList<Shift> Execute(IReadOnlyList<Shift> shifts, PipelineContext ctx)
         => shifts.Select(s => AssignDate(s, ctx)).ToList();

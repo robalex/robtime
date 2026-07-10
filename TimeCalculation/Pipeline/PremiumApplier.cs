@@ -14,7 +14,7 @@ namespace TimeCalculation.Pipeline;
 /// computed in Stage 11 from earnings that EXCLUDE premiums, so there is no circular dependency; the
 /// orchestrator computes the regular rate first and passes it in via <paramref name="rateForShift"/>.
 /// </summary>
-public static class Stage7_ApplyPremiums
+public static class PremiumApplier
 {
     public static IReadOnlyList<Shift> Execute(
         IReadOnlyList<Shift> shifts,

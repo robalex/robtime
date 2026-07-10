@@ -5,7 +5,7 @@ using Xunit;
 
 namespace TimeCalculationTests;
 
-public class Stage9_GroupIntoDaysTests
+public class WorkDayGrouperTests
 {
     private readonly Employee _emp = new() { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 15m };
 
@@ -22,7 +22,7 @@ public class Stage9_GroupIntoDaysTests
     public void ShiftsOnSameDate_GroupedIntoOneWorkDay()
     {
         var d = new LocalDate(2023, 1, 2);
-        var days = Stage9_GroupIntoDays.Execute(
+        var days = WorkDayGrouper.Execute(
             [ShiftOn(d, 9, 12), ShiftOn(d, 13, 17)], TestEntityCreator.CreateContext(employee: _emp));
 
         Assert.Single(days);
@@ -36,7 +36,7 @@ public class Stage9_GroupIntoDaysTests
     {
         var d1 = new LocalDate(2023, 1, 3);
         var d2 = new LocalDate(2023, 1, 2);
-        var days = Stage9_GroupIntoDays.Execute(
+        var days = WorkDayGrouper.Execute(
             [ShiftOn(d1, 9, 17), ShiftOn(d2, 9, 17)], TestEntityCreator.CreateContext(employee: _emp));
 
         Assert.Equal(2, days.Count);
@@ -47,7 +47,7 @@ public class Stage9_GroupIntoDaysTests
     [Fact]
     public void NoShifts_ProducesNoWorkDays()
     {
-        var days = Stage9_GroupIntoDays.Execute([], TestEntityCreator.CreateContext(employee: _emp));
+        var days = WorkDayGrouper.Execute([], TestEntityCreator.CreateContext(employee: _emp));
         Assert.Empty(days);
     }
 }

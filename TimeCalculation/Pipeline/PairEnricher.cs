@@ -9,7 +9,7 @@ namespace TimeCalculation.Pipeline;
 /// Otherwise the employee's position assignment active at the In time is used.
 /// Falls back to Employee.MinimumWage when no position is found.
 /// </summary>
-public static class Stage4_EnrichPairs
+public static class PairEnricher
 {
     public static IReadOnlyList<PunchPair> Execute(IReadOnlyList<PunchPair> pairs, PipelineContext ctx)
         => pairs.Select(p => Enrich(p, ctx)).ToList();

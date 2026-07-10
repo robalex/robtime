@@ -10,7 +10,7 @@ namespace TimeCalculation.Pipeline;
 /// Clock punches and FixedHours/FixedDollar punches are all rounded if a rule applies.
 /// Downstream stages use Punch.EffectiveTime, which prefers the rounded time.
 /// </summary>
-public static class Stage1_RoundPunches
+public static class PunchRounder
 {
     public static IReadOnlyList<Punch> Execute(IReadOnlyList<Punch> punches, PipelineContext ctx)
         => punches.Select(p => Round(p, ctx)).ToList();

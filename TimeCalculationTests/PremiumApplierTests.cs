@@ -7,7 +7,7 @@ using Xunit;
 
 namespace TimeCalculationTests;
 
-public class Stage7_ApplyPremiumsTests
+public class PremiumApplierTests
 {
     private readonly Employee _emp = new() { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 15m };
 
@@ -30,7 +30,7 @@ public class Stage7_ApplyPremiumsTests
     public void NoActiveCodes_ShiftUnchanged()
     {
         var ctx = TestEntityCreator.CreateContext(employee: _emp);
-        var result = Stage7_ApplyPremiums.Execute([EightHourNoBreaks()], ctx, _ => 20m);
+        var result = PremiumApplier.Execute([EightHourNoBreaks()], ctx, _ => 20m);
         Assert.Empty(result[0].Premiums);
     }
 
@@ -38,7 +38,7 @@ public class Stage7_ApplyPremiumsTests
     public void ActiveMealAndRest_BothViolationsAttached()
     {
         var ctx = CtxWith("CA_MEAL", "CA_REST");
-        var result = Stage7_ApplyPremiums.Execute([EightHourNoBreaks()], ctx, _ => 20m);
+        var result = PremiumApplier.Execute([EightHourNoBreaks()], ctx, _ => 20m);
 
         Assert.Equal(2, result[0].Premiums.Count);
         Assert.Contains(result[0].Premiums, p => p.Code == "CA_MEAL" && p.Amount == 20m);
@@ -49,7 +49,7 @@ public class Stage7_ApplyPremiumsTests
     public void Overrides_WaiveMealButNotRest()
     {
         var ctx = CtxWith("CA_MEAL", "CA_REST");
-        var result = Stage7_ApplyPremiums.Execute(
+        var result = PremiumApplier.Execute(
             [EightHourNoBreaks()], ctx,
             _ => 20m,
             _ => [OverrideKind.SupervisorApproval, OverrideKind.EmployeeWaiver]);

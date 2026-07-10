@@ -14,7 +14,7 @@ namespace TimeCalculation.Pipeline;
 /// configuration groups exactly as expected.  If the anchor itself changes mid-week — a rare
 /// judgment-call case — days are grouped by whichever anchor their own rule specifies.
 /// </summary>
-public static class Stage10_GroupIntoWeeks
+public static class WorkweekGrouper
 {
     public static IReadOnlyList<Workweek> Execute(IReadOnlyList<WorkDay> days, PipelineContext ctx)
     {
