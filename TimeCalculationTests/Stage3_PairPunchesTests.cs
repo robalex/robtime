@@ -1,5 +1,6 @@
 using NodaTime;
 using TimeCalculation.Model;
+using TimeCalculation.Model.PayRules;
 using TimeCalculation.Pipeline;
 using Xunit;
 

@@ -1,3 +1,5 @@
+using TimeCalculation.Model.PayRules;
+
 namespace TimeCalculation.Model;
 
 public record PunchPair

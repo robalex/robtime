@@ -1,5 +1,6 @@
 using NodaTime;
 using TimeCalculation.Model;
+using TimeCalculation.Model.PayRules;
 using TimeCalculation.Pipeline;
 using Xunit;
 
@@ -76,9 +77,10 @@ public class DstTests
         // 1:55 AM EST (06:55 UTC) with 15-min rounding → 2:00 AM, which doesn't exist.
         // Correct result: original Instant + 5 min = 07:00 UTC = 3:00 AM EDT
         var emp   = MakeEmployee(Eastern);
-        var rule  = new PayRule { RoundingStrategy = RoundingStrategy.NearestInterval, RoundingIntervalMinutes = 15 };
-        var ctx   = TestEntityCreator.CreateContext(rule, emp);
-        var punch = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 3, 12, 6, 55), PunchKind.Clock, emp, Eastern);
+        var rounding = new RoundingRule { RoundingStrategy = RoundingStrategy.NearestInterval, RoundingIntervalMinutes = 15 };
+        var rule  = new PayRule();
+        var ctx   = TestEntityCreator.CreateContext(rule, emp, rounding);
+        var punch = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 3, 12, 6, 55), PunchKind.In, emp, Eastern);
 
         var result = Stage1_RoundPunches.Execute([punch], ctx);
 
@@ -92,9 +94,10 @@ public class DstTests
         // Correct: original Instant + 2 min = 06:30 UTC = 1:30 AM EST
         // Bug: InZoneLeniently("1:30 AM Nov 5") picks the pre-transition (EDT) offset → 05:30 UTC
         var emp   = MakeEmployee(Eastern);
-        var rule  = new PayRule { RoundingStrategy = RoundingStrategy.NearestInterval, RoundingIntervalMinutes = 15 };
-        var ctx   = TestEntityCreator.CreateContext(rule, emp);
-        var punch = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 11, 5, 6, 28), PunchKind.Clock, emp, Eastern);
+        var rounding = new RoundingRule { RoundingStrategy = RoundingStrategy.NearestInterval, RoundingIntervalMinutes = 15 };
+        var rule = new PayRule();
+        var ctx   = TestEntityCreator.CreateContext(rule, emp, rounding);
+        var punch = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 11, 5, 6, 28), PunchKind.In, emp, Eastern);
 
         var result = Stage1_RoundPunches.Execute([punch], ctx);
 

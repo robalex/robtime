@@ -10,6 +10,7 @@ public record Punch
     public Instant? RoundedPunchTime { get; init; }
     public string PunchTimeZoneId { get; init; } = "UTC";
     public PunchKind Kind { get; init; }
+    public PunchSubtype? Subtype { get; init; }   // null = infer in Stage 2; non-null = forced
     public int? PositionId { get; init; }
     public decimal? Amount { get; init; }   // FixedDollar amount
     public decimal? Hours { get; init; }    // FixedHours quantity
@@ -24,6 +25,6 @@ public record Punch
     /// <summary>Rounded time when available; raw punch time otherwise.</summary>
     public Instant EffectiveTime => RoundedPunchTime ?? PunchTime;
 
-    public bool IsClockPunch => Kind is PunchKind.Clock or PunchKind.In or PunchKind.Out;
+    public bool IsClockPunch => Kind is PunchKind.In or PunchKind.Out;
     public bool IsFixedEntry => Kind is PunchKind.FixedDollar or PunchKind.FixedHours;
 }

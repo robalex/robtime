@@ -1,5 +1,6 @@
 using NodaTime;
 using TimeCalculation.Model;
+using TimeCalculation.Model.PayRules;
 
 namespace TimeCalculation.Pipeline;
 
@@ -17,13 +18,14 @@ public static class Stage1_RoundPunches
     private static Punch Round(Punch punch, PipelineContext ctx)
     {
         var rule = ctx.GetRuleAt(punch.PunchTime);
-        if (rule.RoundingStrategy == RoundingStrategy.None)
+        var rounding = rule.RoundingRule;
+        if (rounding.RoundingStrategy == RoundingStrategy.None)
             return punch;
 
         var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(punch.PunchTimeZoneId) ?? ctx.EmployeeTimeZone;
         var zonedPunch = punch.PunchTime.InZone(zone);
         var localTime = zonedPunch.TimeOfDay;
-        var roundedLocal = ApplyRounding(localTime, rule);
+        var roundedLocal = ApplyRounding(localTime, rounding);
 
         if (roundedLocal == localTime)
             return punch;
@@ -39,10 +41,10 @@ public static class Stage1_RoundPunches
         return punch with { RoundedPunchTime = rounded };
     }
 
-    private static LocalTime ApplyRounding(LocalTime time, PayRule rule) => rule.RoundingStrategy switch
+    private static LocalTime ApplyRounding(LocalTime time, RoundingRule rounding) => rounding.RoundingStrategy switch
     {
-        RoundingStrategy.NearestInterval => RoundToNearest(time, rule.RoundingIntervalMinutes),
-        RoundingStrategy.QuarterHourWithGrace => RoundWithGrace(time, rule.RoundingIntervalMinutes, rule.RoundingGraceMinutes),
+        RoundingStrategy.NearestInterval => RoundToNearest(time, rounding.RoundingIntervalMinutes),
+        RoundingStrategy.QuarterHourWithGrace => RoundWithGrace(time, rounding.RoundingIntervalMinutes, rounding.RoundingGraceMinutes),
         _ => time
     };
 

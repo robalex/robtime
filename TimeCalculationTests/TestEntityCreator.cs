@@ -1,5 +1,6 @@
 using NodaTime;
 using TimeCalculation.Model;
+using TimeCalculation.Model.PayRules;
 using TimeCalculation.Pipeline;
 
 namespace TimeCalculationTests;
@@ -37,11 +38,13 @@ public static class TestEntityCreator
     public static PipelineContext CreateContext(
         PayRule? payRule = null,
         Employee? employee = null,
+        RoundingRule? roundingRule = null,
         string timeZoneId = "UTC",
         IReadOnlyList<EmployeePositionAssignment>? positions = null)
     {
         employee ??= new Employee { Id = 1, HomeTimeZoneId = timeZoneId, MinimumWage = 15m };
         payRule ??= new PayRule();
+        payRule.RoundingRule = roundingRule ?? new RoundingRule();
         var assignment = new PayRuleAssignment(payRule, new LocalDate(2000, 1, 1));
         return new PipelineContext(employee, [assignment], positions ?? []);
     }

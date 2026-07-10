@@ -1,4 +1,5 @@
 using NodaTime;
+using TimeCalculation.Model.PayRules;
 
 namespace TimeCalculation.Model;
 

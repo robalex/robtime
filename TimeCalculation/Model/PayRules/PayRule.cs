@@ -1,6 +1,6 @@
 using NodaTime;
 
-namespace TimeCalculation.Model;
+namespace TimeCalculation.Model.PayRules;
 
 public class PayRule
 {
@@ -15,10 +15,13 @@ public class PayRule
     public decimal MaxShiftLengthHours { get; set; } = 15;
     public decimal DistanceBetweenShiftsHours { get; set; } = 6;
 
+    // Breaks & lunches — expected durations used by Stage 2 to classify
+    // mid-shift Out→In gaps as Break or Lunch (nearest length wins)
+    public int ExpectedBreakLengthMinutes { get; set; } = 15;
+    public int ExpectedLunchLengthMinutes { get; set; } = 30;
+
     // Rounding
-    public RoundingStrategy RoundingStrategy { get; set; } = RoundingStrategy.None;
-    public int RoundingIntervalMinutes { get; set; } = 15;
-    public int RoundingGraceMinutes { get; set; } = 7;
+    public RoundingRule RoundingRule { get; set; } = new RoundingRule();
 
     // Shift dating
     public ShiftDateStrategy ShiftDateStrategy { get; set; } = ShiftDateStrategy.FirstPunchLocalDate;
@@ -27,9 +30,5 @@ public class PayRule
     public IsoDayOfWeek WorkweekStartDay { get; set; } = IsoDayOfWeek.Sunday;
 
     // Overtime
-    public decimal WeeklyOvertimeThresholdHours { get; set; } = 40;
-    public bool HasDailyOvertime { get; set; }
-    public decimal DailyOvertimeThresholdHours { get; set; } = 8;
-    public decimal DailyDoubletimeThresholdHours { get; set; } = 12;
-    public bool HasSeventhDayRule { get; set; }
+    public OvertimeRule OvertimeRule { get; set; } = new OvertimeRule();
 }
