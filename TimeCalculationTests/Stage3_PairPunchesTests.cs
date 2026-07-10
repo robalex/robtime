@@ -133,4 +133,41 @@ public class Stage3_PairPunchesTests
         Assert.Equal(2m, pairs[0].TotalHours);        // 22:00 → midnight = 2 hrs
         Assert.Equal(6m, pairs[1].TotalHours);        // midnight → 06:00 = 6 hrs
     }
+
+    [Fact]
+    public void PairSpanningPositionBoundary_IsSplitEvenWithSinglePayRule()
+    {
+        // One PayRule for the whole period, but the employee's position changes
+        // mid-shift — the pair must still split at the position boundary so
+        // Stage 4 can attach the correct rate to each half.
+        var rule = new PayRule { Id = 1 };
+        var payRuleAssignments = new[] { new PayRuleAssignment(rule, new LocalDate(2023, 1, 1)) };
+
+        var posA = new Position { Id = 1, BaseRate = 15m, Name = "Server" };
+        var posB = new Position { Id = 2, BaseRate = 20m, Name = "Shift Lead" };
+        var positionAssignments = new[]
+        {
+            new EmployeePositionAssignment(posA, new LocalDate(2023, 1, 1), new LocalDate(2023, 1, 2)),
+            new EmployeePositionAssignment(posB, new LocalDate(2023, 1, 3)),
+        };
+
+        var employee = new Employee { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 15m };
+        var ctx = new PipelineContext(employee, payRuleAssignments, positionAssignments);
+
+        // 22:00 Jan 2 → 06:00 Jan 3 spans the midnight Jan 3 position-change boundary
+        var inP  = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 2, 22, 0), PunchKind.In,  employee);
+        var outP = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 3, 6,  0), PunchKind.Out, employee);
+        var (pairs, _) = Stage3_PairPunches.Execute([inP, outP], ctx);
+
+        Assert.Equal(2, pairs.Count);
+        Assert.All(pairs, p => Assert.True(p.IsSplit));
+        Assert.Equal(2m, pairs[0].TotalHours);   // 22:00 → midnight = 2 hrs
+        Assert.Equal(6m, pairs[1].TotalHours);   // midnight → 06:00 = 6 hrs
+
+        var enriched = Stage4_EnrichPairs.Execute(pairs, ctx);
+        Assert.Equal(posA, enriched[0].Position);
+        Assert.Equal(15m, enriched[0].Rate);
+        Assert.Equal(posB, enriched[1].Position);
+        Assert.Equal(20m, enriched[1].Rate);
+    }
 }

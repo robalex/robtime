@@ -8,10 +8,12 @@ namespace TimeCalculation.Pipeline;
 /// Matches In/Out clock punches into PunchPairs.
 /// FixedDollar/FixedHours punches are separated out rather than paired.
 ///
-/// Splitting: any pair whose time range spans a PayRule effective-date boundary is split
-/// at midnight of the boundary date (in the employee's timezone).  Each resulting sub-pair
-/// carries the PayRule active during its interval, so later stages always see a single rule
-/// per pair without needing to run the whole pipeline again.
+/// Splitting: any pair whose time range spans a PayRule OR EmployeePosition effective-date
+/// boundary is split at midnight of the boundary date (in the employee's timezone).  Each
+/// resulting sub-pair carries the PayRule active during its interval, so later stages always
+/// see a single rule per pair without needing to run the whole pipeline again.  Position/rate
+/// is attached per sub-pair by Stage 4, which now sees a single position per pair for the
+/// same reason.
 ///
 /// Orphan handling:
 ///   • An In with no following Out, An Out with no preceding In, A pair exceeding MaxShiftLengthHours

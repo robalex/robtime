@@ -69,28 +69,32 @@ public class PipelineContext
     }
 
     /// <summary>
-    /// Returns the instants at which a PayRule boundary falls strictly between start and end.
-    /// Used by Stage 3 to split pairs that span a rule change.
+    /// Returns the instants at which a PayRule or EmployeePosition effective-date boundary falls
+    /// strictly between start and end. Used by Stage 3 to split pairs that span a rule or
+    /// position/rate change, so multi-rate weighted calculations downstream never need a pair
+    /// that straddles two different rules or positions.
     /// </summary>
     public IReadOnlyList<Instant> GetBoundaryInstantsBetween(Instant start, Instant end)
     {
-        if (_payRuleAssignments.Count <= 1)
-        {
-            return [];
-        }
-
         var startDate = start.InZone(EmployeeTimeZone).Date;
         var endDate = end.InZone(EmployeeTimeZone).Date;
 
-        List<Instant>? result = null;
+        var boundaryDates = new SortedSet<LocalDate>();
+
         foreach (var a in _payRuleAssignments)
         {
             if (a.EffectiveFrom > startDate && a.EffectiveFrom <= endDate)
-            {
-                result ??= [];
-                result.Add(a.EffectiveFrom.AtMidnight().InZoneLeniently(EmployeeTimeZone).ToInstant());
-            }
+                boundaryDates.Add(a.EffectiveFrom);
         }
-        return result ?? [];
+
+        foreach (var a in _positionAssignments)
+        {
+            if (a.EffectiveFrom > startDate && a.EffectiveFrom <= endDate)
+                boundaryDates.Add(a.EffectiveFrom);
+        }
+
+        return boundaryDates
+            .Select(d => d.AtMidnight().InZoneLeniently(EmployeeTimeZone).ToInstant())
+            .ToList();
     }
 }
