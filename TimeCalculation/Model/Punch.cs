@@ -19,6 +19,11 @@ public record Punch
     public string CreatedBy { get; init; } = string.Empty;
     public bool IsDeleted { get; init; }
 
+    // Idempotency: a clock device that retries a punch sends the same (DeviceId, DevicePunchId);
+    // combined with EmployeeId this is the natural dedup key on ingest.
+    public string? DeviceId { get; init; }
+    public string? DevicePunchId { get; init; }
+
     // Navigation properties — may be null in pure pipeline contexts
     public Employee? Employee { get; init; }
     public Position? Position { get; init; }

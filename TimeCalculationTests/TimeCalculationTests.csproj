@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TimeCalculation\TimeCalculation.csproj" />
+    <ProjectReference Include="..\TimeCalculation.Persistence\TimeCalculation.Persistence.csproj" />
   </ItemGroup>
 
 </Project>
