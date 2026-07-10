@@ -26,6 +26,9 @@ public class PayRule
     // Shift dating
     public ShiftDateStrategy ShiftDateStrategy { get; set; } = ShiftDateStrategy.FirstPunchLocalDate;
 
+    // State-specific premium rule codes active for this client (resolved via PremiumRegistry)
+    public IReadOnlySet<string> ActivePremiumCodes { get; set; } = new HashSet<string>();
+
     // Workweek definition (FLSA-required consistent 168-hr window)
     public IsoDayOfWeek WorkweekStartDay { get; set; } = IsoDayOfWeek.Sunday;
 
