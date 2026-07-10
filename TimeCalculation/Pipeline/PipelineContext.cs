@@ -16,16 +16,22 @@ public class PipelineContext
 
     public Employee Employee { get; }
     public DateTimeZone EmployeeTimeZone { get; }
+    public IReadOnlyList<DifferentialRule> DifferentialRules { get; }
+    public HolidayCalendar? HolidayCalendar { get; }
 
     public PipelineContext(
         Employee employee,
         IReadOnlyList<PayRuleAssignment> payRuleAssignments,
-        IReadOnlyList<EmployeePositionAssignment> positionAssignments)
+        IReadOnlyList<EmployeePositionAssignment> positionAssignments,
+        IReadOnlyList<DifferentialRule>? differentialRules = null,
+        HolidayCalendar? holidayCalendar = null)
     {
         Employee = employee;
         EmployeeTimeZone = DateTimeZoneProviders.Tzdb[employee.HomeTimeZoneId];
         _payRuleAssignments = payRuleAssignments.OrderBy(a => a.EffectiveFrom).ToList();
         _positionAssignments = positionAssignments.OrderBy(a => a.EffectiveFrom).ToList();
+        DifferentialRules = differentialRules ?? [];
+        HolidayCalendar = holidayCalendar;
     }
 
     /// <summary>Returns the PayRule active at the given instant in the employee's timezone.</summary>
