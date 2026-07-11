@@ -45,6 +45,42 @@ public class PremiumApplierTests
         Assert.Contains(result[0].Premiums, p => p.Code == "CA_REST" && p.Amount == 20m);
     }
 
+    private Shift NoMealShift(LocalDate date, int startHour, int hours)
+    {
+        var start = date.AtMidnight().InUtc().ToInstant() + Duration.FromHours(startHour);
+        var inP  = TestEntityCreator.CreateTestPunch(start, PunchKind.In, _emp);
+        var outP = TestEntityCreator.CreateTestPunch(start + Duration.FromHours(hours), PunchKind.Out, _emp);
+        return new Shift { ShiftDate = date, PunchPairs = [new PunchPair { InPunch = inP, OutPunch = outP, Rate = 20m }] };
+    }
+
+    [Fact]
+    public void MealPremium_CappedToOnePerWorkday_AcrossSplitShifts()
+    {
+        var date = new LocalDate(2023, 1, 2);
+        // Split-shift day: two shifts, both >5h with no meal → two violations, but only one premium owed
+        var shifts = new[] { NoMealShift(date, 6, 8), NoMealShift(date, 18, 6) };
+        var result = PremiumApplier.Execute(shifts, CtxWith("CA_MEAL"), _ => 20m);
+
+        var mealPremiums = result.SelectMany(s => s.Premiums).Where(p => p.Code == "CA_MEAL").ToList();
+        Assert.Equal(2, mealPremiums.Count(p => p.Violated));   // both violations recorded for audit
+        var paid = Assert.Single(mealPremiums, p => p.IsPaid);   // but only one is paid
+        Assert.Equal(20m, paid.Amount);
+    }
+
+    [Fact]
+    public void MealPremium_OnDifferentDays_EachPaid()
+    {
+        // The cap is per workday, not global — two single-shift days each owe a premium
+        var shifts = new[]
+        {
+            NoMealShift(new LocalDate(2023, 1, 2), 9, 8),
+            NoMealShift(new LocalDate(2023, 1, 3), 9, 8),
+        };
+        var result = PremiumApplier.Execute(shifts, CtxWith("CA_MEAL"), _ => 20m);
+
+        Assert.Equal(2, result.SelectMany(s => s.Premiums).Count(p => p.Code == "CA_MEAL" && p.IsPaid));
+    }
+
     [Fact]
     public void Overrides_WaiveMealButNotRest()
     {

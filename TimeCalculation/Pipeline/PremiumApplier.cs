@@ -1,3 +1,4 @@
+using NodaTime;
 using TimeCalculation.Calculation.Premiums;
 using TimeCalculation.Model;
 using TimeCalculation.Model.Premiums;
@@ -13,6 +14,11 @@ namespace TimeCalculation.Pipeline;
 /// Premiums are "one hour at the regular rate", so the regular rate must be supplied per shift — it is
 /// computed in Stage 11 from earnings that EXCLUDE premiums, so there is no circular dependency; the
 /// orchestrator computes the regular rate first and passes it in via <paramref name="rateForShift"/>.
+///
+/// Per-workday cap: the statutory premium is owed once per workday per category, but a workday can
+/// hold more than one shift (split shifts). After computing per-shift results, a second pass keeps at
+/// most one PAID premium per (ShiftDate, code); later duplicates that day are demoted to a zero-amount
+/// result that still records the violation for audit.
 /// </summary>
 public static class PremiumApplier
 {
@@ -22,7 +28,7 @@ public static class PremiumApplier
         Func<Shift, decimal> rateForShift,
         Func<Shift, IReadOnlyList<OverrideKind>>? overridesForShift = null)
     {
-        return shifts.Select(shift =>
+        var applied = shifts.Select(shift =>
         {
             var rule = ctx.GetRuleAt(FirstInstant(shift));
             if (rule.ActivePremiumCodes.Count == 0)
@@ -41,6 +47,38 @@ public static class PremiumApplier
                 .ToList();
 
             return results.Count == 0 ? shift : shift with { Premiums = results };
+        }).ToList();
+
+        return CapPerWorkday(applied);
+    }
+
+    // Keeps at most one paid premium per (ShiftDate, code); the first paid one (in shift order) wins,
+    // later ones that day are zeroed but retained (Violated = true) so the audit trail is complete.
+    private static IReadOnlyList<Shift> CapPerWorkday(IReadOnlyList<Shift> shifts)
+    {
+        var paidSeen = new HashSet<(LocalDate, string)>();
+
+        return shifts.Select(shift =>
+        {
+            if (shift.Premiums.Count == 0) return shift;
+
+            bool changed = false;
+            var capped = shift.Premiums.Select(p =>
+            {
+                if (p.IsPaid && !paidSeen.Add((shift.ShiftDate, p.Code)))
+                {
+                    changed = true;
+                    return p with
+                    {
+                        Hours = 0m,
+                        Amount = 0m,
+                        Explanation = $"{p.Explanation} Capped: one {p.Code} premium per workday.",
+                    };
+                }
+                return p;
+            }).ToList();
+
+            return changed ? shift with { Premiums = capped } : shift;
         }).ToList();
     }
 
