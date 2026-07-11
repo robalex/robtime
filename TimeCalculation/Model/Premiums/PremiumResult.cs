@@ -1,3 +1,5 @@
+using NodaTime;
+
 namespace TimeCalculation.Model.Premiums;
 
 /// <summary>
@@ -13,6 +15,16 @@ public record PremiumResult
     public bool Violated { get; init; }        // a violation was detected
     public bool Waived { get; init; }          // detected but waived by override
     public string Explanation { get; init; } = string.Empty;
+
+    /// <summary>How this premium may be waived — lets a UI decide whether to offer a waive control,
+    /// and whether it needs supervisor, employee, or both.</summary>
+    public WaiverPolicy WaiverPolicy { get; init; }
+
+    // Stable per-shift identity: (AnchorPunchId, Code) survives recomputation so a recorded override
+    // can be matched back to the same premium. Do NOT key on (ShiftDate, Code) — that is the per-day
+    // cap key and is ambiguous when a workday has multiple shifts. ShiftDate is here for display/grouping.
+    public int AnchorPunchId { get; init; }
+    public LocalDate ShiftDate { get; init; }
 
     public bool IsPaid => Amount > 0;
 }

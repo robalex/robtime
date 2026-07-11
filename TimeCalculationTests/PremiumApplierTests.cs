@@ -45,10 +45,10 @@ public class PremiumApplierTests
         Assert.Contains(result[0].Premiums, p => p.Code == "CA_REST" && p.Amount == 20m);
     }
 
-    private Shift NoMealShift(LocalDate date, int startHour, int hours)
+    private Shift NoMealShift(LocalDate date, int startHour, int hours, int anchorId = 0)
     {
         var start = date.AtMidnight().InUtc().ToInstant() + Duration.FromHours(startHour);
-        var inP  = TestEntityCreator.CreateTestPunch(start, PunchKind.In, _emp);
+        var inP  = TestEntityCreator.CreateTestPunch(start, PunchKind.In, _emp) with { Id = anchorId };
         var outP = TestEntityCreator.CreateTestPunch(start + Duration.FromHours(hours), PunchKind.Out, _emp);
         return new Shift { ShiftDate = date, PunchPairs = [new PunchPair { InPunch = inP, OutPunch = outP, Rate = 20m }] };
     }
@@ -80,6 +80,49 @@ public class PremiumApplierTests
 
         Assert.Equal(2, result.SelectMany(s => s.Premiums).Count(p => p.Code == "CA_MEAL" && p.IsPaid));
     }
+
+    [Fact]
+    public void WaivingThePaidPremium_MovesChargeToOtherShiftSameDay()
+    {
+        var date = new LocalDate(2023, 1, 2);
+        var morning = NoMealShift(date, 6, 8, anchorId: 101);
+        var evening = NoMealShift(date, 18, 6, anchorId: 202);
+        var ctx = CtxWith("CA_MEAL");
+
+        // Baseline: the morning shift (first) carries the single paid premium
+        var baseline = PremiumApplier.Execute([morning, evening], ctx, _ => 20m);
+        Assert.Equal(101, PaidMeal(baseline).AnchorPunchId);
+
+        // Waive the morning meal premium (CA meal needs supervisor AND employee)
+        var waived = PremiumApplier.Execute([morning, evening], ctx, _ => 20m,
+            s => s.PunchPairs[0].InPunch!.Id == 101
+                ? [OverrideKind.SupervisorApproval, OverrideKind.EmployeeWaiver]
+                : []);
+
+        // The charge moves to the evening shift; the morning is waived (still one premium that day)
+        Assert.Equal(202, PaidMeal(waived).AnchorPunchId);
+        var meals = waived.SelectMany(s => s.Premiums).Where(p => p.Code == "CA_MEAL").ToList();
+        Assert.Contains(meals, p => p.Waived && p.AnchorPunchId == 101);
+    }
+
+    [Fact]
+    public void PremiumResult_SurfacesWaiverPolicyAndIdentity()
+    {
+        var ctx = CtxWith("CA_MEAL", "CA_REST");
+        var shift = NoMealShift(new LocalDate(2023, 1, 2), 9, 8, anchorId: 55);
+        var result = PremiumApplier.Execute([shift], ctx, _ => 20m);
+
+        var meal = result[0].Premiums.Single(p => p.Code == "CA_MEAL");
+        var rest = result[0].Premiums.Single(p => p.Code == "CA_REST");
+
+        Assert.Equal(WaiverPolicy.BothRequired, meal.WaiverPolicy);   // UI: show a "needs both" waive control
+        Assert.Equal(WaiverPolicy.NotWaivable, rest.WaiverPolicy);    // UI: no waive control
+        Assert.Equal(55, meal.AnchorPunchId);                         // stable identity for override round-trip
+        Assert.Equal(new LocalDate(2023, 1, 2), meal.ShiftDate);
+    }
+
+    private static PremiumResult PaidMeal(IReadOnlyList<Shift> shifts) =>
+        shifts.SelectMany(s => s.Premiums).Single(p => p.Code == "CA_MEAL" && p.IsPaid);
 
     [Fact]
     public void Overrides_WaiveMealButNotRest()

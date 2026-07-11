@@ -18,7 +18,7 @@ public abstract class PremiumRuleBase : IPremiumRule
         PremiumContext ctx, bool violated, decimal hours, decimal rate, string violatedMsg, string okMsg)
     {
         if (!violated)
-            return new PremiumResult { Code = Code, Violated = false, Explanation = okMsg };
+            return new PremiumResult { Code = Code, Violated = false, WaiverPolicy = WaiverPolicy, Explanation = okMsg };
 
         bool waived = WaiverEvaluator.IsWaived(WaiverPolicy, ctx.Overrides);
 
@@ -27,6 +27,7 @@ public abstract class PremiumRuleBase : IPremiumRule
             Code = Code,
             Violated = true,
             Waived = waived,
+            WaiverPolicy = WaiverPolicy,
             Hours = waived ? 0 : hours,
             Amount = waived ? 0 : hours * rate,
             Explanation = waived ? $"{violatedMsg} — waived by override." : violatedMsg,

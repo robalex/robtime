@@ -41,9 +41,14 @@ public static class PremiumApplier
                 Overrides = overridesForShift?.Invoke(shift) ?? [],
             };
 
+            var anchorId = AnchorPunchId(shift);
             var results = rules
                 .Where(r => r.Applies(shift, premiumCtx))
-                .Select(r => r.Calculate(shift, premiumCtx))
+                .Select(r => r.Calculate(shift, premiumCtx) with
+                {
+                    AnchorPunchId = anchorId,
+                    ShiftDate = shift.ShiftDate,
+                })
                 .ToList();
 
             return results.Count == 0 ? shift : shift with { Premiums = results };
@@ -88,4 +93,12 @@ public static class PremiumApplier
             .Select(p => p.InPunch!.EffectiveTime)
             .DefaultIfEmpty(shift.ShiftDate.AtMidnight().InUtc().ToInstant())
             .Min();
+
+    // The Id of the shift's earliest In punch — anchors a stable (AnchorPunchId, Code) premium identity.
+    private static int AnchorPunchId(Shift shift) =>
+        shift.PunchPairs
+            .Where(p => p.HasInPunch)
+            .OrderBy(p => p.InPunch!.EffectiveTime)
+            .Select(p => p.InPunch!.Id)
+            .FirstOrDefault();
 }
