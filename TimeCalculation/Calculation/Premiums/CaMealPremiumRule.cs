@@ -25,7 +25,8 @@ public class CaMealPremiumRule : PremiumRuleBase
         int required = a.WorkedHours > 10m ? 2 : a.WorkedHours > 5m ? 1 : 0;
 
         bool firstMealOk = a.HasQualifyingMeal(30m, byWorkedHour: 5m);
-        bool secondMealOk = a.QualifyingMealCount(30m) >= 2;
+        // Second meal must itself begin by the end of the 10th hour — a late second meal is a violation.
+        bool secondMealOk = a.QualifyingMealCount(30m, byWorkedHour: 10m) >= 2;
 
         bool violated = (required >= 1 && !firstMealOk) || (required >= 2 && !secondMealOk);
 

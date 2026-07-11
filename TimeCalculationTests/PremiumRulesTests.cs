@@ -69,6 +69,25 @@ public class PremiumRulesTests
     }
 
     [Fact]
+    public void CaMeal_TwelveHourShift_BothMealsTimely_NoPremium()
+    {
+        // 12h: 1st lunch begins at worked-hour 4, 2nd at worked-hour 9 (both within window)
+        var shift = Build([4m, 5m, 3m], (30m, PunchSubtype.Lunch), (30m, PunchSubtype.Lunch));
+        var r = new CaMealPremiumRule().Calculate(shift, Ctx);
+        Assert.False(r.Violated);
+    }
+
+    [Fact]
+    public void CaMeal_TwelveHourShift_LateSecondMeal_Violated()
+    {
+        // 12h: 1st lunch at worked-hour 4 (ok), 2nd at worked-hour 11 (past the 10th hour) → violation
+        var shift = Build([4m, 7m, 1m], (30m, PunchSubtype.Lunch), (30m, PunchSubtype.Lunch));
+        var r = new CaMealPremiumRule().Calculate(shift, Ctx);
+        Assert.True(r.Violated);
+        Assert.Equal(1m, r.Hours);   // still capped at one hour per day
+    }
+
+    [Fact]
     public void CaMeal_BothOverrides_Waived()
     {
         var shift = Build([8m]);

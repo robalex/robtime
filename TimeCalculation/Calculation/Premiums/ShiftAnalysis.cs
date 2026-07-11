@@ -55,8 +55,12 @@ public record ShiftAnalysis
                       && g.DurationMinutes >= minMinutes
                       && g.WorkedHoursBefore <= byWorkedHour);
 
-    public int QualifyingMealCount(decimal minMinutes) =>
-        Gaps.Count(g => g.Subtype == PunchSubtype.Lunch && g.DurationMinutes >= minMinutes);
+    /// <summary>Count of qualifying Lunch gaps that began no later than <paramref name="byWorkedHour"/>
+    /// hours into the shift (default: no window — count them all).</summary>
+    public int QualifyingMealCount(decimal minMinutes, decimal byWorkedHour = decimal.MaxValue) =>
+        Gaps.Count(g => g.Subtype == PunchSubtype.Lunch
+                        && g.DurationMinutes >= minMinutes
+                        && g.WorkedHoursBefore <= byWorkedHour);
 
     public int RestBreakCount() => Gaps.Count(g => g.Subtype == PunchSubtype.Break);
 }
