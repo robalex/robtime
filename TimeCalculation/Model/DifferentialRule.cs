@@ -33,5 +33,13 @@ public class DifferentialRule
     /// <summary>Minimum hours worked inside the window (across the shift) to earn the differential.</summary>
     public decimal MinHoursInWindow { get; set; }
 
+    // ── Stacking ──
+    /// <summary>
+    /// Optional exclusivity group.  Differentials sharing the same non-empty group are mutually
+    /// exclusive on a shift — only the highest-amount one applies.  Null/empty (the default) means
+    /// the differential always stacks with every other differential (e.g. overnight + holiday both pay).
+    /// </summary>
+    public string? ExclusivityGroup { get; set; }
+
     public bool IsAllDay => WindowStart == WindowEnd;
 }

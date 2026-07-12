@@ -13,6 +13,10 @@ namespace TimeCalculation.Pipeline;
 ///   FlatPerHour → qualifyingHours × AdjustmentValue
 ///   Multiplier  → Σ (segmentHours × pairRate × AdjustmentValue)   (rate-weighted per pair)
 ///   FixedBonus  → AdjustmentValue once, when the shift qualifies
+///
+/// Stacking: qualifying differentials stack additively by default.  Rules that share a non-empty
+/// DifferentialRule.ExclusivityGroup are mutually exclusive — only the highest-amount one in the
+/// group applies to the shift (ties broken by Code for determinism).
 /// </summary>
 public static class DifferentialApplier
 {
@@ -26,7 +30,7 @@ public static class DifferentialApplier
 
     private static Shift Apply(Shift shift, PipelineContext ctx)
     {
-        var applied = new List<AppliedDifferential>();
+        var candidates = new List<(DifferentialRule Rule, AppliedDifferential Applied)>();
 
         foreach (var rule in ctx.DifferentialRules)
         {
@@ -60,16 +64,41 @@ public static class DifferentialApplier
                 ? rule.AdjustmentValue
                 : perHourAmount;
 
-            applied.Add(new AppliedDifferential
+            candidates.Add((rule, new AppliedDifferential
             {
                 Code = rule.Code,
                 Hours = qualifyingHours,
                 Amount = amount,
                 AdjustmentType = rule.AdjustmentType,
-            });
+            }));
         }
 
+        var applied = ResolveExclusivity(candidates);
         return applied.Count == 0 ? shift : shift with { Differentials = applied };
+    }
+
+    // Ungrouped differentials all apply; within each exclusivity group only the highest-amount
+    // one survives (ties broken by Code). Original evaluation order is preserved.
+    private static List<AppliedDifferential> ResolveExclusivity(
+        List<(DifferentialRule Rule, AppliedDifferential Applied)> candidates)
+    {
+        var winningGroupCodes = candidates
+            .Where(c => !string.IsNullOrEmpty(c.Rule.ExclusivityGroup))
+            .GroupBy(c => c.Rule.ExclusivityGroup)
+            .Select(g => g
+                .OrderByDescending(c => c.Applied.Amount)
+                .ThenBy(c => c.Rule.Code, StringComparer.Ordinal)
+                .First().Rule.Code)
+            .ToHashSet();
+
+        var result = new List<AppliedDifferential>();
+        foreach (var (rule, applied) in candidates)
+        {
+            bool grouped = !string.IsNullOrEmpty(rule.ExclusivityGroup);
+            if (!grouped || winningGroupCodes.Contains(rule.Code))
+                result.Add(applied);
+        }
+        return result;
     }
 
     private static bool RuleAppliesOn(DifferentialRule rule, LocalDate date, PipelineContext ctx)

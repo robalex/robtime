@@ -154,4 +154,67 @@ public class DifferentialApplierTests
         Assert.Single(result[0].Differentials);
         Assert.Equal(4m, result[0].Differentials[0].Hours);
     }
+
+    // ── Stacking ──
+
+    private static PipelineContext CtxRules(Employee emp, IReadOnlyList<DifferentialRule> rules, HolidayCalendar? holidays = null)
+        => new(emp, [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], [], rules, holidays);
+
+    [Fact]
+    public void OvernightAndHoliday_Stack_ByDefault()
+    {
+        // Shift 22:00 (a holiday) → 02:00 next day. Holiday diff pays for hours on the holiday
+        // date (22:00–24:00 = 2h); overnight diff pays for the whole 22:00–06:00 window (4h).
+        // With no exclusivity group they stack — overlapping 22:00–24:00 hours earn both.
+        var holiday = new DifferentialRule
+        {
+            Code = "HOLIDAY", HolidaysOnly = true,
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour, AdjustmentValue = 5m,
+        };
+        var overnight = new DifferentialRule
+        {
+            Code = "NIGHT", WindowStart = new LocalTime(22, 0), WindowEnd = new LocalTime(6, 0),
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour, AdjustmentValue = 3m,
+        };
+        var holidays = new HolidayCalendar([new LocalDate(2023, 1, 2)]);
+        var ctx = CtxRules(_emp, [holiday, overnight], holidays);
+
+        var diffs = DifferentialApplier.Execute([ShiftUtc(22, 26, day: 2)], ctx)[0].Differentials;
+
+        Assert.Equal(2, diffs.Count);
+        Assert.Equal(10m, diffs.Single(d => d.Code == "HOLIDAY").Amount);   // 2h × $5
+        Assert.Equal(12m, diffs.Single(d => d.Code == "NIGHT").Amount);     // 4h × $3
+    }
+
+    [Fact]
+    public void SameExclusivityGroup_OnlyHighestApplies()
+    {
+        // Two all-day flat differentials in one group on an 8-hr shift → only the higher ($5) applies
+        var low  = new DifferentialRule { Code = "LOW",  ExclusivityGroup = "premium",
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour, AdjustmentValue = 2m };
+        var high = new DifferentialRule { Code = "HIGH", ExclusivityGroup = "premium",
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour, AdjustmentValue = 5m };
+        var ctx = CtxRules(_emp, [low, high]);
+
+        var diffs = DifferentialApplier.Execute([ShiftUtc(9, 17)], ctx)[0].Differentials;
+
+        Assert.Single(diffs);
+        Assert.Equal("HIGH", diffs[0].Code);
+        Assert.Equal(40m, diffs[0].Amount);   // 8h × $5
+    }
+
+    [Fact]
+    public void DifferentGroups_StillStack()
+    {
+        // Same two rules, but different (or absent) groups → both apply
+        var a = new DifferentialRule { Code = "A", ExclusivityGroup = "g1",
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour, AdjustmentValue = 2m };
+        var b = new DifferentialRule { Code = "B", ExclusivityGroup = "g2",
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour, AdjustmentValue = 5m };
+        var ctx = CtxRules(_emp, [a, b]);
+
+        var diffs = DifferentialApplier.Execute([ShiftUtc(9, 17)], ctx)[0].Differentials;
+
+        Assert.Equal(2, diffs.Count);
+    }
 }
