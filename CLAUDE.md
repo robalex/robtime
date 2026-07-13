@@ -88,4 +88,10 @@ the plan's 13-stage design (see `PLAN.md`).
 Tests use xunit.v3. `TestEntityCreator` is the shared factory for `Punch`/`PunchPair` test objects
 and `PipelineContext`. NodaTime `Instant.FromUtc(...)` constructs punch times throughout. Beyond
 per-stage tests, `PropertyBasedTests` assert purity/idempotency/invariants over seeded random inputs,
-and `RecordedScenarioTests` pin end-to-end pay against hand-computed expected values.
+`RecordedScenarioTests` pin end-to-end pay against hand-computed expected values, and
+`EndToEndTests` is the broader confidence suite — one test per feature area (pairing/orphans,
+overtime, effective dating, rounding, subtype-driven premiums, differentials, all six state
+premiums, DST, retroactive bonus), always starting from raw `Punch`es through `PayCalculator.Calculate`.
+It's what found three real crash bugs (`PairEnricher`/`ShiftBuilder`/`ShiftDater` all
+unconditionally dereferenced `PunchPair.InPunch`, which is null for an orphan Out) that no
+per-stage unit test caught, because none of them chained stages together.

@@ -16,23 +16,24 @@ public static class ShiftDater
 
     private static Shift AssignDate(Shift shift, PipelineContext ctx)
     {
-        var firstIn = shift.PunchPairs
-            .OrderBy(p => p.InPunch.EffectiveTime)
-            .FirstOrDefault()?.InPunch;
+        var firstPair = shift.PunchPairs.OrderBy(AnchorTime).FirstOrDefault();
+        if (firstPair is null) return shift;
 
-        if (firstIn is null) return shift;
-
-        var rule = ctx.GetRuleAt(firstIn.EffectiveTime);
+        var firstTime = AnchorTime(firstPair);
+        var rule = ctx.GetRuleAt(firstTime);
 
         var date = rule.ShiftDateStrategy switch
         {
             ShiftDateStrategy.LastPunchLocalDate    => GetLastPunchDate(shift, ctx),
             ShiftDateStrategy.MajorityHoursLocalDate => GetMajorityHoursDate(shift, ctx),
-            _                                       => firstIn.EffectiveTime.InZone(ctx.EmployeeTimeZone).Date,
+            _                                       => firstTime.InZone(ctx.EmployeeTimeZone).Date,
         };
 
         return shift with { ShiftDate = date };
     }
+
+    // A pair's own anchor time: its In, or its Out when it's an orphan Out with no In.
+    private static Instant AnchorTime(PunchPair pair) => pair.InPunch?.EffectiveTime ?? pair.OutPunch!.EffectiveTime;
 
     private static LocalDate GetLastPunchDate(Shift shift, PipelineContext ctx)
     {
@@ -48,17 +49,19 @@ public static class ShiftDater
     {
         var hoursByDate = new Dictionary<LocalDate, decimal>();
 
-        foreach (var pair in shift.PunchPairs.Where(p => p.OutPunch is not null))
+        // Only complete pairs (both In and Out) have hours to apportion; an orphan pair (only one
+        // of the two present, e.g. IsMissingPunch) contributes no worked time either way.
+        foreach (var pair in shift.PunchPairs.Where(p => !p.IsMissingPunch))
         {
             foreach (var (date, hours) in ApportionByDate(
-                pair.InPunch.EffectiveTime, pair.OutPunch!.EffectiveTime, ctx))
+                pair.InPunch!.EffectiveTime, pair.OutPunch!.EffectiveTime, ctx))
             {
                 hoursByDate[date] = hoursByDate.GetValueOrDefault(date) + hours;
             }
         }
 
         if (hoursByDate.Count == 0)
-            return shift.PunchPairs.First().InPunch.EffectiveTime.InZone(ctx.EmployeeTimeZone).Date;
+            return AnchorTime(shift.PunchPairs.First()).InZone(ctx.EmployeeTimeZone).Date;
 
         return hoursByDate.MaxBy(kv => kv.Value).Key;
     }

@@ -44,6 +44,23 @@ public class PairEnricherTests
     }
 
     [Fact]
+    public void OrphanOutPair_NoInPunch_DoesNotCrash_UsesOutPunchForResolution()
+    {
+        // Regression: AttachPositionAndRateToPunchPair used to unconditionally dereference
+        // pair.InPunch, throwing a NullReferenceException for an orphan Out (In with no Out is
+        // fine — only the reverse, an Out with no In, has a null InPunch).
+        var position = new Position { Id = 10, BaseRate = 20m, Name = "Cook" };
+        var assignments = new[] { new EmployeePositionAssignment(position, new LocalDate(2023, 1, 1)) };
+        var ctx = TestEntityCreator.CreateContext(employee: _emp, positions: assignments);
+        var orphanOut = TestEntityCreator.CreateTestPunchPair(null, TestEntityCreator.CreateTestPunch(At(17), PunchKind.Out, _emp));
+
+        var result = PairEnricher.AttachPositionAndRateToPunchPairs([orphanOut], ctx);
+
+        Assert.Equal(position, result[0].Position);
+        Assert.Equal(20m, result[0].Rate);
+    }
+
+    [Fact]
     public void PunchPositionIdOverride_UsesOverridePosition()
     {
         var defaultPos = new Position { Id = 1, BaseRate = 15m, Name = "Server" };

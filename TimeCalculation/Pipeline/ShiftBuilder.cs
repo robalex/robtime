@@ -17,6 +17,9 @@ namespace TimeCalculation.Pipeline;
 ///
 /// FixedDollar/FixedHours entries are attached to the nearest shift by punch time.
 /// If no shifts exist, they are returned as standalone single-entry shifts.
+///
+/// An orphan Out (no In) is ordered and gapped by its own Out time (AnchorTime below) — it still
+/// needs a well-defined position in the sequence even though it isn't "hours worked."
 /// </summary>
 public static class ShiftBuilder
 {
@@ -34,7 +37,7 @@ public static class ShiftBuilder
         var shifts = new List<Shift>();
         var currentPairs = new List<PunchPair>();
 
-        foreach (var pair in pairs.OrderBy(p => p.InPunch.EffectiveTime))
+        foreach (var pair in pairs.OrderBy(AnchorTime))
         {
             if (currentPairs.Count == 0)
             {
@@ -43,10 +46,10 @@ public static class ShiftBuilder
             }
 
             var lastOut = currentPairs.Last().OutPunch;
-            var rule = ctx.GetRuleAt(lastOut?.EffectiveTime ?? pair.InPunch.EffectiveTime);
+            var rule = ctx.GetRuleAt(lastOut?.EffectiveTime ?? AnchorTime(pair));
 
             var gapHours = lastOut is null ? decimal.MaxValue
-                : (decimal)(pair.InPunch.EffectiveTime - lastOut.EffectiveTime).TotalHours;
+                : (decimal)(AnchorTime(pair) - lastOut.EffectiveTime).TotalHours;
 
             if (gapHours > rule.DistanceBetweenShiftsHours)
             {
@@ -64,6 +67,10 @@ public static class ShiftBuilder
 
         return shifts;
     }
+
+    // A pair's own anchor time for ordering/gap purposes: its In, or its Out when it's an orphan
+    // Out with no In. A PunchPair always has at least one of the two set.
+    private static Instant AnchorTime(PunchPair pair) => pair.InPunch?.EffectiveTime ?? pair.OutPunch!.EffectiveTime;
 
     private static IReadOnlyList<Shift> AttachFixedEntries(List<Shift> shifts, IReadOnlyList<Punch> fixedEntries)
     {
@@ -101,7 +108,7 @@ public static class ShiftBuilder
     {
         var first = shift.PunchPairs[0];
         var last = shift.PunchPairs[^1];
-        var start = first.InPunch?.EffectiveTime ?? first.OutPunch!.EffectiveTime;
+        var start = AnchorTime(first);
         var end = last.OutPunch?.EffectiveTime ?? last.InPunch!.EffectiveTime;
         return (start, end);
     }

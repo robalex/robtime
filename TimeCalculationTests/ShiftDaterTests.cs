@@ -108,6 +108,36 @@ public class ShiftDaterTests
     }
 
     [Fact]
+    public void FirstPunchLocalDate_OrphanOutPair_NoInPunch_DoesNotCrash()
+    {
+        // Regression: AssignDate used to unconditionally dereference p.InPunch while ordering
+        // pairs, throwing a NullReferenceException for an orphan Out (Out with no In).
+        var rule = new PayRule { ShiftDateStrategy = ShiftDateStrategy.FirstPunchLocalDate };
+        var ctx  = TestEntityCreator.CreateContext(rule);
+        var outP = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 2, 17, 0), PunchKind.Out, _emp);
+        var shift = new Shift { PunchPairs = [TestEntityCreator.CreateTestPunchPair(null, outP)] };
+
+        var result = ShiftDater.AssignDatesToShifts([shift], ctx);
+
+        Assert.Equal(new LocalDate(2023, 1, 2), result[0].ShiftDate);
+    }
+
+    [Fact]
+    public void MajorityHoursLocalDate_ShiftWithOnlyOrphanPairs_FallsBackWithoutCrashing()
+    {
+        // Regression: GetMajorityHoursDate's filter checked only OutPunch != null (true for an
+        // orphan Out too), then dereferenced InPunch unconditionally inside the loop.
+        var rule = new PayRule { ShiftDateStrategy = ShiftDateStrategy.MajorityHoursLocalDate };
+        var ctx  = TestEntityCreator.CreateContext(rule);
+        var outP = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 2, 17, 0), PunchKind.Out, _emp);
+        var shift = new Shift { PunchPairs = [TestEntityCreator.CreateTestPunchPair(null, outP)] };
+
+        var result = ShiftDater.AssignDatesToShifts([shift], ctx);
+
+        Assert.Equal(new LocalDate(2023, 1, 2), result[0].ShiftDate);
+    }
+
+    [Fact]
     public void EmptyInput_ReturnsEmpty()
     {
         var ctx    = TestEntityCreator.CreateContext();

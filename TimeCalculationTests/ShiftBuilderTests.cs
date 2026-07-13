@@ -136,6 +136,24 @@ public class ShiftBuilderTests
     }
 
     [Fact]
+    public void OrphanOutPair_AmongCompletePairs_DoesNotCrash()
+    {
+        // Regression: BuildFromPairs used to unconditionally dereference pair.InPunch when
+        // ordering/gapping, throwing a NullReferenceException for an orphan Out (Out with no In).
+        // The orphan sits far enough from both real shifts to become its own (unpaid) shift.
+        var ctx = TestEntityCreator.CreateContext();
+        var pair1 = MakePair(At(0, 9), At(0, 13));
+        var orphanOut = TestEntityCreator.CreateTestPunchPair(null,
+            TestEntityCreator.CreateTestPunch(At(1, 3), PunchKind.Out, _emp));
+        var pair2 = MakePair(At(2, 9), At(2, 13));
+
+        var result = ShiftBuilder.BuildShifts([pair1, orphanOut, pair2], [], ctx);
+
+        Assert.Equal(3, result.Count);
+        Assert.True(result[1].PunchPairs[0].IsMissingPunch);
+    }
+
+    [Fact]
     public void GapSpanningRuleChange_UsesRuleAtGapStart()
     {
         // Gap: Out Jan 2 22:00 -> In Jan 3 03:00 (5 hrs), spanning a PayRule change at midnight
