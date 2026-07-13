@@ -44,12 +44,11 @@ public static class PremiumApplier
             // Computed once per shift rather than per rule per method (Applies + Calculate), since
             // every rule today only needs this derived view, not the raw Shift.
             var analysis = ShiftAnalysis.From(shift);
-            var anchorId = AnchorPunchId(shift);
             var results = rules
                 .Where(r => r.Applies(analysis, premiumCtx))
                 .Select(r => r.Calculate(analysis, premiumCtx) with
                 {
-                    AnchorPunchId = anchorId,
+                    AnchorPunchId = shift.AnchorPunchId,
                     ShiftDate = shift.ShiftDate,
                 })
                 .ToList();
@@ -96,22 +95,4 @@ public static class PremiumApplier
             .Select(p => p.InPunch!.EffectiveTime)
             .DefaultIfEmpty(shift.ShiftDate.AtMidnight().InUtc().ToInstant())
             .Min();
-
-    // The Id of the shift's earliest REAL In punch — anchors a stable (AnchorPunchId, Code) premium
-    // identity. Boundary-split pairs (PunchPairer.SplitAtBoundaries) create synthetic interior
-    // punches with Id = 0; if the earliest In happened to be one of those, every such shift would
-    // anchor to the same 0 and collide. Prefer the earliest In with a real (non-zero) id, falling
-    // back to 0 only when no real punch exists (e.g. a shift built entirely of synthetic pairs).
-    private static int AnchorPunchId(Shift shift)
-    {
-        var inPunchesByTime = shift.PunchPairs
-            .Where(p => p.HasInPunch)
-            .OrderBy(p => p.InPunch!.EffectiveTime)
-            .Select(p => p.InPunch!)
-            .ToList();
-
-        return inPunchesByTime.FirstOrDefault(p => p.Id != 0)?.Id
-            ?? inPunchesByTime.FirstOrDefault()?.Id
-            ?? 0;
-    }
 }

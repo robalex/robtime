@@ -56,7 +56,11 @@ the plan's 13-stage design (see `PLAN.md`).
   selected by `OvertimeRuleFactory`), producing both premium-view and composed-view pay.
 - `Premiums/` — the `IPremiumRule` framework, six state rules, `PremiumRegistry`, `WaiverEvaluator`,
   and `ShiftAnalysis` (reconstructs breaks/meals from punch subtypes).
-- `PaySummarizer` — Stage 13: turns a workweek's pieces into itemized `PayLineItem`s.
+- `PaySummarizer` — Stage 13: turns a workweek's pieces into a per-shift breakdown of itemized
+  `PayLineItem`s, so a UI can show why each shift/pair was paid the way it was. Regular pay is
+  itemized per punch pair (its own rate); overtime premium is attributed to whichever pair(s) it
+  falls on by a "hours accrue toward OT in the order worked" convention (see the class doc comment)
+  — it decides *which* shift/pair the already-computed premium total lands on, never how much is owed.
 - `PayPeriodCalculator`, `RetroactiveBonusRecalculator` — pay-period boundaries and FLSA §778.209
   retroactive bonus recalculation.
 
@@ -74,7 +78,10 @@ the plan's 13-stage design (see `PLAN.md`).
 - `PunchPair` → `Shift` → `WorkDay` → `Workweek` — the grouping hierarchy (all immutable records).
 - `PayRule` (+ `RoundingRule`, `OvertimeRule`) — per-client config; effective-dated via `PayRuleAssignment`.
 - `Position` / `EmployeePositionAssignment` — effective-dated pay rates (multi-rate weeks supported).
-- `PayResult` / `WorkweekPay` / `PayLineItem` — the itemized output; `PayCalculationSnapshot` freezes it for audit.
+- `PayResult` / `WorkweekPay` / `ShiftPay` / `PayLineItem` — the itemized output, drillable
+  week → shift → line item; `PayLineItem.ShiftDate`/`AnchorPunchId` identify its owning shift
+  (same identity scheme as `PremiumResult`, sourced from `Shift.AnchorPunchId`).
+  `PayCalculationSnapshot` freezes it for audit.
 
 ### Testing conventions
 

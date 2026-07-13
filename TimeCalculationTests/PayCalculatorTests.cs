@@ -44,7 +44,8 @@ public class PayCalculatorTests
         Assert.Equal(800m, result.GrossPay);                 // 40 × $20
         Assert.Equal(40m, result.Workweeks[0].RegularHours);
         Assert.Equal(0m, result.Workweeks[0].OvertimeHours);
-        Assert.Contains(result.LineItems, l => l.Type == PayLineType.Regular && l.Amount == 800m);
+        // Regular is now itemized per punch pair (one per shift here), not one aggregate line
+        Assert.Equal(800m, result.LineItems.Where(l => l.Type == PayLineType.Regular).Sum(l => l.Amount));
         Assert.DoesNotContain(result.LineItems, l => l.Type == PayLineType.OvertimePremium);
     }
 
@@ -90,6 +91,81 @@ public class PayCalculatorTests
         var result = PayCalculator.Calculate([], Context());
         Assert.Empty(result.Workweeks);
         Assert.Equal(0m, result.GrossPay);
+    }
+
+    [Fact]
+    public void OvertimeBoundary_FallingMidPair_SplitsRegularAndPremiumWithinThatPair()
+    {
+        // 4 days @ 8 hrs (32) + 1 day @ 12 hrs (44 total): the 40-hr federal threshold falls
+        // inside day 5's single pair (8 hrs regular + 4 hrs overtime), not at a shift boundary.
+        var punches = new List<Punch>();
+        for (int d = 0; d < 4; d++)
+        {
+            var start = Instant.FromUtc(2023, 1, 2 + d, 9, 0);
+            punches.Add(TestEntityCreator.CreateTestPunch(start, PunchKind.In, _emp));
+            punches.Add(TestEntityCreator.CreateTestPunch(start + Duration.FromHours(8), PunchKind.Out, _emp));
+        }
+        var day5Start = Instant.FromUtc(2023, 1, 6, 9, 0);
+        punches.Add(TestEntityCreator.CreateTestPunch(day5Start, PunchKind.In, _emp));
+        punches.Add(TestEntityCreator.CreateTestPunch(day5Start + Duration.FromHours(12), PunchKind.Out, _emp));
+
+        var result = PayCalculator.Calculate(punches, Context());
+        var week = result.Workweeks[0];
+
+        // straight 44×20=880; OT premium 4×0.5×20=40 → 920 (unchanged total from before this feature)
+        Assert.Equal(920m, result.GrossPay);
+        Assert.Equal(5, week.Shifts.Count);
+
+        var day5 = week.Shifts.Single(s => s.ShiftDate == new LocalDate(2023, 1, 6));
+        var regularLine = day5.LineItems.Single(l => l.Type == PayLineType.Regular);
+        Assert.Equal(12m, regularLine.Hours);
+        Assert.Equal(240m, regularLine.Amount);   // full pay for ALL 12 hrs, at the actual rate
+
+        var otLine = day5.LineItems.Single(l => l.Type == PayLineType.OvertimePremium);
+        Assert.Equal(4m, otLine.Hours);            // only the OT portion of this one pair
+        Assert.Equal(40m, otLine.Amount);
+
+        foreach (var s in week.Shifts.Where(s => s.ShiftDate != new LocalDate(2023, 1, 6)))
+            Assert.DoesNotContain(s.LineItems, l => l.Type == PayLineType.OvertimePremium);
+    }
+
+    [Fact]
+    public void PerShiftBreakdown_EachLineItem_CarriesItsShiftsIdentity()
+    {
+        var punches = Week(3, 8);
+        // Give each day's In punch a distinct Id so distinct shifts get distinct anchors
+        for (int i = 0; i < punches.Count; i += 2)
+            punches[i] = punches[i] with { Id = 100 + i };
+
+        var result = PayCalculator.Calculate(punches, Context());
+        var week = result.Workweeks[0];
+
+        Assert.Equal(3, week.Shifts.Count);
+        foreach (var shiftPay in week.Shifts)
+        {
+            Assert.All(shiftPay.LineItems, l => Assert.Equal(shiftPay.ShiftDate, l.ShiftDate));
+            Assert.All(shiftPay.LineItems, l => Assert.Equal(shiftPay.AnchorPunchId, l.AnchorPunchId));
+        }
+        Assert.Equal(3, week.Shifts.Select(s => s.AnchorPunchId).Distinct().Count());
+    }
+
+    [Fact]
+    public void ShiftGross_SumsToWorkweekGross_SumsToOverallGrossPay()
+    {
+        var result = PayCalculator.Calculate(Week(5, 10), Context());
+        var week = result.Workweeks[0];
+
+        Assert.Equal(week.Gross, week.Shifts.Sum(s => s.Gross));
+        Assert.Equal(result.GrossPay, week.Gross);
+    }
+
+    [Fact]
+    public void WorkweekPay_LineItems_IsFlattenedShiftsLineItems()
+    {
+        var result = PayCalculator.Calculate(Week(3, 8), Context());
+        var week = result.Workweeks[0];
+
+        Assert.Equal(week.Shifts.SelectMany(s => s.LineItems), week.LineItems);
     }
 
     [Fact]
