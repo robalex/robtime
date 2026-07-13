@@ -97,4 +97,30 @@ public class ShiftBuilderTests
         Assert.Empty(result[0].PunchPairs);
         Assert.Single(result[0].FixedEntries);
     }
+
+    [Fact]
+    public void GapSpanningRuleChange_UsesRuleAtGapStart()
+    {
+        // Gap: Out Jan 2 22:00 -> In Jan 3 03:00 (5 hrs), spanning a PayRule change at midnight
+        // Jan 3. Rule A (active at the gap's start, Jan 2) has a wide 10-hr threshold; Rule B
+        // (active at the gap's end, Jan 3) has a narrow 2-hr threshold. If ShiftBuilder used the
+        // gap-END rule it would split into two shifts (5 > 2); using the gap-START rule (as
+        // PunchSubtypeInferrer also does) keeps them in one shift (5 <= 10).
+        var ruleA = new PayRule { DistanceBetweenShiftsHours = 10 };
+        var ruleB = new PayRule { DistanceBetweenShiftsHours = 2 };
+        var assignments = new[]
+        {
+            new PayRuleAssignment(ruleA, new LocalDate(2000, 1, 1), new LocalDate(2023, 1, 2)),
+            new PayRuleAssignment(ruleB, new LocalDate(2023, 1, 3)),
+        };
+        var ctx = new PipelineContext(_emp, assignments, []);
+
+        var pair1 = MakePair(Instant.FromUtc(2023, 1, 2, 18, 0), Instant.FromUtc(2023, 1, 2, 22, 0));
+        var pair2 = MakePair(Instant.FromUtc(2023, 1, 3, 3, 0),  Instant.FromUtc(2023, 1, 3, 7, 0));
+
+        var result = ShiftBuilder.BuildShifts([pair1, pair2], [], ctx);
+
+        Assert.Single(result);
+        Assert.Equal(2, result[0].PunchPairs.Count);
+    }
 }

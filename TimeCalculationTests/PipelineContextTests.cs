@@ -71,4 +71,37 @@ public class PipelineContextTests
 
         Assert.Empty(boundaries);
     }
+
+    [Fact]
+    public void TryGetRuleAt_OutsideCoverage_ReturnsFalse()
+    {
+        var rule = new PayRule { Id = 1 };
+        var ctx = new PipelineContext(_emp,
+            [new PayRuleAssignment(rule, new LocalDate(2023, 1, 1), new LocalDate(2023, 1, 31))], []);
+
+        var found = ctx.TryGetRuleAt(Instant.FromUtc(2023, 3, 1, 0, 0), out var resolved);
+
+        Assert.False(found);
+        Assert.Null(resolved);
+    }
+
+    [Fact]
+    public void TryGetRuleAt_InsideCoverage_ReturnsTrueAndRule()
+    {
+        var rule = new PayRule { Id = 7 };
+        var ctx = new PipelineContext(_emp, [new PayRuleAssignment(rule, new LocalDate(2023, 1, 1))], []);
+
+        var found = ctx.TryGetRuleAt(Instant.FromUtc(2023, 6, 1, 0, 0), out var resolved);
+
+        Assert.True(found);
+        Assert.Equal(7, resolved.Id);
+    }
+
+    [Fact]
+    public void GetRuleAt_OutsideCoverage_Throws()
+    {
+        var ctx = new PipelineContext(_emp, [], []);
+
+        Assert.Throws<InvalidOperationException>(() => ctx.GetRuleAt(Instant.FromUtc(2023, 1, 1, 0, 0)));
+    }
 }

@@ -94,11 +94,21 @@ public static class PremiumApplier
             .DefaultIfEmpty(shift.ShiftDate.AtMidnight().InUtc().ToInstant())
             .Min();
 
-    // The Id of the shift's earliest In punch — anchors a stable (AnchorPunchId, Code) premium identity.
-    private static int AnchorPunchId(Shift shift) =>
-        shift.PunchPairs
+    // The Id of the shift's earliest REAL In punch — anchors a stable (AnchorPunchId, Code) premium
+    // identity. Boundary-split pairs (PunchPairer.SplitAtBoundaries) create synthetic interior
+    // punches with Id = 0; if the earliest In happened to be one of those, every such shift would
+    // anchor to the same 0 and collide. Prefer the earliest In with a real (non-zero) id, falling
+    // back to 0 only when no real punch exists (e.g. a shift built entirely of synthetic pairs).
+    private static int AnchorPunchId(Shift shift)
+    {
+        var inPunchesByTime = shift.PunchPairs
             .Where(p => p.HasInPunch)
             .OrderBy(p => p.InPunch!.EffectiveTime)
-            .Select(p => p.InPunch!.Id)
-            .FirstOrDefault();
+            .Select(p => p.InPunch!)
+            .ToList();
+
+        return inPunchesByTime.FirstOrDefault(p => p.Id != 0)?.Id
+            ?? inPunchesByTime.FirstOrDefault()?.Id
+            ?? 0;
+    }
 }

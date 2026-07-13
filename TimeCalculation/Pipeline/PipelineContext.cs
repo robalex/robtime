@@ -34,19 +34,39 @@ public class PipelineContext
         HolidayCalendar = holidayCalendar;
     }
 
-    /// <summary>Returns the PayRule active at the given instant in the employee's timezone.</summary>
+    /// <summary>
+    /// Returns the PayRule active at the given instant in the employee's timezone.
+    /// Throws if no assignment covers the date — a coverage gap is invalid input for the pure
+    /// pipeline stages, which all call this. Batch/orchestration code that wants to detect and
+    /// skip an employee with a gap instead of failing the whole run should call
+    /// <see cref="TryGetRuleAt"/> first.
+    /// </summary>
     public PayRule GetRuleAt(Instant time)
+    {
+        if (TryGetRuleAt(time, out var rule))
+            return rule;
+
+        var date = time.InZone(EmployeeTimeZone).Date;
+        throw new InvalidOperationException(
+            $"No PayRule found for employee {Employee.Id} at {date}. " +
+            "Ensure at least one PayRuleAssignment covers the calculation period.");
+    }
+
+    /// <summary>Non-throwing probe for whether a PayRule covers the given instant.</summary>
+    public bool TryGetRuleAt(Instant time, out PayRule rule)
     {
         var date = time.InZone(EmployeeTimeZone).Date;
         for (int i = _payRuleAssignments.Count - 1; i >= 0; i--)
         {
             var a = _payRuleAssignments[i];
             if (a.EffectiveFrom <= date && (a.EffectiveTo == null || a.EffectiveTo >= date))
-                return a.PayRule;
+            {
+                rule = a.PayRule;
+                return true;
+            }
         }
-        throw new InvalidOperationException(
-            $"No PayRule found for employee {Employee.Id} at {date}. " +
-            "Ensure at least one PayRuleAssignment covers the calculation period.");
+        rule = null!;
+        return false;
     }
 
     /// <summary>

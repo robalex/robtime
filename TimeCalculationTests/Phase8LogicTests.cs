@@ -78,7 +78,7 @@ public class RetroactiveBonusRecalculatorTests
             WeekWith(50m, new LocalDate(2023, 1, 8)),
         };
 
-        var result = RetroactiveBonusRecalculator.Recalculate(400m, weeks, new FederalOvertimeRule());
+        var result = RetroactiveBonusRecalculator.Recalculate(400m, weeks, new FederalOvertimeRule(), 20m);
 
         Assert.Equal(2, result.PerWeek.Count);
         Assert.All(result.PerWeek, w => Assert.Equal(200m, w.AllocatedBonus));
@@ -90,7 +90,7 @@ public class RetroactiveBonusRecalculatorTests
     public void BonusInWeekWithoutOvertime_AddsNoPremium()
     {
         var weeks = new[] { WeekWith(30m, new LocalDate(2023, 1, 1)) };
-        var result = RetroactiveBonusRecalculator.Recalculate(300m, weeks, new FederalOvertimeRule());
+        var result = RetroactiveBonusRecalculator.Recalculate(300m, weeks, new FederalOvertimeRule(), 20m);
 
         Assert.Equal(300m, result.PerWeek[0].AllocatedBonus);
         Assert.Equal(0m, result.AdditionalOvertimePremium);

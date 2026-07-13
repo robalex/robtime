@@ -8,6 +8,11 @@ namespace TimeCalculation.Pipeline;
 /// the last Out of the current shift and the In of the next pair exceeds
 /// PayRule.DistanceBetweenShiftsHours (default 6 h).
 ///
+/// Gap-related decisions always use the rule active at the gap's START (the prior Out), matching
+/// PunchSubtypeInferrer's rule resolution for the same Out→In gap. This keeps the two components
+/// from disagreeing at a rule-change boundary — e.g. one calling a gap a Lunch while the other
+/// calls it a shift boundary, which would leave a Lunch-subtyped punch starting a "new" shift.
+///
 /// FixedDollar/FixedHours entries are attached to the nearest shift by punch time.
 /// If no shifts exist, they are returned as standalone single-entry shifts.
 /// </summary>
@@ -36,7 +41,7 @@ public static class ShiftBuilder
             }
 
             var lastOut = currentPairs.Last().OutPunch;
-            var rule = ctx.GetRuleAt(pair.InPunch.EffectiveTime);
+            var rule = ctx.GetRuleAt(lastOut?.EffectiveTime ?? pair.InPunch.EffectiveTime);
 
             var gapHours = lastOut is null ? decimal.MaxValue
                 : (decimal)(pair.InPunch.EffectiveTime - lastOut.EffectiveTime).TotalHours;

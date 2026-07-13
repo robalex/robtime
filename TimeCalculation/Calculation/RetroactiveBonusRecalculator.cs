@@ -22,7 +22,7 @@ public record RetroBonusResult
 public static class RetroactiveBonusRecalculator
 {
     public static RetroBonusResult Recalculate(
-        decimal bonusAmount, IReadOnlyList<Workweek> coveredWeeks, IOvertimeRule overtimeRule)
+        decimal bonusAmount, IReadOnlyList<Workweek> coveredWeeks, IOvertimeRule overtimeRule, decimal minimumWage)
     {
         var totalHours = coveredWeeks.Sum(w => w.TotalHours);
         var perWeek = new List<WeekRetroAdjustment>(coveredWeeks.Count);
@@ -30,7 +30,7 @@ public static class RetroactiveBonusRecalculator
 
         foreach (var week in coveredWeeks)
         {
-            var baseRate = RegularRateCalculator.Calculate(week);
+            var baseRate = RegularRateCalculator.Calculate(week, minimumWage);
             if (baseRate.TotalHours <= 0 || totalHours <= 0)
             {
                 perWeek.Add(new WeekRetroAdjustment(week.StartDate, 0, 0));
@@ -39,7 +39,8 @@ public static class RetroactiveBonusRecalculator
 
             var allocated = bonusAmount * (baseRate.TotalHours / totalHours);
             var raisedRate =
-                (baseRate.StraightTimeEarnings + baseRate.NonDiscretionaryBonuses + baseRate.Differentials + allocated)
+                (baseRate.StraightTimeEarnings + baseRate.FixedHoursEarnings + baseRate.NonDiscretionaryBonuses
+                    + baseRate.Differentials + allocated)
                 / baseRate.TotalHours;
             var rateIncrease = raisedRate - baseRate.RegularRate;
 

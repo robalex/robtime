@@ -67,7 +67,7 @@ public static class PayCalculator
         PipelineContext ctx,
         Func<Shift, IReadOnlyList<OverrideKind>>? overridesForShift)
     {
-        var regularRate = RegularRateCalculator.Calculate(week);
+        var regularRate = RegularRateCalculator.Calculate(week, ctx.Employee.MinimumWage);
 
         var overtimeRule = OvertimeRuleFactory.FromConfig(ctx.GetRuleAt(week.StartInstant).OvertimeRule);
         var overtime = OvertimeCalculator.Calculate(week, overtimeRule, regularRate.RegularRate);

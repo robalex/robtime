@@ -15,6 +15,14 @@ public record Punch
     public decimal? Amount { get; init; }   // FixedDollar amount
     public decimal? Hours { get; init; }    // FixedHours quantity
     public BonusKind? BonusKind { get; init; }   // on FixedDollar bonus punches; drives RROP inclusion
+
+    /// <summary>
+    /// On FixedHours punches: when true, the hours count as hours worked for the FLSA regular
+    /// rate (denominator) and their pay enters the numerator at the employee's minimum wage.
+    /// Default false — e.g. paid leave, which is not "hours worked" and should not dilute or
+    /// inflate the regular rate.
+    /// </summary>
+    public bool CountsTowardRegularRate { get; init; }
     public Instant CreatedAt { get; init; }
     public string CreatedBy { get; init; } = string.Empty;
     public bool IsDeleted { get; init; }

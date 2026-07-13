@@ -125,6 +125,37 @@ public class PremiumApplierTests
         shifts.SelectMany(s => s.Premiums).Single(p => p.Code == "CA_MEAL" && p.IsPaid);
 
     [Fact]
+    public void AnchorPunchId_ShiftStartingWithSyntheticPunch_UsesFirstRealPunchId()
+    {
+        // Simulates a shift whose first pair came from a boundary split (synthetic In, Id = 0)
+        // followed by a pair with a real punch id. The premium's identity must anchor to the
+        // real punch, not the synthetic 0 — otherwise it would collide with any other shift
+        // whose anchor also defaulted to 0.
+        var date = new LocalDate(2023, 1, 2);
+        var midnight = date.AtMidnight().InUtc().ToInstant();
+
+        var syntheticIn = TestEntityCreator.CreateTestPunch(midnight + Duration.FromHours(6), PunchKind.In, _emp) with { Id = 0 };
+        var out1 = TestEntityCreator.CreateTestPunch(midnight + Duration.FromHours(9), PunchKind.Out, _emp);
+        var realIn = TestEntityCreator.CreateTestPunch(midnight + Duration.FromHours(9.5), PunchKind.In, _emp) with { Id = 555 };
+        var out2 = TestEntityCreator.CreateTestPunch(midnight + Duration.FromHours(15), PunchKind.Out, _emp);
+
+        var shift = new Shift
+        {
+            ShiftDate = date,
+            PunchPairs =
+            [
+                new PunchPair { InPunch = syntheticIn, OutPunch = out1, Rate = 20m },
+                new PunchPair { InPunch = realIn, OutPunch = out2, Rate = 20m },
+            ],
+        };
+
+        var result = PremiumApplier.Execute([shift], CtxWith("CA_MEAL"), _ => 20m);
+
+        var meal = result[0].Premiums.Single(p => p.Code == "CA_MEAL");
+        Assert.Equal(555, meal.AnchorPunchId);
+    }
+
+    [Fact]
     public void Overrides_WaiveMealButNotRest()
     {
         var ctx = CtxWith("CA_MEAL", "CA_REST");
