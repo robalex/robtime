@@ -30,7 +30,7 @@ public class PremiumApplierTests
     public void NoActiveCodes_ShiftUnchanged()
     {
         var ctx = TestEntityCreator.CreateContext(employee: _emp);
-        var result = PremiumApplier.Execute([EightHourNoBreaks()], ctx, _ => 20m);
+        var result = PremiumApplier.ApplyPremiums([EightHourNoBreaks()], ctx, _ => 20m);
         Assert.Empty(result[0].Premiums);
     }
 
@@ -38,7 +38,7 @@ public class PremiumApplierTests
     public void ActiveMealAndRest_BothViolationsAttached()
     {
         var ctx = CtxWith("CA_MEAL", "CA_REST");
-        var result = PremiumApplier.Execute([EightHourNoBreaks()], ctx, _ => 20m);
+        var result = PremiumApplier.ApplyPremiums([EightHourNoBreaks()], ctx, _ => 20m);
 
         Assert.Equal(2, result[0].Premiums.Count);
         Assert.Contains(result[0].Premiums, p => p.Code == "CA_MEAL" && p.Amount == 20m);
@@ -59,7 +59,7 @@ public class PremiumApplierTests
         var date = new LocalDate(2023, 1, 2);
         // Split-shift day: two shifts, both >5h with no meal → two violations, but only one premium owed
         var shifts = new[] { NoMealShift(date, 6, 8), NoMealShift(date, 18, 6) };
-        var result = PremiumApplier.Execute(shifts, CtxWith("CA_MEAL"), _ => 20m);
+        var result = PremiumApplier.ApplyPremiums(shifts, CtxWith("CA_MEAL"), _ => 20m);
 
         var mealPremiums = result.SelectMany(s => s.Premiums).Where(p => p.Code == "CA_MEAL").ToList();
         Assert.Equal(2, mealPremiums.Count(p => p.Violated));   // both violations recorded for audit
@@ -76,7 +76,7 @@ public class PremiumApplierTests
             NoMealShift(new LocalDate(2023, 1, 2), 9, 8),
             NoMealShift(new LocalDate(2023, 1, 3), 9, 8),
         };
-        var result = PremiumApplier.Execute(shifts, CtxWith("CA_MEAL"), _ => 20m);
+        var result = PremiumApplier.ApplyPremiums(shifts, CtxWith("CA_MEAL"), _ => 20m);
 
         Assert.Equal(2, result.SelectMany(s => s.Premiums).Count(p => p.Code == "CA_MEAL" && p.IsPaid));
     }
@@ -90,11 +90,11 @@ public class PremiumApplierTests
         var ctx = CtxWith("CA_MEAL");
 
         // Baseline: the morning shift (first) carries the single paid premium
-        var baseline = PremiumApplier.Execute([morning, evening], ctx, _ => 20m);
+        var baseline = PremiumApplier.ApplyPremiums([morning, evening], ctx, _ => 20m);
         Assert.Equal(101, PaidMeal(baseline).AnchorPunchId);
 
         // Waive the morning meal premium (CA meal needs supervisor AND employee)
-        var waived = PremiumApplier.Execute([morning, evening], ctx, _ => 20m,
+        var waived = PremiumApplier.ApplyPremiums([morning, evening], ctx, _ => 20m,
             s => s.PunchPairs[0].InPunch!.Id == 101
                 ? [OverrideKind.SupervisorApproval, OverrideKind.EmployeeWaiver]
                 : []);
@@ -110,7 +110,7 @@ public class PremiumApplierTests
     {
         var ctx = CtxWith("CA_MEAL", "CA_REST");
         var shift = NoMealShift(new LocalDate(2023, 1, 2), 9, 8, anchorId: 55);
-        var result = PremiumApplier.Execute([shift], ctx, _ => 20m);
+        var result = PremiumApplier.ApplyPremiums([shift], ctx, _ => 20m);
 
         var meal = result[0].Premiums.Single(p => p.Code == "CA_MEAL");
         var rest = result[0].Premiums.Single(p => p.Code == "CA_REST");
@@ -149,7 +149,7 @@ public class PremiumApplierTests
             ],
         };
 
-        var result = PremiumApplier.Execute([shift], CtxWith("CA_MEAL"), _ => 20m);
+        var result = PremiumApplier.ApplyPremiums([shift], CtxWith("CA_MEAL"), _ => 20m);
 
         var meal = result[0].Premiums.Single(p => p.Code == "CA_MEAL");
         Assert.Equal(555, meal.AnchorPunchId);
@@ -159,7 +159,7 @@ public class PremiumApplierTests
     public void Overrides_WaiveMealButNotRest()
     {
         var ctx = CtxWith("CA_MEAL", "CA_REST");
-        var result = PremiumApplier.Execute(
+        var result = PremiumApplier.ApplyPremiums(
             [EightHourNoBreaks()], ctx,
             _ => 20m,
             _ => [OverrideKind.SupervisorApproval, OverrideKind.EmployeeWaiver]);

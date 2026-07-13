@@ -22,7 +22,7 @@ namespace TimeCalculation.Pipeline;
 /// </summary>
 public static class PremiumApplier
 {
-    public static IReadOnlyList<Shift> Execute(
+    public static IReadOnlyList<Shift> ApplyPremiums(
         IReadOnlyList<Shift> shifts,
         PipelineContext ctx,
         Func<Shift, decimal> rateForShift,

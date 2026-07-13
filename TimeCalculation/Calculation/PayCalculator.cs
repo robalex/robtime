@@ -73,7 +73,7 @@ public static class PayCalculator
         var overtime = OvertimeCalculator.Calculate(week, overtimeRule, regularRate.RegularRate);
 
         var weekShifts = week.Days.SelectMany(d => d.Shifts).ToList();
-        var shiftsWithPremiums = PremiumApplier.Execute(
+        var shiftsWithPremiums = PremiumApplier.ApplyPremiums(
             weekShifts, ctx, _ => regularRate.RegularRate, overridesForShift);
 
         return PaySummarizer.Summarize(
