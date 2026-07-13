@@ -28,7 +28,7 @@ public class CaMealPremiumRule : PremiumRuleBase
 
         bool violated = (required >= 1 && !firstMealOk) || (required >= 2 && !secondMealOk);
 
-        return Resolve(ctx, violated, 1m, ctx.RegularRate,
+        return Resolve(ctx, violated, 1m, 1.0m,
             "No compliant 30-minute meal period (CA meal law).",
             "Meal period requirements satisfied.");
     }

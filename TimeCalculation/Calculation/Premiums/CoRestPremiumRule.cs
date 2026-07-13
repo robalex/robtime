@@ -23,7 +23,7 @@ public class CoRestPremiumRule : PremiumRuleBase
         int taken = analysis.RestBreakCount();
         bool violated = taken < required;
 
-        return Resolve(ctx, violated, 1m, ctx.RegularRate,
+        return Resolve(ctx, violated, 1m, 1.0m,
             $"Rest periods provided ({taken}) fewer than required ({required}) (CO rest law).",
             "Rest period requirements satisfied.");
     }

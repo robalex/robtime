@@ -20,9 +20,33 @@ public enum PayLineType
 public record PayLineItem
 {
     public PayLineType Type { get; init; }
+
+    /// <summary>Structured identifier distinguishing multiple lines of the same Type on one
+    /// shift — the differential/premium rule code, or "OVERTIME"/"DOUBLETIME" for the two possible
+    /// OvertimePremium lines. Empty for Regular/Bonus/FixedHours, where Type alone is unambiguous.</summary>
+    public string Code { get; init; } = string.Empty;
+
     public string Description { get; init; } = string.Empty;
     public decimal Hours { get; init; }
     public decimal Amount { get; init; }
+
+    /// <summary>
+    /// The rate and multiplier Amount was computed from, when a single one meaningfully applies:
+    /// Amount == Hours × BaseRate × Multiplier whenever both are non-null.
+    ///   Regular         — BaseRate = the punch pair's own rate, Multiplier = 1.0
+    ///   OvertimePremium — BaseRate = the week's regular rate, Multiplier = 0.5 (OT) or 1.0 (DT)
+    ///   Premium         — BaseRate/Multiplier copied from the PremiumResult that produced it
+    ///   Differential    — FlatPerHour: BaseRate = the $/hr rate, Multiplier = 1.0.
+    ///                      Multiplier-type: BaseRate is solved back from Amount/(Hours×AdjustmentValue),
+    ///                      i.e. the effective average rate across whichever pairs qualified — exact
+    ///                      even if those pairs had different rates in a multi-rate week.
+    ///                      FixedBonus: null — a flat lump sum isn't priced per hour.
+    ///   Bonus           — null (a discretionary/non-discretionary lump sum, not rate-based)
+    ///   FixedHours      — BaseRate = minimum wage, Multiplier = 1.0
+    /// </summary>
+    public decimal? BaseRate { get; init; }
+    public decimal? Multiplier { get; init; }
+
     public LocalDate ShiftDate { get; init; }
     public int AnchorPunchId { get; init; }
 }

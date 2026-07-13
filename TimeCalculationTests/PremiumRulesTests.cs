@@ -39,6 +39,10 @@ public class PremiumRulesTests
         var r = new CaMealPremiumRule().Calculate(ShiftAnalysis.From(shift), Ctx);
         Assert.False(r.Violated);
         Assert.Equal(0m, r.Amount);
+        // BaseRate/Multiplier are populated even when compliant, so a UI can show what the
+        // charge WOULD have been.
+        Assert.Equal(20m, r.BaseRate);
+        Assert.Equal(1.0m, r.Multiplier);
     }
 
     [Fact]
@@ -51,6 +55,9 @@ public class PremiumRulesTests
         Assert.True(r.Violated);
         Assert.Equal(1m, r.Hours);
         Assert.Equal(20m, r.Amount);
+        Assert.Equal(20m, r.BaseRate);
+        Assert.Equal(1.0m, r.Multiplier);
+        Assert.Equal(r.Amount, r.Hours * r.BaseRate * r.Multiplier);
     }
 
     [Fact]
@@ -160,6 +167,8 @@ public class PremiumRulesTests
         var r = new PrMealPremiumRule().Calculate(ShiftAnalysis.From(shift), Ctx);
         Assert.True(r.Violated);
         Assert.Equal(30m, r.Amount);   // 20 × 1.5
+        Assert.Equal(20m, r.BaseRate);
+        Assert.Equal(1.5m, r.Multiplier);   // the one premium priced at the overtime rate, not the regular rate
     }
 
     // ── OR meal ──
@@ -185,6 +194,9 @@ public class PremiumRulesTests
         Assert.True(r.Violated);
         Assert.Equal(0.5m, r.Hours);
         Assert.Equal(10m, r.Amount);   // 0.5 × 20
+        // The remedy is half an HOUR at full rate, not a half-rate multiplier
+        Assert.Equal(20m, r.BaseRate);
+        Assert.Equal(1.0m, r.Multiplier);
     }
 
     // ── Waiver evaluator ──

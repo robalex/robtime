@@ -23,7 +23,7 @@ public class WaMealPremiumRule : PremiumRuleBase
     {
         bool violated = !analysis.HasQualifyingMeal(30m, byWorkedHour: 5m);
 
-        return Resolve(ctx, violated, 0.5m, ctx.RegularRate,
+        return Resolve(ctx, violated, 0.5m, 1.0m,
             "No compliant 30-minute meal period; 30 minutes paid in lieu (WA meal law).",
             "Meal period requirements satisfied.");
     }

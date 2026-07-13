@@ -22,7 +22,7 @@ public class OrMealPremiumRule : PremiumRuleBase
     {
         bool violated = !analysis.HasQualifyingMeal(30m, byWorkedHour: 5m);
 
-        return Resolve(ctx, violated, 1m, ctx.RegularRate,
+        return Resolve(ctx, violated, 1m, 1.0m,
             "No compliant 30-minute meal period (OR meal law).",
             "Meal period requirements satisfied.");
     }

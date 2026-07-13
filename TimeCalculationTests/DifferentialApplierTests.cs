@@ -56,6 +56,7 @@ public class DifferentialApplierTests
         Assert.Equal("NIGHT", diff.Code);
         Assert.Equal(4m, diff.Hours);
         Assert.Equal(8m, diff.Amount);   // 4 hrs × $2
+        Assert.Equal(2m, diff.AdjustmentValue);   // the configured $/hr, carried onto the result
     }
 
     [Fact]
@@ -73,6 +74,7 @@ public class DifferentialApplierTests
 
         Assert.Equal(8m, result[0].Differentials[0].Hours);
         Assert.Equal(16m, result[0].Differentials[0].Amount);
+        Assert.Equal(0.10m, result[0].Differentials[0].AdjustmentValue);
     }
 
     [Fact]

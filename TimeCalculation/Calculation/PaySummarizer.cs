@@ -13,8 +13,13 @@ namespace TimeCalculation.Calculation;
 ///   + Differential(s)= each AppliedDifferential
 ///   + Bonus(es)      = each FixedDollar entry (both bonus kinds are paid)
 ///   + FixedHours     = flat-hour entries, valued at minimum wage (simplification)
-///   + OvertimePremium= this pair's share of the week's OT/DT premium (see attribution below)
+///   + OvertimePremium= this pair's share of the week's OT/DT premium (see attribution below);
+///                      split into separate OVERTIME/DOUBLETIME lines when a pair straddles both
 ///   + Premium(s)     = meal/rest statutory penalties actually paid
+///
+/// Every line carries BaseRate/Multiplier when a single one meaningfully applies, so
+/// Amount == Hours × BaseRate × Multiplier and a UI never has to re-derive "why this dollar
+/// figure" — see PayLineItem's doc comment for exactly what each Type populates.
 ///
 /// Overtime attribution: OvertimeAllocation gives week-level Regular/Overtime/Doubletime hour
 /// totals, not a per-shift breakdown — neither federal (a pure weekly total) nor California's
@@ -60,6 +65,8 @@ public static class PaySummarizer
                     Description = "Straight-time earnings",
                     Hours = hours,
                     Amount = hours * rate,
+                    BaseRate = rate,
+                    Multiplier = 1.0m,
                     ShiftDate = shift.ShiftDate,
                     AnchorPunchId = shift.AnchorPunchId,
                 });
@@ -75,16 +82,34 @@ public static class PaySummarizer
                 var dtPortion = Math.Min(hours, remainingDoubletime);
                 remainingDoubletime -= dtPortion;
 
-                var premiumAmount = otPortion * 0.5m * regularRate.RegularRate
-                                   + dtPortion * 1.0m * regularRate.RegularRate;
-                if (premiumAmount > 0)
+                // Split into separate OT/DT lines (rather than one combined line) so each has a
+                // single, honest Multiplier — a pair can straddle both tiers in the same shift.
+                if (otPortion > 0)
                 {
                     lines.Add(new PayLineItem
                     {
                         Type = PayLineType.OvertimePremium,
+                        Code = "OVERTIME",
                         Description = "Overtime premium",
-                        Hours = otPortion + dtPortion,
-                        Amount = premiumAmount,
+                        Hours = otPortion,
+                        Amount = otPortion * 0.5m * regularRate.RegularRate,
+                        BaseRate = regularRate.RegularRate,
+                        Multiplier = 0.5m,
+                        ShiftDate = shift.ShiftDate,
+                        AnchorPunchId = shift.AnchorPunchId,
+                    });
+                }
+                if (dtPortion > 0)
+                {
+                    lines.Add(new PayLineItem
+                    {
+                        Type = PayLineType.OvertimePremium,
+                        Code = "DOUBLETIME",
+                        Description = "Doubletime premium",
+                        Hours = dtPortion,
+                        Amount = dtPortion * 1.0m * regularRate.RegularRate,
+                        BaseRate = regularRate.RegularRate,
+                        Multiplier = 1.0m,
                         ShiftDate = shift.ShiftDate,
                         AnchorPunchId = shift.AnchorPunchId,
                     });
@@ -96,9 +121,12 @@ public static class PaySummarizer
                 lines.Add(new PayLineItem
                 {
                     Type = PayLineType.Differential,
+                    Code = diff.Code,
                     Description = $"Differential {diff.Code}",
                     Hours = diff.Hours,
                     Amount = diff.Amount,
+                    BaseRate = DifferentialBaseRate(diff),
+                    Multiplier = DifferentialMultiplier(diff),
                     ShiftDate = shift.ShiftDate,
                     AnchorPunchId = shift.AnchorPunchId,
                 });
@@ -126,6 +154,8 @@ public static class PaySummarizer
                         Description = "Fixed hours",
                         Hours = hrs,
                         Amount = hrs * minimumWage,
+                        BaseRate = minimumWage,
+                        Multiplier = 1.0m,
                         ShiftDate = shift.ShiftDate,
                         AnchorPunchId = shift.AnchorPunchId,
                     });
@@ -137,9 +167,12 @@ public static class PaySummarizer
                 lines.Add(new PayLineItem
                 {
                     Type = PayLineType.Premium,
+                    Code = premium.Code,
                     Description = $"Premium {premium.Code}",
                     Hours = premium.Hours,
                     Amount = premium.Amount,
+                    BaseRate = premium.BaseRate,
+                    Multiplier = premium.Multiplier,
                     ShiftDate = shift.ShiftDate,
                     AnchorPunchId = shift.AnchorPunchId,
                 });
@@ -166,4 +199,25 @@ public static class PaySummarizer
             Shifts = shiftPays,
         };
     }
+
+    // FlatPerHour: the configured $/hr IS the rate — Multiplier is 1.0 by definition.
+    // Multiplier-type: solved back from the known Amount/Hours/AdjustmentValue rather than
+    // re-walking pairs, so it's exact even when the qualifying hours span pairs at different
+    // rates in a multi-rate week (an "effective average rate" in that case).
+    // FixedBonus: a flat lump sum has no per-hour rate to report.
+    private static decimal? DifferentialBaseRate(AppliedDifferential diff) => diff.AdjustmentType switch
+    {
+        DifferentialAdjustmentType.FlatPerHour => diff.AdjustmentValue,
+        DifferentialAdjustmentType.Multiplier when diff.Hours > 0 && diff.AdjustmentValue != 0
+            => diff.Amount / (diff.Hours * diff.AdjustmentValue),
+        _ => null,
+    };
+
+    private static decimal? DifferentialMultiplier(AppliedDifferential diff) => diff.AdjustmentType switch
+    {
+        DifferentialAdjustmentType.FlatPerHour => 1.0m,
+        DifferentialAdjustmentType.Multiplier when diff.Hours > 0 && diff.AdjustmentValue != 0
+            => diff.AdjustmentValue,
+        _ => null,
+    };
 }

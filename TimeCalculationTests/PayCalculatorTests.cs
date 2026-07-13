@@ -121,12 +121,51 @@ public class PayCalculatorTests
         Assert.Equal(12m, regularLine.Hours);
         Assert.Equal(240m, regularLine.Amount);   // full pay for ALL 12 hrs, at the actual rate
 
+        Assert.Equal(20m, regularLine.BaseRate);
+        Assert.Equal(1.0m, regularLine.Multiplier);
+
         var otLine = day5.LineItems.Single(l => l.Type == PayLineType.OvertimePremium);
         Assert.Equal(4m, otLine.Hours);            // only the OT portion of this one pair
         Assert.Equal(40m, otLine.Amount);
+        Assert.Equal("OVERTIME", otLine.Code);
+        Assert.Equal(20m, otLine.BaseRate);
+        Assert.Equal(0.5m, otLine.Multiplier);
 
         foreach (var s in week.Shifts.Where(s => s.ShiftDate != new LocalDate(2023, 1, 6)))
             Assert.DoesNotContain(s.LineItems, l => l.Type == PayLineType.OvertimePremium);
+    }
+
+    [Fact]
+    public void OneShift_StraddlingBothOvertimeAndDoubletime_ProducesTwoSeparateLines()
+    {
+        // A single 15-hour day under CA daily OT: 8 reg + 4 OT (8-12) + 3 DT (>12), all from the
+        // SAME punch pair. One combined "OvertimePremium" line couldn't carry a single honest
+        // Multiplier here, so it must split into a 0.5x OVERTIME line and a 1.0x DOUBLETIME line.
+        var rule = new PayRule();
+        rule.OvertimeRule.HasDailyOvertime = true;
+        var punches = new List<Punch>
+        {
+            TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 2, 9, 0), PunchKind.In, _emp),
+            TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 3, 0, 0), PunchKind.Out, _emp),   // 15h
+        };
+
+        var result = PayCalculator.Calculate(punches, Context(rule));
+        var shift = result.Workweeks[0].Shifts.Single();
+
+        // straight 15×20=300; OT premium 4×0.5×20=40; DT premium 3×1.0×20=60 → 400
+        Assert.Equal(400m, result.GrossPay);
+
+        var ot = shift.LineItems.Single(l => l.Code == "OVERTIME");
+        Assert.Equal(4m, ot.Hours);
+        Assert.Equal(40m, ot.Amount);
+        Assert.Equal(0.5m, ot.Multiplier);
+
+        var dt = shift.LineItems.Single(l => l.Code == "DOUBLETIME");
+        Assert.Equal(3m, dt.Hours);
+        Assert.Equal(60m, dt.Amount);
+        Assert.Equal(1.0m, dt.Multiplier);
+
+        Assert.All(new[] { ot, dt }, l => Assert.Equal(l.Amount, l.Hours * l.BaseRate!.Value * l.Multiplier!.Value));
     }
 
     [Fact]

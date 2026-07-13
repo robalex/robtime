@@ -8,10 +8,11 @@ namespace TimeCalculationTests;
 public static class TestEntityCreator
 {
     public static Punch CreateTestPunch(Instant punchTime, PunchKind kind, Employee employee,
-        string timeZoneId = "UTC")
+        int punchId = 0, string timeZoneId = "UTC")
     {
         return new Punch
         {
+            Id = punchId,
             PunchTime = punchTime,
             Kind = kind,
             EmployeeId = employee.Id,

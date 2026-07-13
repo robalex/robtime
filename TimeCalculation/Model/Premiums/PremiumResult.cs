@@ -12,6 +12,16 @@ public record PremiumResult
     public string Code { get; init; } = string.Empty;
     public decimal Hours { get; init; }        // premium hours (e.g. 1.0, or 0.5 for WA)
     public decimal Amount { get; init; }       // dollars paid
+
+    /// <summary>The workweek's regular rate of pay — what this premium is priced from. Always
+    /// populated, even when compliant/waived, so a UI can show what the charge WOULD be.</summary>
+    public decimal BaseRate { get; init; }
+
+    /// <summary>The multiple of BaseRate actually charged per hour: 1.0 for most premiums (paid at
+    /// the regular rate), 1.5 for Puerto Rico's meal premium (paid at the overtime rate). Amount is
+    /// Hours × BaseRate × Multiplier whenever the premium is paid.</summary>
+    public decimal Multiplier { get; init; }
+
     public bool Violated { get; init; }        // a violation was detected
     public bool Waived { get; init; }          // detected but waived by override
     public string Explanation { get; init; } = string.Empty;

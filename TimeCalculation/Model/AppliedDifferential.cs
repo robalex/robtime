@@ -11,4 +11,11 @@ public record AppliedDifferential
     public decimal Hours { get; init; }    // qualifying hours in window (informational for FixedBonus)
     public decimal Amount { get; init; }   // dollars added
     public DifferentialAdjustmentType AdjustmentType { get; init; }
+
+    /// <summary>
+    /// The rule's own configured value that produced Amount — a UI can show exactly what was
+    /// applied without re-deriving it: $/hr for FlatPerHour, the fractional multiplier of the
+    /// pair's own rate for Multiplier (e.g. 0.10 for 10%), or the flat lump sum for FixedBonus.
+    /// </summary>
+    public decimal AdjustmentValue { get; init; }
 }

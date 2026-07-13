@@ -70,6 +70,7 @@ public static class DifferentialApplier
                 Hours = qualifyingHours,
                 Amount = amount,
                 AdjustmentType = rule.AdjustmentType,
+                AdjustmentValue = rule.AdjustmentValue,
             }));
         }
 

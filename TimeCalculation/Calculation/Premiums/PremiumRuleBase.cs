@@ -12,12 +12,26 @@ public abstract class PremiumRuleBase : IPremiumRule
     public abstract bool Applies(ShiftAnalysis analysis, PremiumContext ctx);
     public abstract PremiumResult Calculate(ShiftAnalysis analysis, PremiumContext ctx);
 
-    /// <summary>Builds the result: no violation → zero; violation → premium unless waived by policy.</summary>
+    /// <summary>
+    /// Builds the result: no violation → zero; violation → premium unless waived by policy.
+    /// BaseRate/Multiplier are populated regardless of outcome, so a UI can show what a premium
+    /// is priced at even when compliant or waived. <paramref name="multiplier"/> is the multiple
+    /// of the regular rate this premium is paid at — 1.0 for most, 1.5 for PR's overtime-rate meal
+    /// premium — so Amount is always exactly Hours × BaseRate × Multiplier when paid.
+    /// </summary>
     protected PremiumResult Resolve(
-        PremiumContext ctx, bool violated, decimal hours, decimal rate, string violatedMsg, string okMsg)
+        PremiumContext ctx, bool violated, decimal hours, decimal multiplier, string violatedMsg, string okMsg)
     {
         if (!violated)
-            return new PremiumResult { Code = Code, Violated = false, WaiverPolicy = WaiverPolicy, Explanation = okMsg };
+            return new PremiumResult
+            {
+                Code = Code,
+                Violated = false,
+                WaiverPolicy = WaiverPolicy,
+                BaseRate = ctx.RegularRate,
+                Multiplier = multiplier,
+                Explanation = okMsg,
+            };
 
         bool waived = WaiverEvaluator.IsWaived(WaiverPolicy, ctx.Overrides);
 
@@ -27,8 +41,10 @@ public abstract class PremiumRuleBase : IPremiumRule
             Violated = true,
             Waived = waived,
             WaiverPolicy = WaiverPolicy,
+            BaseRate = ctx.RegularRate,
+            Multiplier = multiplier,
             Hours = waived ? 0 : hours,
-            Amount = waived ? 0 : hours * rate,
+            Amount = waived ? 0 : hours * ctx.RegularRate * multiplier,
             Explanation = waived ? $"{violatedMsg} — waived by override." : violatedMsg,
         };
     }

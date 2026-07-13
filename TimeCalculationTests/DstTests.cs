@@ -80,7 +80,7 @@ public class DstTests
         var rounding = new RoundingRule { RoundingStrategy = RoundingStrategy.NearestInterval, RoundingIntervalMinutes = 15 };
         var rule  = new PayRule();
         var ctx   = TestEntityCreator.CreateContext(rule, emp, rounding);
-        var punch = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 3, 12, 6, 55), PunchKind.In, emp, Eastern);
+        var punch = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 3, 12, 6, 55), PunchKind.In, emp, 0, Eastern);
 
         var result = PunchRounder.RoundPunches([punch], ctx);
 
@@ -97,7 +97,7 @@ public class DstTests
         var rounding = new RoundingRule { RoundingStrategy = RoundingStrategy.NearestInterval, RoundingIntervalMinutes = 15 };
         var rule = new PayRule();
         var ctx   = TestEntityCreator.CreateContext(rule, emp, rounding);
-        var punch = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 11, 5, 6, 28), PunchKind.In, emp, Eastern);
+        var punch = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 11, 5, 6, 28), PunchKind.In, emp, 0, Eastern);
 
         var result = PunchRounder.RoundPunches([punch], ctx);
 

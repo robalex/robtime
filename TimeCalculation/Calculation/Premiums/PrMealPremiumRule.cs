@@ -24,7 +24,7 @@ public class PrMealPremiumRule : PremiumRuleBase
     {
         bool violated = !analysis.HasQualifyingMeal(30m, byWorkedHour: 6m);
 
-        return Resolve(ctx, violated, 1m, ctx.OvertimeRate,
+        return Resolve(ctx, violated, 1m, 1.5m,
             "No meal period taken between the 3rd and 6th hour (PR meal law).",
             "Meal period requirements satisfied.");
     }
