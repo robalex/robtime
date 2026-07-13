@@ -1,4 +1,3 @@
-using TimeCalculation.Model;
 using TimeCalculation.Model.Premiums;
 
 namespace TimeCalculation.Calculation.Premiums;
@@ -15,14 +14,13 @@ public class CaRestPremiumRule : PremiumRuleBase
     public override Jurisdiction Jurisdiction => Jurisdiction.California;
     public override WaiverPolicy WaiverPolicy => WaiverPolicy.NotWaivable;
 
-    public override bool Applies(Shift shift, PremiumContext ctx) =>
-        ShiftAnalysis.From(shift).WorkedHours >= 3.5m;
+    public override bool Applies(ShiftAnalysis analysis, PremiumContext ctx) =>
+        analysis.WorkedHours >= 3.5m;
 
-    public override PremiumResult Calculate(Shift shift, PremiumContext ctx)
+    public override PremiumResult Calculate(ShiftAnalysis analysis, PremiumContext ctx)
     {
-        var a = ShiftAnalysis.From(shift);
-        int required = RestSchedule.Required(a.WorkedHours);
-        int taken = a.RestBreakCount();
+        int required = RestSchedule.Required(analysis.WorkedHours);
+        int taken = analysis.RestBreakCount();
         bool violated = taken < required;
 
         return Resolve(ctx, violated, 1m, ctx.RegularRate,

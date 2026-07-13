@@ -1,4 +1,3 @@
-using TimeCalculation.Model;
 using TimeCalculation.Model.Premiums;
 
 namespace TimeCalculation.Calculation.Premiums;
@@ -17,13 +16,12 @@ public class WaMealPremiumRule : PremiumRuleBase
     public override Jurisdiction Jurisdiction => Jurisdiction.Washington;
     public override WaiverPolicy WaiverPolicy => WaiverPolicy.NotWaivable;   // TODO: verify WA waiver rules
 
-    public override bool Applies(Shift shift, PremiumContext ctx) =>
-        ShiftAnalysis.From(shift).WorkedHours > 5m;
+    public override bool Applies(ShiftAnalysis analysis, PremiumContext ctx) =>
+        analysis.WorkedHours > 5m;
 
-    public override PremiumResult Calculate(Shift shift, PremiumContext ctx)
+    public override PremiumResult Calculate(ShiftAnalysis analysis, PremiumContext ctx)
     {
-        var a = ShiftAnalysis.From(shift);
-        bool violated = !a.HasQualifyingMeal(30m, byWorkedHour: 5m);
+        bool violated = !analysis.HasQualifyingMeal(30m, byWorkedHour: 5m);
 
         return Resolve(ctx, violated, 0.5m, ctx.RegularRate,
             "No compliant 30-minute meal period; 30 minutes paid in lieu (WA meal law).",

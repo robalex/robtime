@@ -36,7 +36,7 @@ public class PremiumRulesTests
     public void CaMeal_CompliantLunchByFifthHour_NoPremium()
     {
         var shift = Build([4m, 4m], (30m, PunchSubtype.Lunch));
-        var r = new CaMealPremiumRule().Calculate(shift, Ctx);
+        var r = new CaMealPremiumRule().Calculate(ShiftAnalysis.From(shift), Ctx);
         Assert.False(r.Violated);
         Assert.Equal(0m, r.Amount);
     }
@@ -46,8 +46,8 @@ public class PremiumRulesTests
     {
         var shift = Build([8m]);
         var rule = new CaMealPremiumRule();
-        Assert.True(rule.Applies(shift, Ctx));
-        var r = rule.Calculate(shift, Ctx);
+        Assert.True(rule.Applies(ShiftAnalysis.From(shift), Ctx));
+        var r = rule.Calculate(ShiftAnalysis.From(shift), Ctx);
         Assert.True(r.Violated);
         Assert.Equal(1m, r.Hours);
         Assert.Equal(20m, r.Amount);
@@ -57,7 +57,7 @@ public class PremiumRulesTests
     public void CaMeal_LunchAfterFifthHour_Violated()
     {
         var shift = Build([6m, 2m], (30m, PunchSubtype.Lunch));  // lunch begins after 6 worked hours
-        var r = new CaMealPremiumRule().Calculate(shift, Ctx);
+        var r = new CaMealPremiumRule().Calculate(ShiftAnalysis.From(shift), Ctx);
         Assert.True(r.Violated);
     }
 
@@ -65,7 +65,7 @@ public class PremiumRulesTests
     public void CaMeal_ShortShift_DoesNotApply()
     {
         var shift = Build([4m]);
-        Assert.False(new CaMealPremiumRule().Applies(shift, Ctx));
+        Assert.False(new CaMealPremiumRule().Applies(ShiftAnalysis.From(shift), Ctx));
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class PremiumRulesTests
     {
         // 12h: 1st lunch begins at worked-hour 4, 2nd at worked-hour 9 (both within window)
         var shift = Build([4m, 5m, 3m], (30m, PunchSubtype.Lunch), (30m, PunchSubtype.Lunch));
-        var r = new CaMealPremiumRule().Calculate(shift, Ctx);
+        var r = new CaMealPremiumRule().Calculate(ShiftAnalysis.From(shift), Ctx);
         Assert.False(r.Violated);
     }
 
@@ -82,7 +82,7 @@ public class PremiumRulesTests
     {
         // 12h: 1st lunch at worked-hour 4 (ok), 2nd at worked-hour 11 (past the 10th hour) → violation
         var shift = Build([4m, 7m, 1m], (30m, PunchSubtype.Lunch), (30m, PunchSubtype.Lunch));
-        var r = new CaMealPremiumRule().Calculate(shift, Ctx);
+        var r = new CaMealPremiumRule().Calculate(ShiftAnalysis.From(shift), Ctx);
         Assert.True(r.Violated);
         Assert.Equal(1m, r.Hours);   // still capped at one hour per day
     }
@@ -92,7 +92,7 @@ public class PremiumRulesTests
     {
         var shift = Build([8m]);
         var ctx = Ctx with { Overrides = [OverrideKind.SupervisorApproval, OverrideKind.EmployeeWaiver] };
-        var r = new CaMealPremiumRule().Calculate(shift, ctx);
+        var r = new CaMealPremiumRule().Calculate(ShiftAnalysis.From(shift), ctx);
         Assert.True(r.Violated);
         Assert.True(r.Waived);
         Assert.Equal(0m, r.Amount);
@@ -103,7 +103,7 @@ public class PremiumRulesTests
     {
         var shift = Build([8m]);
         var ctx = Ctx with { Overrides = [OverrideKind.SupervisorApproval] };
-        var r = new CaMealPremiumRule().Calculate(shift, ctx);
+        var r = new CaMealPremiumRule().Calculate(ShiftAnalysis.From(shift), ctx);
         Assert.False(r.Waived);
         Assert.Equal(20m, r.Amount);
     }
@@ -115,7 +115,7 @@ public class PremiumRulesTests
     {
         // 8 hrs → 2 rests required; only 1 clocked Break
         var shift = Build([4m, 4m], (10m, PunchSubtype.Break));
-        var r = new CaRestPremiumRule().Calculate(shift, Ctx);
+        var r = new CaRestPremiumRule().Calculate(ShiftAnalysis.From(shift), Ctx);
         Assert.True(r.Violated);
         Assert.Equal(20m, r.Amount);
     }
@@ -124,7 +124,7 @@ public class PremiumRulesTests
     public void CaRest_EnoughBreaks_NoPremium()
     {
         var shift = Build([3m, 3m, 2m], (10m, PunchSubtype.Break), (10m, PunchSubtype.Break));
-        var r = new CaRestPremiumRule().Calculate(shift, Ctx);
+        var r = new CaRestPremiumRule().Calculate(ShiftAnalysis.From(shift), Ctx);
         Assert.False(r.Violated);
     }
 
@@ -133,7 +133,7 @@ public class PremiumRulesTests
     {
         var shift = Build([4m, 4m], (10m, PunchSubtype.Break));
         var ctx = Ctx with { Overrides = [OverrideKind.SupervisorApproval, OverrideKind.EmployeeWaiver] };
-        var r = new CaRestPremiumRule().Calculate(shift, ctx);
+        var r = new CaRestPremiumRule().Calculate(ShiftAnalysis.From(shift), ctx);
         Assert.True(r.Violated);
         Assert.False(r.Waived);
         Assert.Equal(20m, r.Amount);
@@ -146,7 +146,7 @@ public class PremiumRulesTests
     {
         var shift = Build([8m]);
         var ctx = Ctx with { Overrides = [OverrideKind.SupervisorApproval, OverrideKind.EmployeeWaiver] };
-        var r = new CoRestPremiumRule().Calculate(shift, ctx);
+        var r = new CoRestPremiumRule().Calculate(ShiftAnalysis.From(shift), ctx);
         Assert.True(r.Violated);
         Assert.False(r.Waived);
     }
@@ -157,7 +157,7 @@ public class PremiumRulesTests
     public void PrMeal_NoMeal_OneHourAtOvertimeRate()
     {
         var shift = Build([7m]);
-        var r = new PrMealPremiumRule().Calculate(shift, Ctx);
+        var r = new PrMealPremiumRule().Calculate(ShiftAnalysis.From(shift), Ctx);
         Assert.True(r.Violated);
         Assert.Equal(30m, r.Amount);   // 20 × 1.5
     }
@@ -169,8 +169,8 @@ public class PremiumRulesTests
     {
         var shift = Build([6m]);
         var rule = new OrMealPremiumRule();
-        Assert.True(rule.Applies(shift, Ctx));
-        var r = rule.Calculate(shift, Ctx);
+        Assert.True(rule.Applies(ShiftAnalysis.From(shift), Ctx));
+        var r = rule.Calculate(ShiftAnalysis.From(shift), Ctx);
         Assert.True(r.Violated);
         Assert.Equal(20m, r.Amount);
     }
@@ -181,7 +181,7 @@ public class PremiumRulesTests
     public void WaMeal_NoMeal_HalfHourAtRegularRate()
     {
         var shift = Build([6m]);
-        var r = new WaMealPremiumRule().Calculate(shift, Ctx);
+        var r = new WaMealPremiumRule().Calculate(ShiftAnalysis.From(shift), Ctx);
         Assert.True(r.Violated);
         Assert.Equal(0.5m, r.Hours);
         Assert.Equal(10m, r.Amount);   // 0.5 × 20

@@ -1,4 +1,3 @@
-using TimeCalculation.Model;
 using TimeCalculation.Model.Premiums;
 
 namespace TimeCalculation.Calculation.Premiums;
@@ -16,13 +15,12 @@ public class OrMealPremiumRule : PremiumRuleBase
     public override Jurisdiction Jurisdiction => Jurisdiction.Oregon;
     public override WaiverPolicy WaiverPolicy => WaiverPolicy.NotWaivable;   // TODO: verify OR waiver rules
 
-    public override bool Applies(Shift shift, PremiumContext ctx) =>
-        ShiftAnalysis.From(shift).WorkedHours >= 6m;
+    public override bool Applies(ShiftAnalysis analysis, PremiumContext ctx) =>
+        analysis.WorkedHours >= 6m;
 
-    public override PremiumResult Calculate(Shift shift, PremiumContext ctx)
+    public override PremiumResult Calculate(ShiftAnalysis analysis, PremiumContext ctx)
     {
-        var a = ShiftAnalysis.From(shift);
-        bool violated = !a.HasQualifyingMeal(30m, byWorkedHour: 5m);
+        bool violated = !analysis.HasQualifyingMeal(30m, byWorkedHour: 5m);
 
         return Resolve(ctx, violated, 1m, ctx.RegularRate,
             "No compliant 30-minute meal period (OR meal law).",

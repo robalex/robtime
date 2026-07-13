@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using NodaTime;
 using TimeCalculation.Model;
 using TimeCalculation.Model.PayRules;
@@ -11,8 +12,10 @@ namespace TimeCalculation.Pipeline;
 /// </summary>
 public class PipelineContext
 {
-    private readonly IReadOnlyList<PayRuleAssignment> _payRuleAssignments;
-    private readonly IReadOnlyList<EmployeePositionAssignment> _positionAssignments;
+    // List<T>, not IReadOnlyList<T>, specifically so CollectionsMarshal.AsSpan can hand the
+    // framework's own binary search the backing array with no copy.
+    private readonly List<PayRuleAssignment> _payRuleAssignments;
+    private readonly List<EmployeePositionAssignment> _positionAssignments;
 
     public Employee Employee { get; }
     public DateTimeZone EmployeeTimeZone { get; }
@@ -56,14 +59,11 @@ public class PipelineContext
     public bool TryGetRuleAt(Instant time, out PayRule rule)
     {
         var date = time.InZone(EmployeeTimeZone).Date;
-        for (int i = _payRuleAssignments.Count - 1; i >= 0; i--)
+        var found = FindEffective(_payRuleAssignments, date, a => a.EffectiveFrom, a => a.EffectiveTo);
+        if (found is not null)
         {
-            var a = _payRuleAssignments[i];
-            if (a.EffectiveFrom <= date && (a.EffectiveTo == null || a.EffectiveTo >= date))
-            {
-                rule = a.PayRule;
-                return true;
-            }
+            rule = found.PayRule;
+            return true;
         }
         rule = null!;
         return false;
@@ -85,13 +85,59 @@ public class PipelineContext
         }
 
         var date = time.InZone(EmployeeTimeZone).Date;
-        for (int i = _positionAssignments.Count - 1; i >= 0; i--)
+        return FindEffective(_positionAssignments, date, a => a.EffectiveFrom, a => a.EffectiveTo)?.Position;
+    }
+
+    /// <summary>
+    /// Finds the effective-dated element covering <paramref name="date"/> in a list sorted
+    /// ascending by EffectiveFrom, preferring the element with the greatest EffectiveFrom that
+    /// covers the date (matching the semantics of a plain reverse linear scan, just in
+    /// O(log n) for the common non-overlapping case instead of always O(n)).
+    ///
+    /// Uses the framework's own <see cref="MemoryExtensions.BinarySearch{T,TComparable}"/> (a
+    /// generic, allocation-free search by a custom IComparable key, not just an exact T value) to
+    /// find the rightmost index whose EffectiveFrom &lt;= date, rather than hand-rolling the
+    /// lo/hi/mid loop. BinarySearch only guarantees returning SOME index equal to the key when
+    /// duplicates exist, not which one, so an exact match is followed by a short forward scan to
+    /// the true rightmost tie — every index earlier than that also satisfies EffectiveFrom &lt;=
+    /// date (the list is sorted), so walking backward from there and returning the first whose
+    /// EffectiveTo covers the date reproduces the original full scan exactly. The walk-back only
+    /// visits more than one candidate when assignments overlap — same worst case as before, but
+    /// the typical contiguous-assignment case is a single check after the search.
+    /// </summary>
+    private static T? FindEffective<T>(
+        List<T> sorted, LocalDate date, Func<T, LocalDate> from, Func<T, LocalDate?> to)
+        where T : class
+    {
+        int found = CollectionsMarshal.AsSpan(sorted).BinarySearch(new EffectiveFromKey<T>(date, from));
+
+        int rightmost;
+        if (found >= 0)
         {
-            var a = _positionAssignments[i];
-            if (a.EffectiveFrom <= date && (a.EffectiveTo == null || a.EffectiveTo >= date))
-                return a.Position;
+            rightmost = found;
+            while (rightmost + 1 < sorted.Count && from(sorted[rightmost + 1]) == date)
+                rightmost++;
+        }
+        else
+        {
+            rightmost = ~found - 1;   // ~found = index of the first element with EffectiveFrom > date
+        }
+
+        for (int i = rightmost; i >= 0; i--)
+        {
+            var item = sorted[i];
+            var effectiveTo = to(item);
+            if (effectiveTo is null || effectiveTo >= date)
+                return item;
         }
         return null;
+    }
+
+    /// <summary>Search key for <see cref="MemoryExtensions.BinarySearch{T,TComparable}"/>: compares
+    /// a target date against a candidate's projected EffectiveFrom, without needing a dummy T instance.</summary>
+    private readonly struct EffectiveFromKey<T>(LocalDate date, Func<T, LocalDate> from) : IComparable<T>
+    {
+        public int CompareTo(T? other) => date.CompareTo(from(other!));
     }
 
     /// <summary>

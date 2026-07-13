@@ -41,10 +41,13 @@ public static class PremiumApplier
                 Overrides = overridesForShift?.Invoke(shift) ?? [],
             };
 
+            // Computed once per shift rather than per rule per method (Applies + Calculate), since
+            // every rule today only needs this derived view, not the raw Shift.
+            var analysis = ShiftAnalysis.From(shift);
             var anchorId = AnchorPunchId(shift);
             var results = rules
-                .Where(r => r.Applies(shift, premiumCtx))
-                .Select(r => r.Calculate(shift, premiumCtx) with
+                .Where(r => r.Applies(analysis, premiumCtx))
+                .Select(r => r.Calculate(analysis, premiumCtx) with
                 {
                     AnchorPunchId = anchorId,
                     ShiftDate = shift.ShiftDate,

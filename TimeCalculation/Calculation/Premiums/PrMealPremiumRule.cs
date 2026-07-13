@@ -1,4 +1,3 @@
-using TimeCalculation.Model;
 using TimeCalculation.Model.Premiums;
 
 namespace TimeCalculation.Calculation.Premiums;
@@ -18,13 +17,12 @@ public class PrMealPremiumRule : PremiumRuleBase
     public override Jurisdiction Jurisdiction => Jurisdiction.PuertoRico;
     public override WaiverPolicy WaiverPolicy => WaiverPolicy.NotWaivable;   // TODO: verify PR waiver rules
 
-    public override bool Applies(Shift shift, PremiumContext ctx) =>
-        ShiftAnalysis.From(shift).WorkedHours > 5m;
+    public override bool Applies(ShiftAnalysis analysis, PremiumContext ctx) =>
+        analysis.WorkedHours > 5m;
 
-    public override PremiumResult Calculate(Shift shift, PremiumContext ctx)
+    public override PremiumResult Calculate(ShiftAnalysis analysis, PremiumContext ctx)
     {
-        var a = ShiftAnalysis.From(shift);
-        bool violated = !a.HasQualifyingMeal(30m, byWorkedHour: 6m);
+        bool violated = !analysis.HasQualifyingMeal(30m, byWorkedHour: 6m);
 
         return Resolve(ctx, violated, 1m, ctx.OvertimeRate,
             "No meal period taken between the 3rd and 6th hour (PR meal law).",

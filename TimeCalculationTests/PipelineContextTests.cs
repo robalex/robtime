@@ -104,4 +104,79 @@ public class PipelineContextTests
 
         Assert.Throws<InvalidOperationException>(() => ctx.GetRuleAt(Instant.FromUtc(2023, 1, 1, 0, 0)));
     }
+
+    [Fact]
+    public void GetRuleAt_OverlappingAssignments_LatestEffectiveFromWins()
+    {
+        // Pins the lookup semantics before the linear scan is replaced with a binary search:
+        // when two assignments both cover a date, the one with the latest EffectiveFrom wins.
+        var early = new PayRule { Id = 1 };
+        var late = new PayRule { Id = 2 };
+        var assignments = new[]
+        {
+            new PayRuleAssignment(early, new LocalDate(2023, 1, 1), new LocalDate(2023, 6, 1)),
+            new PayRuleAssignment(late, new LocalDate(2023, 3, 1), new LocalDate(2023, 12, 31)),
+        };
+        var ctx = new PipelineContext(_emp, assignments, []);
+
+        var rule = ctx.GetRuleAt(Instant.FromUtc(2023, 4, 1, 0, 0));
+
+        Assert.Equal(2, rule.Id);
+    }
+
+    [Fact]
+    public void GetRuleAt_DuplicateEffectiveFromDates_LastSuppliedOfTheTieWins()
+    {
+        // Two assignments share the exact same EffectiveFrom (a degenerate but possible input).
+        // The binary search can land on either one of the tied pair; the tie-break forward scan
+        // must resolve to the last one in sort-stable order, same as a full linear scan would.
+        var first = new PayRule { Id = 1 };
+        var second = new PayRule { Id = 2 };
+        var assignments = new[]
+        {
+            new PayRuleAssignment(first, new LocalDate(2023, 1, 1)),
+            new PayRuleAssignment(second, new LocalDate(2023, 1, 1)),
+        };
+        var ctx = new PipelineContext(_emp, assignments, []);
+
+        var rule = ctx.GetRuleAt(Instant.FromUtc(2023, 6, 1, 0, 0));
+
+        Assert.Equal(2, rule.Id);
+    }
+
+    [Fact]
+    public void GetRuleAt_LatestAssignmentDoesNotCover_FallsBackToEarlierCoveringOne()
+    {
+        // The latest-starting assignment (EffectiveFrom Mar 1) doesn't cover the queried date
+        // (its own EffectiveTo ends it in April); an earlier, still-covering assignment must win.
+        var earlyOpenEnded = new PayRule { Id = 1 };
+        var laterButExpired = new PayRule { Id = 2 };
+        var assignments = new[]
+        {
+            new PayRuleAssignment(earlyOpenEnded, new LocalDate(2023, 1, 1)),
+            new PayRuleAssignment(laterButExpired, new LocalDate(2023, 3, 1), new LocalDate(2023, 4, 1)),
+        };
+        var ctx = new PipelineContext(_emp, assignments, []);
+
+        var rule = ctx.GetRuleAt(Instant.FromUtc(2023, 6, 1, 0, 0));
+
+        Assert.Equal(1, rule.Id);
+    }
+
+    [Fact]
+    public void GetPositionAt_OverlappingAssignments_LatestEffectiveFromWins()
+    {
+        var early = new Position { Id = 1 };
+        var late = new Position { Id = 2 };
+        var assignments = new[]
+        {
+            new EmployeePositionAssignment(early, new LocalDate(2023, 1, 1), new LocalDate(2023, 6, 1)),
+            new EmployeePositionAssignment(late, new LocalDate(2023, 3, 1), new LocalDate(2023, 12, 31)),
+        };
+        var ctx = new PipelineContext(_emp, [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], assignments);
+
+        var position = ctx.GetPositionAt(Instant.FromUtc(2023, 4, 1, 0, 0));
+
+        Assert.Equal(2, position?.Id);
+    }
 }

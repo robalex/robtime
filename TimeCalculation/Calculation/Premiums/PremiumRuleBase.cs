@@ -1,4 +1,3 @@
-using TimeCalculation.Model;
 using TimeCalculation.Model.Premiums;
 
 namespace TimeCalculation.Calculation.Premiums;
@@ -10,8 +9,8 @@ public abstract class PremiumRuleBase : IPremiumRule
     public abstract Jurisdiction Jurisdiction { get; }
     public abstract WaiverPolicy WaiverPolicy { get; }
 
-    public abstract bool Applies(Shift shift, PremiumContext ctx);
-    public abstract PremiumResult Calculate(Shift shift, PremiumContext ctx);
+    public abstract bool Applies(ShiftAnalysis analysis, PremiumContext ctx);
+    public abstract PremiumResult Calculate(ShiftAnalysis analysis, PremiumContext ctx);
 
     /// <summary>Builds the result: no violation → zero; violation → premium unless waived by policy.</summary>
     protected PremiumResult Resolve(

@@ -1,4 +1,3 @@
-using TimeCalculation.Model;
 using TimeCalculation.Model.Premiums;
 
 namespace TimeCalculation.Calculation.Premiums;
@@ -16,17 +15,16 @@ public class CaMealPremiumRule : PremiumRuleBase
     public override Jurisdiction Jurisdiction => Jurisdiction.California;
     public override WaiverPolicy WaiverPolicy => WaiverPolicy.BothRequired;
 
-    public override bool Applies(Shift shift, PremiumContext ctx) =>
-        ShiftAnalysis.From(shift).WorkedHours > 5m;
+    public override bool Applies(ShiftAnalysis analysis, PremiumContext ctx) =>
+        analysis.WorkedHours > 5m;
 
-    public override PremiumResult Calculate(Shift shift, PremiumContext ctx)
+    public override PremiumResult Calculate(ShiftAnalysis analysis, PremiumContext ctx)
     {
-        var a = ShiftAnalysis.From(shift);
-        int required = a.WorkedHours > 10m ? 2 : a.WorkedHours > 5m ? 1 : 0;
+        int required = analysis.WorkedHours > 10m ? 2 : analysis.WorkedHours > 5m ? 1 : 0;
 
-        bool firstMealOk = a.HasQualifyingMeal(30m, byWorkedHour: 5m);
+        bool firstMealOk = analysis.HasQualifyingMeal(30m, byWorkedHour: 5m);
         // Second meal must itself begin by the end of the 10th hour — a late second meal is a violation.
-        bool secondMealOk = a.QualifyingMealCount(30m, byWorkedHour: 10m) >= 2;
+        bool secondMealOk = analysis.QualifyingMealCount(30m, byWorkedHour: 10m) >= 2;
 
         bool violated = (required >= 1 && !firstMealOk) || (required >= 2 && !secondMealOk);
 

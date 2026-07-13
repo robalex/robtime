@@ -172,42 +172,47 @@ inside the shift's range). Same nearest-shift answer, O(F log S).
 `FixedEntry_BetweenTwoShifts_AttachesToNearer` and `FixedEntry_InsideAShift_AttachesToThatShift`
 if not already present.
 
-### 2.4 Memoize `TotalHours` on `Shift`, `WorkDay`, `Workweek`
+### 2.4 Memoize `TotalHours` on `Shift`, `WorkDay`, `Workweek` — ATTEMPTED, REVERTED
 
-**Problem:** `Workweek.TotalHours` → `WorkDay.TotalHours` → `Shift.TotalHours` →
-`PunchPair.TotalHours` recomputes the whole tree on every access; overtime rules and RROP hit
-these repeatedly.
+**Original problem:** `Workweek.TotalHours` → `WorkDay.TotalHours` → `Shift.TotalHours` →
+`PunchPair.TotalHours` recomputes the whole tree on every access.
 
-**Change:** in `Shift`, `WorkDay`, `Workweek` (all init-only records), replace the expression-body
-property with a lazily cached field:
+**What happened:** implemented the lazy `private decimal? _totalHours` field exactly as sketched
+below, then wrote an empirical check before trusting it (per this repo's habit of verifying
+subtle C# behavior rather than assuming it):
+
 ```csharp
-private decimal? _totalHours;
-public decimal TotalHours => _totalHours ??= PunchPairs.Sum(p => p.TotalHours);
+var shift1 = new Shift { PunchPairs = [pair] };
+var shift2 = new Shift { PunchPairs = [pair] };
+_ = shift1.TotalHours;                 // populates shift1's cache only
+Assert.Equal(shift1, shift2);          // FAILED
 ```
-**Do NOT memoize `PunchPair.TotalHours`** — `PunchPair.OutPunch` has a setter and is mutated
-during pairing; caching there would return stale values. Add a comment on PunchPair saying so.
 
-**Tests:** existing suite covers values. Add one test asserting a `with`-mutated copy recomputes
-(e.g. `shift with { PunchPairs = ... }` reports the new total) — record `with` copies fields, so
-verify the cache field doesn't leak a stale value into the copy. If it does (records copy private
-fields), switch to computing eagerly in the property once and storing under a lock-free pattern:
-simplest correct alternative is an explicit `decimal TotalHours { get; init; }` set by the
-builders — choose whichever passes the `with` test cleanly.
-> Note: C# record `with` DOES copy private backing fields — the lazy-field approach WILL leak the
-> cache into copies. Since all mutation happens via `with`, prefer the safer form: compute in the
-> grouping/builder stage and assign an init property, or keep the lazy field but reset it is not
-> possible — so use init-time computation for `WorkDay`/`Workweek` (built once by groupers) and
-> leave `Shift.TotalHours` computed-on-access but cached only if the `with` test passes.
-> Practical resolution: `WorkDay`/`Workweek` are never `with`-mutated after construction (verify
-> by grep); `Shift` IS (`with { Differentials/Premiums/ShiftDate }` — those don't change hours,
-> so a leaked cache is still *correct*). Document this invariant in a comment: any future `with`
-> that changes `PunchPairs` must construct a fresh Shift instead.
+**This failed.** C# record-generated `Equals`/`GetHashCode` include *every* instance field,
+public or private — so a private cache field populated on one instance and not another makes two
+otherwise-identical records compare unequal. This isn't a hypothetical edge case avoided by the
+"`with` never reassigns the underlying collection" reasoning below (that reasoning is still true
+and does prevent *stale values* — it does nothing to prevent the *equality corruption*, which
+depends only on whether `.TotalHours` happened to be accessed yet, not on what `with` changed).
+No production code path currently compares these records by equality, but silently breaking
+record value-semantics for any future caller (tests, dedup, snapshot diffing) is a bad trade.
 
-**Tests:** `TotalHours_AfterWithOnPunchPairs_Recomputes` — if it can't be made to pass with the
-lazy field, construct fresh (per the note) and make the test assert the documented invariant
-instead.
+**Also:** re-examined the actual call graph before deciding whether to fight the equality problem
+(e.g. with a custom `Equals`/`GetHashCode` override, or a `ConditionalWeakTable` keyed cache
+instead of an instance field). `RegularRateCalculator` walks `PunchPairs` directly and never calls
+`Shift.TotalHours`; `FederalOvertimeRule`/`CaliforniaOvertimeRule` each read `week.TotalHours` /
+`day.TotalHours` exactly once per period in a single loop pass. In the current pipeline, none of
+these properties are actually read more than once per instance per calculation — the "recomputes
+the whole tree on every access" problem was theoretical, not observed in the real call sites.
 
-### 2.5 (Optional — do last, skip if contract friction) Single up-front sort
+**Decision: skip.** The equality hazard is real and the performance win in the current codebase is
+approximately zero. `TimeCalculation/Model/{PunchPair,Shift,WorkDay,Workweek}.cs` were reverted to
+their pre-item state (`git checkout --`) after the scratch check failed. If a future profiling run
+on real production-scale data shows these properties genuinely hot (e.g. a new caller reads
+`Shift.TotalHours` in a loop), reconsider with a `ConditionalWeakTable<Shift, decimal>`-keyed cache
+(no instance field, so no equality impact) rather than a plain private field.
+
+### 2.5 (Optional — SKIPPED per recommendation below) Single up-front sort
 
 **Problem:** `PunchSubtypeInferrer`, `PunchPairer`, `ShiftBuilder` each `OrderBy` their input;
 `WorkweekGrouper` sorts days. Input is already ordered after the first sort.

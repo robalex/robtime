@@ -86,6 +86,43 @@ public class ShiftBuilderTests
     }
 
     [Fact]
+    public void FixedEntry_BetweenTwoShifts_AttachesToNearer()
+    {
+        // Two shifts: 9-13 and 20-22 (7-hr gap > default 6-hr threshold => two shifts)
+        var ctx = TestEntityCreator.CreateContext();
+        var pair1 = MakePair(At(0, 9),  At(0, 13));
+        var pair2 = MakePair(At(0, 20), At(0, 22));
+
+        // 15:00 — 2 hrs after shift1 ends vs 5 hrs before shift2 starts → shift1 (index 0)
+        var closerToFirst = TestEntityCreator.CreateTestPunch(At(0, 15), PunchKind.FixedDollar, _emp);
+        var result1 = ShiftBuilder.BuildShifts([pair1, pair2], [closerToFirst], ctx);
+        Assert.Single(result1[0].FixedEntries);
+        Assert.Empty(result1[1].FixedEntries);
+
+        // 19:00 — 6 hrs after shift1 ends vs 1 hr before shift2 starts → shift2 (index 1)
+        var closerToSecond = TestEntityCreator.CreateTestPunch(At(0, 19), PunchKind.FixedDollar, _emp);
+        var result2 = ShiftBuilder.BuildShifts([pair1, pair2], [closerToSecond], ctx);
+        Assert.Empty(result2[0].FixedEntries);
+        Assert.Single(result2[1].FixedEntries);
+    }
+
+    [Fact]
+    public void FixedEntry_InsideAShift_AttachesToThatShift_EvenWithOtherShiftsPresent()
+    {
+        // Two shifts: 9-13 and 20-22. An entry at 11:00 falls inside shift1's own range and
+        // must attach there regardless of shift2 existing elsewhere in the list.
+        var ctx = TestEntityCreator.CreateContext();
+        var pair1 = MakePair(At(0, 9),  At(0, 13));
+        var pair2 = MakePair(At(0, 20), At(0, 22));
+        var entry = TestEntityCreator.CreateTestPunch(At(0, 11), PunchKind.FixedDollar, _emp);
+
+        var result = ShiftBuilder.BuildShifts([pair1, pair2], [entry], ctx);
+
+        Assert.Single(result[0].FixedEntries);
+        Assert.Empty(result[1].FixedEntries);
+    }
+
+    [Fact]
     public void FixedEntryWithNoShifts_CreatesStandaloneShift()
     {
         var ctx   = TestEntityCreator.CreateContext();
