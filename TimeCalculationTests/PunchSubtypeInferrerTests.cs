@@ -18,7 +18,7 @@ public class PunchSubtypeInferrerTests
         TestEntityCreator.CreateTestPunch(t, PunchKind.Out, _emp) with { Subtype = subtype };
 
     private static IReadOnlyList<Punch> Run(IReadOnlyList<Punch> punches, PayRule? rule = null)
-        => PunchSubtypeInferrer.Execute(punches, TestEntityCreator.CreateContext(rule));
+        => PunchSubtypeInferrer.InferPunchSubtypes(punches, TestEntityCreator.CreateContext(rule));
 
     [Fact]
     public void ShortMidShiftGap_ClassifiedAsBreak()

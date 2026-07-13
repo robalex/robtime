@@ -21,7 +21,7 @@ public class PunchRounderTests
         var ctx  = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(9, 3), PunchKind.In, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Null(result[0].RoundedPunchTime);
         Assert.Equal(At(9, 3), result[0].EffectiveTime);
@@ -36,7 +36,7 @@ public class PunchRounderTests
         var ctx  = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(9, 6), PunchKind.In, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(At(9, 0), result[0].EffectiveTime);
     }
@@ -50,7 +50,7 @@ public class PunchRounderTests
         var ctx  = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(9, 9), PunchKind.In, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(At(9, 15), result[0].EffectiveTime);
     }
@@ -69,7 +69,7 @@ public class PunchRounderTests
         var ctx   = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(9, 3), PunchKind.In, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(At(9, 0), result[0].EffectiveTime);
     }
@@ -88,7 +88,7 @@ public class PunchRounderTests
         var ctx   = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(9, 13), PunchKind.In, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(At(9, 15), result[0].EffectiveTime);
     }
@@ -107,7 +107,7 @@ public class PunchRounderTests
         var ctx   = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(9, 9), PunchKind.In, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(At(9, 9), result[0].EffectiveTime);
         Assert.Null(result[0].RoundedPunchTime);
@@ -122,7 +122,7 @@ public class PunchRounderTests
         var ctx   = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(15, 42, 59), PunchKind.In, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(At(15, 45), result[0].EffectiveTime);
     }
@@ -136,7 +136,7 @@ public class PunchRounderTests
         var ctx   = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(9, 7, 29), PunchKind.In, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(At(9, 0), result[0].EffectiveTime);
     }
@@ -150,7 +150,7 @@ public class PunchRounderTests
         var ctx   = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(9, 7, 31), PunchKind.In, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(At(9, 15), result[0].EffectiveTime);
     }
@@ -169,7 +169,7 @@ public class PunchRounderTests
         var ctx   = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(9, 7, 0), PunchKind.In, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(At(9, 0), result[0].EffectiveTime);
     }
@@ -188,7 +188,7 @@ public class PunchRounderTests
         var ctx   = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(9, 7, 1), PunchKind.In, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(At(9, 7, 1), result[0].EffectiveTime);
         Assert.Null(result[0].RoundedPunchTime);
@@ -208,7 +208,7 @@ public class PunchRounderTests
         var ctx   = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(9, 8, 0), PunchKind.In, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(At(9, 15), result[0].EffectiveTime);
     }
@@ -227,7 +227,7 @@ public class PunchRounderTests
         var ctx   = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(9, 7, 59), PunchKind.In, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(At(9, 7, 59), result[0].EffectiveTime);
         Assert.Null(result[0].RoundedPunchTime);
@@ -241,7 +241,7 @@ public class PunchRounderTests
         var ctx  = TestEntityCreator.CreateContext(rule, null, rounding);
         var punch = TestEntityCreator.CreateTestPunch(At(9, 6), PunchKind.FixedDollar, _emp);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(At(9, 0), result[0].EffectiveTime);
     }

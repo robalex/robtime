@@ -66,8 +66,8 @@ public class PropertyBasedTests
         int originalCount = punches.Count;
         var ctx = Context();
 
-        var r1 = PunchRounder.Execute(punches, ctx);
-        var r2 = PunchRounder.Execute(punches, ctx);
+        var r1 = PunchRounder.RoundPunches(punches, ctx);
+        var r2 = PunchRounder.RoundPunches(punches, ctx);
 
         Assert.Equal(originalCount, punches.Count);            // input untouched
         Assert.Equal(r1.Select(p => p.EffectiveTime), r2.Select(p => p.EffectiveTime));
@@ -111,12 +111,12 @@ public class PropertyBasedTests
 
     private static IReadOnlyList<Workweek> BuildWeeks(List<Punch> punches, PipelineContext ctx)
     {
-        var rounded = PunchRounder.Execute(punches, ctx);
-        var subtyped = PunchSubtypeInferrer.Execute(rounded, ctx);
-        var (pairs, fixedEntries) = PunchPairer.Execute(subtyped, ctx);
-        var enriched = PairEnricher.Execute(pairs, ctx);
-        var shifts = ShiftBuilder.Execute(enriched, fixedEntries, ctx);
-        var dated = ShiftDater.Execute(shifts, ctx);
+        var rounded = PunchRounder.RoundPunches(punches, ctx);
+        var subtyped = PunchSubtypeInferrer.InferPunchSubtypes(rounded, ctx);
+        var (pairs, fixedEntries) = PunchPairer.PairPunches(subtyped, ctx);
+        var enriched = PairEnricher.AttachPositionAndRateToPunchPairs(pairs, ctx);
+        var shifts = ShiftBuilder.BuildShifts(enriched, fixedEntries, ctx);
+        var dated = ShiftDater.AssignDatesToShifts(shifts, ctx);
         var days = WorkDayGrouper.Execute(dated, ctx);
         return WorkweekGrouper.Execute(days, ctx);
     }

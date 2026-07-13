@@ -23,7 +23,7 @@ public class PairEnricherTests
         var ctx  = TestEntityCreator.CreateContext(employee: _emp);
         var pair = MakePair();
 
-        var result = PairEnricher.Execute([pair], ctx);
+        var result = PairEnricher.AttachPositionAndRateToPunchPairs([pair], ctx);
 
         Assert.Null(result[0].Position);
         Assert.Equal(15m, result[0].Rate);
@@ -37,7 +37,7 @@ public class PairEnricherTests
         var ctx = TestEntityCreator.CreateContext(employee: _emp, positions: assignments);
         var pair = MakePair();
 
-        var result = PairEnricher.Execute([pair], ctx);
+        var result = PairEnricher.AttachPositionAndRateToPunchPairs([pair], ctx);
 
         Assert.Equal(position, result[0].Position);
         Assert.Equal(20m, result[0].Rate);
@@ -56,7 +56,7 @@ public class PairEnricherTests
         var ctx  = TestEntityCreator.CreateContext(employee: _emp, positions: assignments);
         var pair = MakePair(positionId: 2);   // punch specifies position 2
 
-        var result = PairEnricher.Execute([pair], ctx);
+        var result = PairEnricher.AttachPositionAndRateToPunchPairs([pair], ctx);
 
         Assert.Equal(overridePos, result[0].Position);
         Assert.Equal(20m, result[0].Rate);

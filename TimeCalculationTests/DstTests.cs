@@ -82,7 +82,7 @@ public class DstTests
         var ctx   = TestEntityCreator.CreateContext(rule, emp, rounding);
         var punch = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 3, 12, 6, 55), PunchKind.In, emp, Eastern);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(Instant.FromUtc(2023, 3, 12, 7, 0), result[0].EffectiveTime);
     }
@@ -99,7 +99,7 @@ public class DstTests
         var ctx   = TestEntityCreator.CreateContext(rule, emp, rounding);
         var punch = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 11, 5, 6, 28), PunchKind.In, emp, Eastern);
 
-        var result = PunchRounder.Execute([punch], ctx);
+        var result = PunchRounder.RoundPunches([punch], ctx);
 
         Assert.Equal(Instant.FromUtc(2023, 11, 5, 6, 30), result[0].EffectiveTime);
     }
@@ -114,7 +114,7 @@ public class DstTests
         var ctx  = TestEntityCreator.CreateContext(new PayRule { ShiftDateStrategy = ShiftDateStrategy.FirstPunchLocalDate }, emp);
         var shift = MakeShift(Instant.FromUtc(2023, 3, 12, 4, 0), Instant.FromUtc(2023, 3, 12, 8, 0), emp);
 
-        Assert.Equal(new LocalDate(2023, 3, 11), ShiftDater.Execute([shift], ctx)[0].ShiftDate);
+        Assert.Equal(new LocalDate(2023, 3, 11), ShiftDater.AssignDatesToShifts([shift], ctx)[0].ShiftDate);
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class DstTests
         var ctx  = TestEntityCreator.CreateContext(new PayRule { ShiftDateStrategy = ShiftDateStrategy.FirstPunchLocalDate }, emp);
         var shift = MakeShift(Instant.FromUtc(2023, 11, 5, 3, 0), Instant.FromUtc(2023, 11, 5, 8, 0), emp);
 
-        Assert.Equal(new LocalDate(2023, 11, 4), ShiftDater.Execute([shift], ctx)[0].ShiftDate);
+        Assert.Equal(new LocalDate(2023, 11, 4), ShiftDater.AssignDatesToShifts([shift], ctx)[0].ShiftDate);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class DstTests
         var ctx  = TestEntityCreator.CreateContext(new PayRule { ShiftDateStrategy = ShiftDateStrategy.FirstPunchLocalDate }, emp);
         var shift = MakeShift(Instant.FromUtc(2023, 11, 5, 6, 30), Instant.FromUtc(2023, 11, 5, 8, 0), emp);
 
-        Assert.Equal(new LocalDate(2023, 11, 5), ShiftDater.Execute([shift], ctx)[0].ShiftDate);
+        Assert.Equal(new LocalDate(2023, 11, 5), ShiftDater.AssignDatesToShifts([shift], ctx)[0].ShiftDate);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class DstTests
         var ctx  = TestEntityCreator.CreateContext(new PayRule { ShiftDateStrategy = ShiftDateStrategy.MajorityHoursLocalDate }, emp);
         var shift = MakeShift(Instant.FromUtc(2023, 3, 12, 4, 0), Instant.FromUtc(2023, 3, 12, 8, 0), emp);
 
-        Assert.Equal(new LocalDate(2023, 3, 12), ShiftDater.Execute([shift], ctx)[0].ShiftDate);
+        Assert.Equal(new LocalDate(2023, 3, 12), ShiftDater.AssignDatesToShifts([shift], ctx)[0].ShiftDate);
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public class DstTests
         var ctx  = TestEntityCreator.CreateContext(new PayRule { ShiftDateStrategy = ShiftDateStrategy.MajorityHoursLocalDate }, emp);
         var shift = MakeShift(Instant.FromUtc(2023, 11, 5, 3, 0), Instant.FromUtc(2023, 11, 5, 8, 0), emp);
 
-        Assert.Equal(new LocalDate(2023, 11, 5), ShiftDater.Execute([shift], ctx)[0].ShiftDate);
+        Assert.Equal(new LocalDate(2023, 11, 5), ShiftDater.AssignDatesToShifts([shift], ctx)[0].ShiftDate);
     }
 
     // ── Arizona: UTC-7 year-round, no DST ────────────────────────────────────
@@ -191,7 +191,7 @@ public class DstTests
         // 8 PM Jun 14 Arizona = 03:00 UTC Jun 15 (UTC-7); if UTC-6 were used = 9 PM Jun 14 → still Jun 14
         var shift = MakeShift(Instant.FromUtc(2023, 6, 15, 3, 0), Instant.FromUtc(2023, 6, 15, 7, 0), emp);
 
-        Assert.Equal(new LocalDate(2023, 6, 14), ShiftDater.Execute([shift], ctx)[0].ShiftDate);
+        Assert.Equal(new LocalDate(2023, 6, 14), ShiftDater.AssignDatesToShifts([shift], ctx)[0].ShiftDate);
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class DstTests
         var ctx  = TestEntityCreator.CreateContext(new PayRule { ShiftDateStrategy = ShiftDateStrategy.FirstPunchLocalDate }, emp);
         var shift = MakeShift(Instant.FromUtc(2023, 3, 12, 16, 0), Instant.FromUtc(2023, 3, 13, 0, 0), emp);
 
-        var result = ShiftDater.Execute([shift], ctx);
+        var result = ShiftDater.AssignDatesToShifts([shift], ctx);
 
         Assert.Equal(new LocalDate(2023, 3, 12), result[0].ShiftDate);
         Assert.Equal(8m, result[0].TotalHours);

@@ -25,7 +25,7 @@ namespace TimeCalculation.Pipeline;
 /// </summary>
 public static class PunchPairer
 {
-    public static (IReadOnlyList<PunchPair> Pairs, IReadOnlyList<Punch> FixedEntries) Execute(
+    public static (IReadOnlyList<PunchPair> Pairs, IReadOnlyList<Punch> FixedEntries) PairPunches(
         IReadOnlyList<Punch> punches, PipelineContext ctx)
     {
         var pairs = new List<PunchPair>();

@@ -13,7 +13,7 @@ namespace TimeCalculation.Pipeline;
 /// </summary>
 public static class ShiftBuilder
 {
-    public static IReadOnlyList<Shift> Execute(
+    public static IReadOnlyList<Shift> BuildShifts(
         IReadOnlyList<PunchPair> pairs,
         IReadOnlyList<Punch> fixedEntries,
         PipelineContext ctx)

@@ -22,41 +22,61 @@ public static class PayCalculator
         PipelineContext ctx,
         Func<Shift, IReadOnlyList<OverrideKind>>? overridesForShift = null)
     {
-        // Stages 1–6: punches → dated shifts
-        var rounded = PunchRounder.Execute(punches, ctx);
-        var subtyped = PunchSubtypeInferrer.Execute(rounded, ctx);
-        var (pairs, fixedEntries) = PunchPairer.Execute(subtyped, ctx);
-        var enriched = PairEnricher.Execute(pairs, ctx);
-        var shifts = ShiftBuilder.Execute(enriched, fixedEntries, ctx);
-        var dated = ShiftDater.Execute(shifts, ctx);
+        var shifts = PrepareShifts(punches, ctx);
 
-        // Stage 8: differentials (needed before grouping so the regular rate sees them)
-        var withDiffs = DifferentialApplier.Execute(dated, ctx);
+        // Differentials must run before grouping so the regular rate includes them (Stage 8).
+        var shiftsWithDifferentials = DifferentialApplier.Execute(shifts, ctx);
 
-        // Stages 9–10: group into days then workweeks
-        var days = WorkDayGrouper.Execute(withDiffs, ctx);
-        var weeks = WorkweekGrouper.Execute(days, ctx);
-
-        var weekPays = new List<WorkweekPay>(weeks.Count);
-        foreach (var week in weeks)
-        {
-            // Stage 11: regular rate of pay
-            var regularRate = RegularRateCalculator.Calculate(week);
-
-            // Stage 12: overtime, using the rule configured on the PayRule active that week
-            var otRule = OvertimeRuleFactory.FromConfig(ctx.GetRuleAt(week.StartInstant).OvertimeRule);
-            var overtime = OvertimeCalculator.Calculate(week, otRule, regularRate.RegularRate);
-
-            // Stage 7: premiums per shift, priced at this week's regular rate
-            var weekShifts = week.Days.SelectMany(d => d.Shifts).ToList();
-            var withPremiums = PremiumApplier.Execute(
-                weekShifts, ctx, _ => regularRate.RegularRate, overridesForShift);
-
-            // Stage 13: summarize
-            weekPays.Add(PaySummarizer.Summarize(
-                week, withPremiums, regularRate, overtime, ctx.Employee.MinimumWage));
-        }
+        var weekPays = CalculateWeeklyPay(shiftsWithDifferentials, ctx, overridesForShift);
 
         return new PayResult { EmployeeId = ctx.Employee.Id, Workweeks = weekPays };
+    }
+
+    /// <summary>Stages 1–6: raw punches → rounded, subtyped, paired, enriched, built, and dated shifts.</summary>
+    private static IReadOnlyList<Shift> PrepareShifts(IReadOnlyList<Punch> punches, PipelineContext ctx)
+    {
+        var rounded = PunchRounder.RoundPunches(punches, ctx);
+        var subtyped = PunchSubtypeInferrer.InferPunchSubtypes(rounded, ctx);
+        var (pairs, fixedEntries) = PunchPairer.PairPunches(subtyped, ctx);
+        var enriched = PairEnricher.AttachPositionAndRateToPunchPairs(pairs, ctx);
+        var shifts = ShiftBuilder.BuildShifts(enriched, fixedEntries, ctx);
+        return ShiftDater.AssignDatesToShifts(shifts, ctx);
+    }
+
+    /// <summary>Stages 9–13: group shifts into workweeks, then compute each week's pay.</summary>
+    private static IReadOnlyList<WorkweekPay> CalculateWeeklyPay(
+        IReadOnlyList<Shift> shifts,
+        PipelineContext ctx,
+        Func<Shift, IReadOnlyList<OverrideKind>>? overridesForShift)
+    {
+        var days = WorkDayGrouper.Execute(shifts, ctx);
+        var weeks = WorkweekGrouper.Execute(days, ctx);
+
+        return weeks
+            .Select(week => CalculateWorkweekPay(week, ctx, overridesForShift))
+            .ToList();
+    }
+
+    /// <summary>
+    /// One workweek: regular rate (Stage 11) → overtime (Stage 12) → premiums (Stage 7, priced at
+    /// that rate) → summarize (Stage 13).  Premiums come after the regular rate but do not feed it,
+    /// so there is no circular dependency.
+    /// </summary>
+    private static WorkweekPay CalculateWorkweekPay(
+        Workweek week,
+        PipelineContext ctx,
+        Func<Shift, IReadOnlyList<OverrideKind>>? overridesForShift)
+    {
+        var regularRate = RegularRateCalculator.Calculate(week);
+
+        var overtimeRule = OvertimeRuleFactory.FromConfig(ctx.GetRuleAt(week.StartInstant).OvertimeRule);
+        var overtime = OvertimeCalculator.Calculate(week, overtimeRule, regularRate.RegularRate);
+
+        var weekShifts = week.Days.SelectMany(d => d.Shifts).ToList();
+        var shiftsWithPremiums = PremiumApplier.Execute(
+            weekShifts, ctx, _ => regularRate.RegularRate, overridesForShift);
+
+        return PaySummarizer.Summarize(
+            week, shiftsWithPremiums, regularRate, overtime, ctx.Employee.MinimumWage);
     }
 }

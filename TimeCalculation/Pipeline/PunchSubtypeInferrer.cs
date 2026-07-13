@@ -22,7 +22,7 @@ namespace TimeCalculation.Pipeline;
 /// </summary>
 public static class PunchSubtypeInferrer
 {
-    public static IReadOnlyList<Punch> Execute(IReadOnlyList<Punch> punches, PipelineContext ctx)
+    public static IReadOnlyList<Punch> InferPunchSubtypes(IReadOnlyList<Punch> punches, PipelineContext ctx)
     {
         var result = new List<Punch>(punches.Count);
         int lastClockIndex = -1;

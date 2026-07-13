@@ -11,7 +11,7 @@ namespace TimeCalculation.Pipeline;
 /// </summary>
 public static class ShiftDater
 {
-    public static IReadOnlyList<Shift> Execute(IReadOnlyList<Shift> shifts, PipelineContext ctx)
+    public static IReadOnlyList<Shift> AssignDatesToShifts(IReadOnlyList<Shift> shifts, PipelineContext ctx)
         => shifts.Select(s => AssignDate(s, ctx)).ToList();
 
     private static Shift AssignDate(Shift shift, PipelineContext ctx)

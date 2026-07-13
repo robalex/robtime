@@ -11,10 +11,10 @@ namespace TimeCalculation.Pipeline;
 /// </summary>
 public static class PairEnricher
 {
-    public static IReadOnlyList<PunchPair> Execute(IReadOnlyList<PunchPair> pairs, PipelineContext ctx)
-        => pairs.Select(p => Enrich(p, ctx)).ToList();
+    public static IReadOnlyList<PunchPair> AttachPositionAndRateToPunchPairs(IReadOnlyList<PunchPair> pairs, PipelineContext ctx)
+        => pairs.Select(p => AttachPositionAndRateToPunchPair(p, ctx)).ToList();
 
-    private static PunchPair Enrich(PunchPair pair, PipelineContext ctx)
+    private static PunchPair AttachPositionAndRateToPunchPair(PunchPair pair, PipelineContext ctx)
     {
         var position = ctx.GetPositionAt(pair.InPunch.EffectiveTime, pair.InPunch.PositionId);
         return pair with

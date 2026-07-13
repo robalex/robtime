@@ -22,7 +22,7 @@ public class ShiftBuilderTests
     public void NoPairs_ReturnsEmpty()
     {
         var ctx    = TestEntityCreator.CreateContext();
-        var result = ShiftBuilder.Execute([], [], ctx);
+        var result = ShiftBuilder.BuildShifts([], [], ctx);
         Assert.Empty(result);
     }
 
@@ -31,7 +31,7 @@ public class ShiftBuilderTests
     {
         var ctx    = TestEntityCreator.CreateContext();
         var pair   = MakePair(At(0, 9), At(0, 17));
-        var result = ShiftBuilder.Execute([pair], [], ctx);
+        var result = ShiftBuilder.BuildShifts([pair], [], ctx);
         Assert.Single(result);
         Assert.Single(result[0].PunchPairs);
     }
@@ -43,7 +43,7 @@ public class ShiftBuilderTests
         var ctx   = TestEntityCreator.CreateContext();
         var pair1 = MakePair(At(0, 9),  At(0, 13));
         var pair2 = MakePair(At(0, 14), At(0, 18));
-        var result = ShiftBuilder.Execute([pair1, pair2], [], ctx);
+        var result = ShiftBuilder.BuildShifts([pair1, pair2], [], ctx);
         Assert.Single(result);
         Assert.Equal(2, result[0].PunchPairs.Count);
     }
@@ -55,7 +55,7 @@ public class ShiftBuilderTests
         var ctx   = TestEntityCreator.CreateContext();
         var pair1 = MakePair(At(0, 7),  At(0, 11));
         var pair2 = MakePair(At(0, 18), At(0, 22));
-        var result = ShiftBuilder.Execute([pair1, pair2], [], ctx);
+        var result = ShiftBuilder.BuildShifts([pair1, pair2], [], ctx);
         Assert.Equal(2, result.Count);
     }
 
@@ -67,7 +67,7 @@ public class ShiftBuilderTests
         var ctx  = TestEntityCreator.CreateContext(rule);
         var pair1 = MakePair(At(0, 9),  At(0, 12));
         var pair2 = MakePair(At(0, 15), At(0, 19));
-        var result = ShiftBuilder.Execute([pair1, pair2], [], ctx);
+        var result = ShiftBuilder.BuildShifts([pair1, pair2], [], ctx);
         Assert.Equal(2, result.Count);
     }
 
@@ -78,7 +78,7 @@ public class ShiftBuilderTests
         var pair = MakePair(At(0, 9), At(0, 17));
         var bonus = TestEntityCreator.CreateTestPunch(At(0, 12), PunchKind.FixedDollar, _emp);
 
-        var result = ShiftBuilder.Execute([pair], [bonus], ctx);
+        var result = ShiftBuilder.BuildShifts([pair], [bonus], ctx);
 
         Assert.Single(result);
         Assert.Single(result[0].FixedEntries);
@@ -91,7 +91,7 @@ public class ShiftBuilderTests
         var ctx   = TestEntityCreator.CreateContext();
         var bonus = TestEntityCreator.CreateTestPunch(At(0, 12), PunchKind.FixedDollar, _emp);
 
-        var result = ShiftBuilder.Execute([], [bonus], ctx);
+        var result = ShiftBuilder.BuildShifts([], [bonus], ctx);
 
         Assert.Single(result);
         Assert.Empty(result[0].PunchPairs);

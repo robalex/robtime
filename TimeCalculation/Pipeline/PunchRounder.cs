@@ -12,7 +12,7 @@ namespace TimeCalculation.Pipeline;
 /// </summary>
 public static class PunchRounder
 {
-    public static IReadOnlyList<Punch> Execute(IReadOnlyList<Punch> punches, PipelineContext ctx)
+    public static IReadOnlyList<Punch> RoundPunches(IReadOnlyList<Punch> punches, PipelineContext ctx)
         => punches.Select(p => Round(p, ctx)).ToList();
 
     private static Punch Round(Punch punch, PipelineContext ctx)

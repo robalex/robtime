@@ -24,7 +24,7 @@ public class ShiftDaterTests
         var ctx  = TestEntityCreator.CreateContext(rule);
         var shift = MakeShift(Instant.FromUtc(2023, 1, 2, 9, 0), Instant.FromUtc(2023, 1, 2, 17, 0));
 
-        var result = ShiftDater.Execute([shift], ctx);
+        var result = ShiftDater.AssignDatesToShifts([shift], ctx);
 
         Assert.Equal(new LocalDate(2023, 1, 2), result[0].ShiftDate);
     }
@@ -37,7 +37,7 @@ public class ShiftDaterTests
         var ctx  = TestEntityCreator.CreateContext(rule);
         var shift = MakeShift(Instant.FromUtc(2023, 1, 2, 22, 0), Instant.FromUtc(2023, 1, 3, 6, 0));
 
-        var result = ShiftDater.Execute([shift], ctx);
+        var result = ShiftDater.AssignDatesToShifts([shift], ctx);
 
         Assert.Equal(new LocalDate(2023, 1, 2), result[0].ShiftDate);
     }
@@ -49,7 +49,7 @@ public class ShiftDaterTests
         var ctx  = TestEntityCreator.CreateContext(rule);
         var shift = MakeShift(Instant.FromUtc(2023, 1, 2, 9, 0), Instant.FromUtc(2023, 1, 2, 17, 0));
 
-        var result = ShiftDater.Execute([shift], ctx);
+        var result = ShiftDater.AssignDatesToShifts([shift], ctx);
 
         Assert.Equal(new LocalDate(2023, 1, 2), result[0].ShiftDate);
     }
@@ -62,7 +62,7 @@ public class ShiftDaterTests
         var ctx  = TestEntityCreator.CreateContext(rule);
         var shift = MakeShift(Instant.FromUtc(2023, 1, 2, 22, 0), Instant.FromUtc(2023, 1, 3, 6, 0));
 
-        var result = ShiftDater.Execute([shift], ctx);
+        var result = ShiftDater.AssignDatesToShifts([shift], ctx);
 
         Assert.Equal(new LocalDate(2023, 1, 3), result[0].ShiftDate);
     }
@@ -76,7 +76,7 @@ public class ShiftDaterTests
         var inP   = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 2, 9, 0), PunchKind.In, _emp);
         var shift = new Shift { PunchPairs = [TestEntityCreator.CreateTestPunchPair(inP, null)] };
 
-        var result = ShiftDater.Execute([shift], ctx);
+        var result = ShiftDater.AssignDatesToShifts([shift], ctx);
 
         Assert.Equal(new LocalDate(2023, 1, 2), result[0].ShiftDate);
     }
@@ -89,7 +89,7 @@ public class ShiftDaterTests
         var ctx  = TestEntityCreator.CreateContext(rule);
         var shift = MakeShift(Instant.FromUtc(2023, 1, 2, 22, 0), Instant.FromUtc(2023, 1, 3, 6, 0));
 
-        var result = ShiftDater.Execute([shift], ctx);
+        var result = ShiftDater.AssignDatesToShifts([shift], ctx);
 
         Assert.Equal(new LocalDate(2023, 1, 3), result[0].ShiftDate);
     }
@@ -102,7 +102,7 @@ public class ShiftDaterTests
         var ctx  = TestEntityCreator.CreateContext(rule);
         var shift = MakeShift(Instant.FromUtc(2023, 1, 2, 9, 0), Instant.FromUtc(2023, 1, 2, 17, 0));
 
-        var result = ShiftDater.Execute([shift], ctx);
+        var result = ShiftDater.AssignDatesToShifts([shift], ctx);
 
         Assert.Equal(new LocalDate(2023, 1, 2), result[0].ShiftDate);
     }
@@ -111,7 +111,7 @@ public class ShiftDaterTests
     public void EmptyInput_ReturnsEmpty()
     {
         var ctx    = TestEntityCreator.CreateContext();
-        var result = ShiftDater.Execute([], ctx);
+        var result = ShiftDater.AssignDatesToShifts([], ctx);
         Assert.Empty(result);
     }
 }
