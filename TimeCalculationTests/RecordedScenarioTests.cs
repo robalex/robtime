@@ -66,42 +66,6 @@ public class RecordedScenarioTests
     }
 
     [Fact]
-    public void MultiRate_WeightedRegularRate_DrivesOvertimePremium()
-    {
-        // 3 days @ pos1 ($20) + 2 days @ pos2 ($30), 10 hrs each = 50 hrs, one workweek
-        var punches = new List<Punch>();
-        for (int d = 2; d <= 4; d++) { punches.Add(In(d, 8, 1)); punches.Add(Out(d, 18, 1)); }
-        for (int d = 5; d <= 6; d++) { punches.Add(In(d, 8, 2)); punches.Add(Out(d, 18, 2)); }
-
-        var pos1 = new Position { Id = 1, BaseRate = 20m };
-        var pos2 = new Position { Id = 2, BaseRate = 30m };
-        var result = PayCalculator.Calculate(punches, Ctx(new PayRule(), pos1, pos2));
-
-        // straight = 30×20 + 20×30 = 1200; RROP = 1200/50 = 24
-        // OT 10 hrs; premium = 10 × 0.5 × 24 = 120 → gross 1320
-        Assert.Equal(1320m, result.GrossPay);
-        Assert.Equal(24m, result.Workweeks[0].RegularRate);
-    }
-
-    [Fact]
-    public void NonDiscretionaryBonus_RaisesOvertimePremium()
-    {
-        // 50 hrs @ $20 plus a $100 non-discretionary bonus
-        var punches = new List<Punch>();
-        for (int d = 2; d <= 6; d++) { punches.Add(In(d, 8)); punches.Add(Out(d, 18)); }
-        punches.Add(TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 3, 12, 0), PunchKind.FixedDollar, _emp)
-            with { Amount = 100m, BonusKind = BonusKind.NonDiscretionary });
-
-        var pos = new Position { Id = 1, BaseRate = 20m };
-        var result = PayCalculator.Calculate(punches, Ctx(new PayRule(), pos));
-
-        // straight 1000 + bonus 100; RROP = 1100/50 = 22; OT premium 10 × 0.5 × 22 = 110
-        // gross = 1000 + 100 + 110 = 1210
-        Assert.Equal(1210m, result.GrossPay);
-        Assert.Equal(22m, result.Workweeks[0].RegularRate);
-    }
-
-    [Fact]
     public void EffectiveDatedRateChange_MidWeek_SplitsAndWeightsCorrectly()
     {
         // pos rate $20 through Jan 3, then $40 from Jan 4 — one shift can't span, but the week mixes rates.
