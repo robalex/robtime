@@ -1,7 +1,8 @@
 using NodaTime;
 
-namespace TimeCalculation.Ingestion;
+namespace TimeCalculation.Model;
 
+/// <summary>Immutable record of one create/edit/delete of a Punch, for audit trail purposes.</summary>
 public record PunchAuditEntry
 {
     public int Id { get; init; }

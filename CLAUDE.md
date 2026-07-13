@@ -66,10 +66,31 @@ the plan's 13-stage design (see `PLAN.md`).
 
 ### Projects
 
-- `TimeCalculation` — the pure engine (only dependency: NodaTime).
-- `TimeCalculation.Persistence` — EF Core + Npgsql code-first persistence, kept out of the engine.
-  Model is validated by a build-only test; see its `README.md` for what's deferred.
+Layered so persistence and (eventually) an API each depend only on what they actually need:
+
+```
+TimeCalculation.Model  (entities/config; only dependency: NodaTime)
+      ^                          ^
+      |                          |
+TimeCalculation            TimeCalculation.Persistence
+(pipeline + calculators;         (EF Core + Npgsql)
+ depends on Model)
+```
+
+- `TimeCalculation.Model` — every type under `TimeCalculation.Model` / `.PayRules` / `.Premiums`
+  namespaces (`Punch`, `PayRule`, `Position`, `Shift`, `Workweek`, `PayResult`, `PunchAuditEntry`,
+  etc.) plus config enums. Pure data, no engine logic, only dependency NodaTime. Both the engine and
+  Persistence reference it directly; neither references the other.
+- `TimeCalculation` — the pure calculation engine (pipeline stages, calculators, premium/overtime
+  rules). References `TimeCalculation.Model` for the shapes it operates on.
+- `TimeCalculation.Persistence` — EF Core + Npgsql code-first persistence. References only
+  `TimeCalculation.Model` — it stores entities, it doesn't run `PayCalculator`. Model is validated
+  by a build-only test; see its `README.md` for what's deferred.
 - `TimeCalculationTests` — xunit.v3.
+
+A future API/worker project would reference `TimeCalculation.Model` (shapes), `TimeCalculation.Persistence`
+(storage), and `TimeCalculation` (to actually calculate pay) — no project needs to depend on more
+than its job requires.
 
 ### Key types
 

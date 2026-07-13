@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -8,10 +8,6 @@
 
   <ItemGroup>
     <PackageReference Include="NodaTime" Version="3.3.1" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\TimeCalculation.Model\TimeCalculation.Model.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using TimeCalculation.Ingestion;
 using TimeCalculation.Model;
 using TimeCalculation.Model.PayRules;
 
@@ -9,6 +8,11 @@ namespace TimeCalculation.Persistence;
 /// EF Core code-first context (Npgsql + NodaTime).  Encodes the persistence design from the plan:
 /// decimal precision (money 19,4 / hours 10,4), the hot indexes, NodaTime instant/date mapping,
 /// soft-delete and multi-tenant global query filters, and the device idempotency constraint.
+///
+/// This project depends only on TimeCalculation.Model (the pure entity/config types), not the
+/// TimeCalculation calculation engine — persistence is a data-access concern, not a place to run
+/// PayCalculator. A future API/worker project composes both: TimeCalculation for calculation,
+/// this project for storage, TimeCalculation.Model for the shapes they share.
 ///
 /// Not encoded here (deferred / open decisions): table partitioning by year (Postgres DDL, applied
 /// in a migration), the worker-queue choice for parallel period calculation (open decision #6), and

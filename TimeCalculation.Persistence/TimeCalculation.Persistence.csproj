@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TimeCalculation\TimeCalculation.csproj" />
+    <ProjectReference Include="..\TimeCalculation.Model\TimeCalculation.Model.csproj" />
   </ItemGroup>
 
 </Project>
