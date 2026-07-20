@@ -56,13 +56,13 @@ public class PunchRounderTests
     }
 
     [Fact]
-    public void QuarterHourWithGrace_WithinGraceBeforeHour_RoundsBack()
+    public void IntervalWithGrace_WithinGraceBeforeHour_RoundsBack()
     {
         // 9:03 — within 7-min grace of :00 → rounds to 9:00
         var rule = new PayRule();
         var rounding = new RoundingRule
         {
-            RoundingStrategy = RoundingStrategy.QuarterHourWithGrace,
+            RoundingStrategy = RoundingStrategy.IntervalWithGrace,
             RoundingIntervalMinutes = 15,
             RoundingGraceMinutes = 7,
         };
@@ -75,13 +75,13 @@ public class PunchRounderTests
     }
 
     [Fact]
-    public void QuarterHourWithGrace_WithinGraceBeforeBoundary_RoundsForward()
+    public void IntervalWithGrace_WithinGraceBeforeBoundary_RoundsForward()
     {
         // 9:13 — within 7-min grace of :15 → rounds to 9:15
         var rule = new PayRule();
         var rounding = new RoundingRule
         {
-            RoundingStrategy = RoundingStrategy.QuarterHourWithGrace,
+            RoundingStrategy = RoundingStrategy.IntervalWithGrace,
             RoundingIntervalMinutes = 15,
             RoundingGraceMinutes = 7,
         };
@@ -94,13 +94,13 @@ public class PunchRounderTests
     }
 
     [Fact]
-    public void QuarterHourWithGrace_OutsideGrace_LeavesTimeUnchanged()
+    public void IntervalWithGrace_OutsideGrace_LeavesTimeUnchanged()
     {
         // With 5-min grace and 15-min interval: 9:09 is 9 min from :00 and 6 min from :15 — outside both windows
         var rule = new PayRule();
         var rounding = new RoundingRule
         {
-            RoundingStrategy = RoundingStrategy.QuarterHourWithGrace,
+            RoundingStrategy = RoundingStrategy.IntervalWithGrace,
             RoundingIntervalMinutes = 15,
             RoundingGraceMinutes = 5,
         };
@@ -156,13 +156,13 @@ public class PunchRounderTests
     }
 
     [Fact]
-    public void QuarterHourWithGrace_ExactlyAtGraceBoundary_RoundsBack()
+    public void IntervalWithGrace_ExactlyAtGraceBoundary_RoundsBack()
     {
         // 9:07:00 — exactly 420 s (7 min) past 9:00; at the boundary, grace applies → rounds to 9:00
         var rule = new PayRule();
         var rounding = new RoundingRule
         {
-            RoundingStrategy = RoundingStrategy.QuarterHourWithGrace,
+            RoundingStrategy = RoundingStrategy.IntervalWithGrace,
             RoundingIntervalMinutes = 15,
             RoundingGraceMinutes = 7,
         };
@@ -175,13 +175,13 @@ public class PunchRounderTests
     }
 
     [Fact]
-    public void QuarterHourWithGrace_OneSecondPastBackGrace_LeavesUnchanged()
+    public void IntervalWithGrace_OneSecondPastBackGrace_LeavesUnchanged()
     {
         // 9:07:01 — 421 s past 9:00, 479 s before 9:15; outside both grace windows → unchanged
         var rule = new PayRule();
         var rounding = new RoundingRule
         {
-            RoundingStrategy = RoundingStrategy.QuarterHourWithGrace,
+            RoundingStrategy = RoundingStrategy.IntervalWithGrace,
             RoundingIntervalMinutes = 15,
             RoundingGraceMinutes = 7,
         };
@@ -195,13 +195,13 @@ public class PunchRounderTests
     }
 
     [Fact]
-    public void QuarterHourWithGrace_ExactlyAtForwardGraceBoundary_RoundsForward()
+    public void IntervalWithGrace_ExactlyAtForwardGraceBoundary_RoundsForward()
     {
         // 9:08:00 — 420 s (7 min) before 9:15; at the boundary, grace applies → rounds to 9:15
         var rule = new PayRule();
         var rounding = new RoundingRule
         {
-            RoundingStrategy = RoundingStrategy.QuarterHourWithGrace,
+            RoundingStrategy = RoundingStrategy.IntervalWithGrace,
             RoundingIntervalMinutes = 15,
             RoundingGraceMinutes = 7,
         };
@@ -214,13 +214,13 @@ public class PunchRounderTests
     }
 
     [Fact]
-    public void QuarterHourWithGrace_OneSecondPastForwardGrace_LeavesUnchanged()
+    public void IntervalWithGrace_OneSecondPastForwardGrace_LeavesUnchanged()
     {
         // 9:07:59 — 421 s before 9:15, 479 s past 9:00; outside both grace windows → unchanged
         var rule = new PayRule();
         var rounding = new RoundingRule
         {
-            RoundingStrategy = RoundingStrategy.QuarterHourWithGrace,
+            RoundingStrategy = RoundingStrategy.IntervalWithGrace,
             RoundingIntervalMinutes = 15,
             RoundingGraceMinutes = 7,
         };

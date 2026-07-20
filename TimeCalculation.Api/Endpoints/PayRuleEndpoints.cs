@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using TimeCalculation.Api.Contracts;
+using TimeCalculation.Model;
 using TimeCalculation.Model.PayRules;
 using TimeCalculation.Persistence;
 
@@ -13,7 +14,7 @@ public static class PayRuleEndpoints
         app.MapPost("/payrules", CreatePayRule).WithName("CreatePayRule");
     }
 
-    private static async Task<Results<Created<PayRule>, NotFound<string>>> CreatePayRule(
+    private static async Task<Results<Created<PayRule>, ValidationProblem, NotFound<string>>> CreatePayRule(
         CreatePayRuleRequest request, PayrollDbContext db, CancellationToken ct)
     {
         var clientExists = await db.Clients.AnyAsync(c => c.Id == request.ClientId, ct);
@@ -35,6 +36,19 @@ public static class PayRuleEndpoints
         if (request.RoundingStrategy is { } roundingStrategy) payRule.RoundingRule.RoundingStrategy = roundingStrategy;
         if (request.RoundingIntervalMinutes is { } roundingInterval) payRule.RoundingRule.RoundingIntervalMinutes = roundingInterval;
         if (request.RoundingGraceMinutes is { } roundingGrace) payRule.RoundingRule.RoundingGraceMinutes = roundingGrace;
+
+        // A grace window larger than half the interval leaves no dead zone — every punch would
+        // round down to the bucket start and RoundWithGrace's forward-rounding branch would never
+        // fire (see PunchRounder.RoundWithGrace).
+        if (payRule.RoundingRule.RoundingStrategy == RoundingStrategy.IntervalWithGrace
+            && payRule.RoundingRule.RoundingGraceMinutes > payRule.RoundingRule.RoundingIntervalMinutes / 2.0)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["roundingGraceMinutes"] =
+                    [$"Grace minutes ({payRule.RoundingRule.RoundingGraceMinutes}) must be at most half the rounding interval ({payRule.RoundingRule.RoundingIntervalMinutes})."],
+            });
+        }
 
         if (request.WeeklyOvertimeThresholdHours is { } weeklyOt) payRule.OvertimeRule.WeeklyOvertimeThresholdHours = weeklyOt;
         if (request.HasDailyOvertime is { } hasDaily) payRule.OvertimeRule.HasDailyOvertime = hasDaily;

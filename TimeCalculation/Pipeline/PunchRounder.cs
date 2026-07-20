@@ -20,7 +20,9 @@ public static class PunchRounder
         var rule = ctx.GetRuleAt(punch.PunchTime);
         var rounding = rule.RoundingRule;
         if (rounding.RoundingStrategy == RoundingStrategy.None)
+        {
             return punch;
+        }
 
         var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(punch.PunchTimeZoneId) ?? ctx.EmployeeTimeZone;
         var zonedPunch = punch.PunchTime.InZone(zone);
@@ -28,7 +30,9 @@ public static class PunchRounder
         var roundedLocal = ApplyRounding(localTime, rounding);
 
         if (roundedLocal == localTime)
+        {
             return punch;
+        }
 
         // Compute rounded Instant by adding the local-second delta to the original Instant.
         // Avoids InZoneLeniently, which fails at fall-back boundaries: an ambiguous local time
@@ -44,7 +48,7 @@ public static class PunchRounder
     private static LocalTime ApplyRounding(LocalTime time, RoundingRule rounding) => rounding.RoundingStrategy switch
     {
         RoundingStrategy.NearestInterval => RoundToNearest(time, rounding.RoundingIntervalMinutes),
-        RoundingStrategy.QuarterHourWithGrace => RoundWithGrace(time, rounding.RoundingIntervalMinutes, rounding.RoundingGraceMinutes),
+        RoundingStrategy.IntervalWithGrace => RoundWithGrace(time, rounding.RoundingIntervalMinutes, rounding.RoundingGraceMinutes),
         _ => time
     };
 
@@ -64,7 +68,7 @@ public static class PunchRounder
         var totalSeconds = time.Hour * NodaConstants.SecondsPerHour + time.Minute * NodaConstants.SecondsPerMinute + time.Second;
         var intervalSeconds = intervalMinutes * NodaConstants.SecondsPerMinute;
         var graceSeconds = graceMinutes * NodaConstants.SecondsPerMinute;
-        var intervalStart = (totalSeconds / intervalSeconds) * intervalSeconds;
+        var intervalStart = FloorToIntervalBoundary(totalSeconds, intervalSeconds);
         var intervalEnd = intervalStart + intervalSeconds;
 
         var pastStart = totalSeconds - intervalStart;
@@ -72,13 +76,24 @@ public static class PunchRounder
 
         int rounded;
         if (pastStart <= graceSeconds)
+        {
             rounded = intervalStart;
+        }
         else if (beforeEnd <= graceSeconds)
+        {
             rounded = intervalEnd;
+        }
         else
+        {
             return time;   // outside both grace windows — no rounding
+        }
 
         rounded = Math.Min(rounded, NodaConstants.SecondsPerDay - 1);
         return new LocalTime(rounded / NodaConstants.SecondsPerHour, rounded % NodaConstants.SecondsPerHour / NodaConstants.SecondsPerMinute);
     }
+
+    // Integer division truncates the remainder, so this snaps down to the start of the
+    // interval bucket containing totalSeconds (e.g. 1000s with a 900s interval -> 900s).
+    private static int FloorToIntervalBoundary(int totalSeconds, int intervalSeconds)
+        => totalSeconds / intervalSeconds * intervalSeconds;
 }
