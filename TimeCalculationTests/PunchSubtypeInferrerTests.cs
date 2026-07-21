@@ -193,9 +193,9 @@ public class PunchSubtypeInferrerTests
         var pairs = new[] { Pair(In(At(9)), null), Pair(In(At(10)), Out(At(17))) };
         var result = RunShift(pairs);
 
-        Assert.Equal(PunchSubtype.None, result.PunchPairs[0].InPunch!.Subtype);
-        Assert.Equal(PunchSubtype.None, result.PunchPairs[1].InPunch!.Subtype);
-        Assert.Equal(PunchSubtype.None, result.PunchPairs[1].OutPunch!.Subtype);
+        Assert.Null(result.PunchPairs[0].InPunch!.Subtype);
+        Assert.Null(result.PunchPairs[1].InPunch!.Subtype);
+        Assert.Null(result.PunchPairs[1].OutPunch!.Subtype);
     }
 
     [Fact]
