@@ -33,12 +33,14 @@ Classes are named for what they do; the `// Stage N —` doc comment on each rec
 the plan's 13-stage design (see `PLAN.md`).
 
 1. `PunchRounder` — apply `PayRule.RoundingRule` to punch times (raw + rounded both kept).
-2. `PunchSubtypeInferrer` — classify each mid-shift Out→In gap as `Break` or `Lunch` (nearest of the
-   `PayRule` expected lengths wins); a forced subtype is never overwritten.
-3. `PunchPairer` — match In/Out into `PunchPair`s; split pairs at `PayRule`/`EmployeePosition`
+2. `PunchPairer` — match In/Out into `PunchPair`s; split pairs at `PayRule`/`EmployeePosition`
    effective-date boundaries; incomplete (In-only / Out-only) pairs are intentional and surfaced.
-4. `PairEnricher` — attach the effective `Position` + `Rate` to each pair.
-5. `ShiftBuilder` — group pairs into `Shift`s (new shift when gap > `DistanceBetweenShiftsHours`).
+3. `PairEnricher` — attach the effective `Position` + `Rate` to each pair.
+4. `ShiftBuilder` — group pairs into `Shift`s (new shift when gap > `DistanceBetweenShiftsHours`).
+5. `PunchSubtypeInferrer` — runs after shifts are built, so shift boundaries are already settled;
+   classifies each Out→In gap *between two PunchPairs already in the same Shift* as `Break` or
+   `Lunch` (nearest of the `PayRule` expected lengths wins) without re-deriving the boundary
+   decision itself; a forced subtype is never overwritten.
 6. `ShiftDater` — assign each `Shift` a calendar date per `PayRule.ShiftDateStrategy`.
 7. `PremiumApplier` — run active `IPremiumRule`s (meal/rest) per shift; applied *after* the regular
    rate is known (premiums are excluded from it, so this is not circular).

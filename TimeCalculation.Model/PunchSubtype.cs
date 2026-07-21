@@ -10,5 +10,5 @@ public enum PunchSubtype
 {
     None,   // Not a break/lunch boundary (e.g. first In / last Out of a shift)
     Break,
-    Lunch,
+    Lunch
 }

@@ -1,77 +1,80 @@
+using NodaTime;
 using TimeCalculation.Model;
 using TimeCalculation.Model.PayRules;
 
 namespace TimeCalculation.Pipeline;
 
 /// <summary>
-/// Stage 2 — Punch-subtype inference.
-/// Employees punch In/Out explicitly; this stage classifies each mid-shift
-/// Out→In gap as a Break or Lunch by comparing the gap duration to the
-/// PayRule's expected break/lunch lengths (nearest wins).  The subtype is
-/// stamped on both punches bounding the gap.
+/// Stage 5 — Punch-subtype inference.
+/// Runs after shifts are built, so shift-boundary decisions are already settled: any Out→In gap
+/// between two consecutive PunchPairs within the same Shift is by construction a mid-shift gap
+/// (ShiftBuilder would have split it into a new Shift otherwise), and a Shift's first In / last Out
+/// can never be a candidate. This stage only has to classify each such gap as a Break or Lunch by
+/// comparing its duration to the PayRule's expected break/lunch lengths (nearest wins) — it no
+/// longer needs its own DistanceBetweenShiftsHours check to tell mid-shift gaps from shift
+/// boundaries.
 ///
-/// A gap only qualifies when it is within PayRule.DistanceBetweenShiftsHours —
-/// anything longer is a shift boundary, so the first In and last Out of a
-/// shift can never be a break or lunch.
+/// A zero-length gap (OutPunch and next InPunch at the same instant) is a PunchPairer boundary-split
+/// continuation, not a real gap, and is skipped.
 ///
-/// A punch arriving with a non-null Subtype was forced by a supervisor or the
-/// employee: inference never overwrites it, and the forced value propagates to
-/// the other punch of the gap when that one is unresolved.  All clock punches
-/// leave this stage with a resolved (non-null) Subtype; FixedDollar/FixedHours
-/// punches pass through untouched.
+/// A punch arriving with a non-null Subtype was forced by a supervisor or the employee: inference
+/// never overwrites it, and the forced value propagates to the other punch of the gap when that one
+/// is unresolved. All clock punches leave this stage with a resolved (non-null) Subtype;
+/// FixedDollar/FixedHours punches (carried in Shift.FixedEntries, not PunchPairs) are untouched.
 /// </summary>
 public static class PunchSubtypeInferrer
 {
-    public static IReadOnlyList<Punch> InferPunchSubtypes(IReadOnlyList<Punch> punches, PipelineContext ctx)
+    public static IReadOnlyList<Shift> InferPunchSubtypes(IReadOnlyList<Shift> shifts, PipelineContext ctx)
+        => shifts.Select(s => InferForShift(s, ctx)).ToList();
+
+    private static Shift InferForShift(Shift shift, PipelineContext ctx)
     {
-        var result = new List<Punch>(punches.Count);
-        int lastClockIndex = -1;
-
-        foreach (var punch in punches.OrderBy(p => p.EffectiveTime))
+        var pairs = shift.PunchPairs.OrderBy(AnchorTime).ToList();
+        if (pairs.Any(p => p.IsMissingPunch ))
         {
-            if (punch.IsFixedEntry)
-            {
-                result.Add(punch);
-                continue;
-            }
-
-            var current = punch;
-
-            // A mid-shift gap is an Out followed by an In within the same shift
-            if (current.Kind == PunchKind.In
-                && lastClockIndex >= 0
-                && result[lastClockIndex].Kind == PunchKind.Out)
-            {
-                var priorOut = result[lastClockIndex];
-                var rule = ctx.GetRuleAt(priorOut.EffectiveTime);
-                var gapHours = (decimal)(current.EffectiveTime - priorOut.EffectiveTime).TotalHours;
-
-                if (gapHours <= rule.DistanceBetweenShiftsHours)
-                {
-                    var subtype = priorOut.Subtype
-                        ?? current.Subtype
-                        ?? Classify(current, priorOut, rule);
-
-                    if (priorOut.Subtype is null)
-                        result[lastClockIndex] = priorOut with { Subtype = subtype };
-                    if (current.Subtype is null)
-                        current = current with { Subtype = subtype };
-                }
-            }
-
-            result.Add(current);
-            lastClockIndex = result.Count - 1;
+            return shift;  // don't infer anything for shifts with missing punches, leave them as-is
         }
 
-        // Any clock punch not part of a qualifying gap resolves to None
-        for (int i = 0; i < result.Count; i++)
+        for (int i = 0; i < pairs.Count - 1; i++)
         {
-            if (result[i].IsClockPunch && result[i].Subtype is null)
-                result[i] = result[i] with { Subtype = PunchSubtype.None };
+            var priorOut = pairs[i].OutPunch;
+            var nextIn = pairs[i + 1].InPunch;
+
+            var gap = nextIn!.EffectiveTime - priorOut!.EffectiveTime;
+            if (gap <= Duration.Zero)
+            {
+                continue;   // boundary-split continuation, not a real gap
+            }
+
+            var rule = ctx.GetRuleAt(priorOut.EffectiveTime);
+            var subtype = priorOut.Subtype ?? nextIn.Subtype ?? Classify(nextIn, priorOut, rule);
+
+            if (priorOut.Subtype is null)
+            {
+                pairs[i] = pairs[i] with { OutPunch = priorOut with { Subtype = subtype } };
+            }
+
+            if (nextIn.Subtype is null)
+            {
+                pairs[i + 1] = pairs[i + 1] with { InPunch = nextIn with { Subtype = subtype } };
+            }
         }
 
-        return result;
+        // Any clock punch not part of a qualifying gap resolves to None.
+        for (int i = 0; i < pairs.Count; i++)
+        {
+            pairs[i] = pairs[i] with
+            {
+                InPunch = pairs[i].InPunch is { Subtype: null } ip ? ip with { Subtype = PunchSubtype.None } : pairs[i].InPunch,
+                OutPunch = pairs[i].OutPunch is { Subtype: null } op ? op with { Subtype = PunchSubtype.None } : pairs[i].OutPunch,
+            };
+        }
+
+        return shift with { PunchPairs = pairs };
     }
+
+    // A pair's own anchor time: its In, or its Out when it's an orphan Out with no In.
+    private static Instant AnchorTime(PunchPair pair) => pair.InPunch?.EffectiveTime ?? pair.OutPunch!.EffectiveTime;
 
     private static PunchSubtype Classify(Punch inPunch, Punch outPunch, PayRule rule)
     {

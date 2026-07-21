@@ -4,7 +4,7 @@ using TimeCalculation.Model;
 namespace TimeCalculation.Pipeline;
 
 /// <summary>
-/// Stage 3 — Pairing.
+/// Stage 2 — Pairing.
 /// Matches In/Out clock punches into PunchPairs.
 /// FixedDollar/FixedHours punches are separated out rather than paired.
 ///

@@ -17,31 +17,40 @@ public class PunchSubtypeInferrerTests
     private Punch Out(Instant t, PunchSubtype? subtype = null) =>
         TestEntityCreator.CreateTestPunch(t, PunchKind.Out, _emp) with { Subtype = subtype };
 
-    private static IReadOnlyList<Punch> Run(IReadOnlyList<Punch> punches, PayRule? rule = null)
-        => PunchSubtypeInferrer.InferPunchSubtypes(punches, TestEntityCreator.CreateContext(rule));
+    private static PunchPair Pair(Punch? inPunch, Punch? outPunch) => new() { InPunch = inPunch, OutPunch = outPunch };
+
+    // Runs a single Shift built from the given (already-grouped) pairs through the stage — this
+    // stage no longer decides shift boundaries itself, so tests supply pre-grouped Shifts directly
+    // rather than relying on ShiftBuilder.
+    private static Shift RunShift(IReadOnlyList<PunchPair> pairs, PayRule? rule = null)
+    {
+        var shift = new Shift { PunchPairs = pairs };
+        var ctx = TestEntityCreator.CreateContext(rule);
+        return PunchSubtypeInferrer.InferPunchSubtypes([shift], ctx)[0];
+    }
 
     [Fact]
     public void ShortMidShiftGap_ClassifiedAsBreak()
     {
         // 9–12, 15-min gap, 12:15–17.  Default expected: break 15 min, lunch 30 min.
-        var punches = new[] { In(At(9)), Out(At(12)), In(At(12, 15)), Out(At(17)) };
-        var result = Run(punches);
+        var pairs = new[] { Pair(In(At(9)), Out(At(12))), Pair(In(At(12, 15)), Out(At(17))) };
+        var result = RunShift(pairs);
 
-        Assert.Equal(PunchSubtype.None,  result[0].Subtype);
-        Assert.Equal(PunchSubtype.Break, result[1].Subtype);
-        Assert.Equal(PunchSubtype.Break, result[2].Subtype);
-        Assert.Equal(PunchSubtype.None,  result[3].Subtype);
+        Assert.Equal(PunchSubtype.None,  result.PunchPairs[0].InPunch!.Subtype);
+        Assert.Equal(PunchSubtype.Break, result.PunchPairs[0].OutPunch!.Subtype);
+        Assert.Equal(PunchSubtype.Break, result.PunchPairs[1].InPunch!.Subtype);
+        Assert.Equal(PunchSubtype.None,  result.PunchPairs[1].OutPunch!.Subtype);
     }
 
     [Fact]
     public void LongerMidShiftGap_ClassifiedAsLunch()
     {
         // 35-min gap — closer to the 30-min expected lunch than the 15-min break
-        var punches = new[] { In(At(9)), Out(At(12)), In(At(12, 35)), Out(At(17)) };
-        var result = Run(punches);
+        var pairs = new[] { Pair(In(At(9)), Out(At(12))), Pair(In(At(12, 35)), Out(At(17))) };
+        var result = RunShift(pairs);
 
-        Assert.Equal(PunchSubtype.Lunch, result[1].Subtype);
-        Assert.Equal(PunchSubtype.Lunch, result[2].Subtype);
+        Assert.Equal(PunchSubtype.Lunch, result.PunchPairs[0].OutPunch!.Subtype);
+        Assert.Equal(PunchSubtype.Lunch, result.PunchPairs[1].InPunch!.Subtype);
     }
 
     [Fact]
@@ -49,54 +58,71 @@ public class PunchSubtypeInferrerTests
     {
         // 22.5 min is equidistant from 15 and 30; use 22 (closer to break) and
         // 23 (closer to lunch) to pin the boundary
-        var closer = Run([In(At(9)), Out(At(12)), In(At(12, 22)), Out(At(17))]);
-        Assert.Equal(PunchSubtype.Break, closer[1].Subtype);
+        var closer = RunShift([Pair(In(At(9)), Out(At(12))), Pair(In(At(12, 22)), Out(At(17)))]);
+        Assert.Equal(PunchSubtype.Break, closer.PunchPairs[0].OutPunch!.Subtype);
 
-        var farther = Run([In(At(9)), Out(At(12)), In(At(12, 23)), Out(At(17))]);
-        Assert.Equal(PunchSubtype.Lunch, farther[1].Subtype);
+        var farther = RunShift([Pair(In(At(9)), Out(At(12))), Pair(In(At(12, 23)), Out(At(17)))]);
+        Assert.Equal(PunchSubtype.Lunch, farther.PunchPairs[0].OutPunch!.Subtype);
     }
 
     [Fact]
-    public void GapExceedingDistanceBetweenShifts_IsShiftBoundary_NotClassified()
+    public void PairsInDifferentShifts_AreNeverComparedAcrossShifts()
     {
-        // 7-hr gap > default DistanceBetweenShiftsHours (6) — two shifts, no break
-        var punches = new[] { In(At(1)), Out(At(5)), In(At(12)), Out(At(17)) };
-        var result = Run(punches);
+        // Shift boundaries are ShiftBuilder's decision (Stage 4), made before this stage runs — a
+        // gap that spans two Shifts is never even visible to this stage as a candidate pair.
+        var shiftA = new Shift { PunchPairs = [Pair(In(At(1)), Out(At(5)))] };
+        var shiftB = new Shift { PunchPairs = [Pair(In(At(12)), Out(At(17)))] };
+        var ctx = TestEntityCreator.CreateContext();
 
-        Assert.Equal(PunchSubtype.None, result[1].Subtype);
-        Assert.Equal(PunchSubtype.None, result[2].Subtype);
+        var result = PunchSubtypeInferrer.InferPunchSubtypes([shiftA, shiftB], ctx);
+
+        Assert.Equal(PunchSubtype.None, result[0].PunchPairs[0].OutPunch!.Subtype);
+        Assert.Equal(PunchSubtype.None, result[1].PunchPairs[0].InPunch!.Subtype);
+    }
+
+    [Fact]
+    public void SplitBoundaryZeroGap_NotClassified()
+    {
+        // PunchPairer.SplitAtBoundaries produces back-to-back pairs sharing the exact same instant
+        // (no real gap) when a pair spans a rule/date boundary. That must not be mistaken for a break.
+        var boundary = At(12);
+        var pairs = new[] { Pair(In(At(9)), Out(boundary)), Pair(In(boundary), Out(At(17))) };
+        var result = RunShift(pairs);
+
+        Assert.Equal(PunchSubtype.None, result.PunchPairs[0].OutPunch!.Subtype);
+        Assert.Equal(PunchSubtype.None, result.PunchPairs[1].InPunch!.Subtype);
     }
 
     [Fact]
     public void ForcedSubtypeOnOut_IsKept_AndPropagatesToIn()
     {
         // 15-min gap would infer Break, but the Out was forced to Lunch
-        var punches = new[] { In(At(9)), Out(At(12), PunchSubtype.Lunch), In(At(12, 15)), Out(At(17)) };
-        var result = Run(punches);
+        var pairs = new[] { Pair(In(At(9)), Out(At(12), PunchSubtype.Lunch)), Pair(In(At(12, 15)), Out(At(17))) };
+        var result = RunShift(pairs);
 
-        Assert.Equal(PunchSubtype.Lunch, result[1].Subtype);
-        Assert.Equal(PunchSubtype.Lunch, result[2].Subtype);
+        Assert.Equal(PunchSubtype.Lunch, result.PunchPairs[0].OutPunch!.Subtype);
+        Assert.Equal(PunchSubtype.Lunch, result.PunchPairs[1].InPunch!.Subtype);
     }
 
     [Fact]
     public void ForcedSubtypeOnIn_IsKept_AndPropagatesToOut()
     {
-        var punches = new[] { In(At(9)), Out(At(12)), In(At(12, 15), PunchSubtype.Lunch), Out(At(17)) };
-        var result = Run(punches);
+        var pairs = new[] { Pair(In(At(9)), Out(At(12))), Pair(In(At(12, 15), PunchSubtype.Lunch), Out(At(17))) };
+        var result = RunShift(pairs);
 
-        Assert.Equal(PunchSubtype.Lunch, result[1].Subtype);
-        Assert.Equal(PunchSubtype.Lunch, result[2].Subtype);
+        Assert.Equal(PunchSubtype.Lunch, result.PunchPairs[0].OutPunch!.Subtype);
+        Assert.Equal(PunchSubtype.Lunch, result.PunchPairs[1].InPunch!.Subtype);
     }
 
     [Fact]
     public void ForcedNone_SuppressesInference()
     {
         // Supervisor says this gap is not a break — both sides resolve to None
-        var punches = new[] { In(At(9)), Out(At(12), PunchSubtype.None), In(At(12, 15)), Out(At(17)) };
-        var result = Run(punches);
+        var pairs = new[] { Pair(In(At(9)), Out(At(12), PunchSubtype.None)), Pair(In(At(12, 15)), Out(At(17))) };
+        var result = RunShift(pairs);
 
-        Assert.Equal(PunchSubtype.None, result[1].Subtype);
-        Assert.Equal(PunchSubtype.None, result[2].Subtype);
+        Assert.Equal(PunchSubtype.None, result.PunchPairs[0].OutPunch!.Subtype);
+        Assert.Equal(PunchSubtype.None, result.PunchPairs[1].InPunch!.Subtype);
     }
 
     [Fact]
@@ -104,30 +130,30 @@ public class PunchSubtypeInferrerTests
     {
         // Expected break 10, lunch 60 — a 30-min gap is closer to the break
         var rule = new PayRule { ExpectedBreakLengthMinutes = 10, ExpectedLunchLengthMinutes = 60 };
-        var punches = new[] { In(At(9)), Out(At(12)), In(At(12, 30)), Out(At(17)) };
-        var result = Run(punches, rule);
+        var pairs = new[] { Pair(In(At(9)), Out(At(12))), Pair(In(At(12, 30)), Out(At(17))) };
+        var result = RunShift(pairs, rule);
 
-        Assert.Equal(PunchSubtype.Break, result[1].Subtype);
+        Assert.Equal(PunchSubtype.Break, result.PunchPairs[0].OutPunch!.Subtype);
     }
 
     [Fact]
     public void MultipleGapsInOneShift_EachClassifiedIndependently()
     {
         // 9–10:30 | 15-min break | 10:45–12 | 30-min lunch | 12:30–17
-        var punches = new[]
+        var pairs = new[]
         {
-            In(At(9)), Out(At(10, 30)),
-            In(At(10, 45)), Out(At(12)),
-            In(At(12, 30)), Out(At(17)),
+            Pair(In(At(9)), Out(At(10, 30))),
+            Pair(In(At(10, 45)), Out(At(12))),
+            Pair(In(At(12, 30)), Out(At(17))),
         };
-        var result = Run(punches);
+        var result = RunShift(pairs);
 
-        Assert.Equal(PunchSubtype.None,  result[0].Subtype);
-        Assert.Equal(PunchSubtype.Break, result[1].Subtype);
-        Assert.Equal(PunchSubtype.Break, result[2].Subtype);
-        Assert.Equal(PunchSubtype.Lunch, result[3].Subtype);
-        Assert.Equal(PunchSubtype.Lunch, result[4].Subtype);
-        Assert.Equal(PunchSubtype.None,  result[5].Subtype);
+        Assert.Equal(PunchSubtype.None,  result.PunchPairs[0].InPunch!.Subtype);
+        Assert.Equal(PunchSubtype.Break, result.PunchPairs[0].OutPunch!.Subtype);
+        Assert.Equal(PunchSubtype.Break, result.PunchPairs[1].InPunch!.Subtype);
+        Assert.Equal(PunchSubtype.Lunch, result.PunchPairs[1].OutPunch!.Subtype);
+        Assert.Equal(PunchSubtype.Lunch, result.PunchPairs[2].InPunch!.Subtype);
+        Assert.Equal(PunchSubtype.None,  result.PunchPairs[2].OutPunch!.Subtype);
     }
 
     [Fact]
@@ -135,47 +161,53 @@ public class PunchSubtypeInferrerTests
     {
         var fixedDollar = TestEntityCreator.CreateTestPunch(At(10), PunchKind.FixedDollar, _emp);
         var fixedHours  = TestEntityCreator.CreateTestPunch(At(11), PunchKind.FixedHours,  _emp);
-        var result = Run([fixedDollar, fixedHours]);
+        var shift = new Shift { FixedEntries = [fixedDollar, fixedHours] };
+        var ctx = TestEntityCreator.CreateContext();
 
-        Assert.Null(result[0].Subtype);
-        Assert.Null(result[1].Subtype);
+        var result = PunchSubtypeInferrer.InferPunchSubtypes([shift], ctx)[0];
+
+        Assert.Null(result.FixedEntries[0].Subtype);
+        Assert.Null(result.FixedEntries[1].Subtype);
     }
 
     [Fact]
     public void FixedEntryBetweenOutAndIn_DoesNotBreakGapDetection()
     {
-        // A FixedDollar punch lands inside the break window; the Out→In gap
-        // must still be recognized and classified
-        var punches = new[]
-        {
-            In(At(9)), Out(At(12)),
-            TestEntityCreator.CreateTestPunch(At(12, 5), PunchKind.FixedDollar, _emp),
-            In(At(12, 15)), Out(At(17)),
-        };
-        var result = Run(punches);
+        // A FixedDollar entry attached to the shift (but not part of PunchPairs) must not
+        // interfere with classifying the surrounding Out->In gap.
+        var fixedDollar = TestEntityCreator.CreateTestPunch(At(12, 5), PunchKind.FixedDollar, _emp);
+        var pairs = new[] { Pair(In(At(9)), Out(At(12))), Pair(In(At(12, 15)), Out(At(17))) };
+        var shift = new Shift { PunchPairs = pairs, FixedEntries = [fixedDollar] };
+        var ctx = TestEntityCreator.CreateContext();
 
-        Assert.Equal(PunchSubtype.Break, result[1].Subtype);
-        Assert.Equal(PunchSubtype.Break, result[3].Subtype);
+        var result = PunchSubtypeInferrer.InferPunchSubtypes([shift], ctx)[0];
+
+        Assert.Equal(PunchSubtype.Break, result.PunchPairs[0].OutPunch!.Subtype);
+        Assert.Equal(PunchSubtype.Break, result.PunchPairs[1].InPunch!.Subtype);
     }
 
     [Fact]
-    public void ConsecutiveIns_NoGapClassification()
+    public void OrphanInWithNoOut_NoGapClassification()
     {
-        // In followed by In (orphan scenario) — nothing to classify
-        var punches = new[] { In(At(9)), In(At(10)), Out(At(17)) };
-        var result = Run(punches);
+        // An orphan In (no Out) followed by a complete pair — nothing to classify against it
+        var pairs = new[] { Pair(In(At(9)), null), Pair(In(At(10)), Out(At(17))) };
+        var result = RunShift(pairs);
 
-        Assert.Equal(PunchSubtype.None, result[0].Subtype);
-        Assert.Equal(PunchSubtype.None, result[1].Subtype);
-        Assert.Equal(PunchSubtype.None, result[2].Subtype);
+        Assert.Equal(PunchSubtype.None, result.PunchPairs[0].InPunch!.Subtype);
+        Assert.Equal(PunchSubtype.None, result.PunchPairs[1].InPunch!.Subtype);
+        Assert.Equal(PunchSubtype.None, result.PunchPairs[1].OutPunch!.Subtype);
     }
 
     [Fact]
     public void AllClockPunches_LeaveStageWithResolvedSubtype()
     {
-        var punches = new[] { In(At(9)), Out(At(12)), In(At(12, 15)), Out(At(17)) };
-        var result = Run(punches);
+        var pairs = new[] { Pair(In(At(9)), Out(At(12))), Pair(In(At(12, 15)), Out(At(17))) };
+        var result = RunShift(pairs);
 
-        Assert.All(result, p => Assert.NotNull(p.Subtype));
+        Assert.All(result.PunchPairs, p =>
+        {
+            Assert.NotNull(p.InPunch!.Subtype);
+            Assert.NotNull(p.OutPunch!.Subtype);
+        });
     }
 }

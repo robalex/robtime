@@ -112,11 +112,11 @@ public class PropertyBasedTests
     private static IReadOnlyList<Workweek> BuildWeeks(List<Punch> punches, PipelineContext ctx)
     {
         var rounded = PunchRounder.RoundPunches(punches, ctx);
-        var subtyped = PunchSubtypeInferrer.InferPunchSubtypes(rounded, ctx);
-        var (pairs, fixedEntries) = PunchPairer.PairPunches(subtyped, ctx);
+        var (pairs, fixedEntries) = PunchPairer.PairPunches(rounded, ctx);
         var enriched = PairEnricher.AttachPositionAndRateToPunchPairs(pairs, ctx);
         var shifts = ShiftBuilder.BuildShifts(enriched, fixedEntries, ctx);
-        var dated = ShiftDater.AssignDatesToShifts(shifts, ctx);
+        var subtyped = PunchSubtypeInferrer.InferPunchSubtypes(shifts, ctx);
+        var dated = ShiftDater.AssignDatesToShifts(subtyped, ctx);
         var days = WorkDayGrouper.Execute(dated, ctx);
         return WorkweekGrouper.Execute(days, ctx);
     }

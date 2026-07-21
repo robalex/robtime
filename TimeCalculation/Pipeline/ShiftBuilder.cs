@@ -5,15 +5,15 @@ using TimeCalculation.Model;
 namespace TimeCalculation.Pipeline;
 
 /// <summary>
-/// Stage 5 — Shift building.
+/// Stage 4 — Shift building.
 /// Groups consecutive PunchPairs into Shifts.  A new Shift starts when the gap between
 /// the last Out of the current shift and the In of the next pair exceeds
 /// PayRule.DistanceBetweenShiftsHours (default 6 h).
 ///
-/// Gap-related decisions always use the rule active at the gap's START (the prior Out), matching
-/// PunchSubtypeInferrer's rule resolution for the same Out→In gap. This keeps the two components
-/// from disagreeing at a rule-change boundary — e.g. one calling a gap a Lunch while the other
-/// calls it a shift boundary, which would leave a Lunch-subtyped punch starting a "new" shift.
+/// Gap-related decisions always use the rule active at the gap's START (the prior Out). This is
+/// the single source of truth for what counts as a mid-shift gap — PunchSubtypeInferrer (Stage 5)
+/// runs after this stage and classifies Break/Lunch only for gaps between PunchPairs that ShiftBuilder
+/// already kept in the same Shift, so it never re-derives this boundary itself.
 ///
 /// FixedDollar/FixedHours entries are attached to the nearest shift by punch time.
 /// If no shifts exist, they are returned as standalone single-entry shifts.

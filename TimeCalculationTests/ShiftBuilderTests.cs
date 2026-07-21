@@ -159,8 +159,8 @@ public class ShiftBuilderTests
         // Gap: Out Jan 2 22:00 -> In Jan 3 03:00 (5 hrs), spanning a PayRule change at midnight
         // Jan 3. Rule A (active at the gap's start, Jan 2) has a wide 10-hr threshold; Rule B
         // (active at the gap's end, Jan 3) has a narrow 2-hr threshold. If ShiftBuilder used the
-        // gap-END rule it would split into two shifts (5 > 2); using the gap-START rule (as
-        // PunchSubtypeInferrer also does) keeps them in one shift (5 <= 10).
+        // gap-END rule it would split into two shifts (5 > 2); using the gap-START rule keeps
+        // them in one shift (5 <= 10).
         var ruleA = new PayRule { DistanceBetweenShiftsHours = 10 };
         var ruleB = new PayRule { DistanceBetweenShiftsHours = 2 };
         var assignments = new[]

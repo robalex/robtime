@@ -32,15 +32,15 @@ public static class PayCalculator
         return new PayResult { EmployeeId = ctx.Employee.Id, Workweeks = weekPays };
     }
 
-    /// <summary>Stages 1–6: raw punches → rounded, subtyped, paired, enriched, built, and dated shifts.</summary>
+    /// <summary>Stages 1–6: raw punches → rounded, paired, enriched, built, subtyped, and dated shifts.</summary>
     private static IReadOnlyList<Shift> PrepareShifts(IReadOnlyList<Punch> punches, PipelineContext ctx)
     {
         var rounded = PunchRounder.RoundPunches(punches, ctx);
-        var subtyped = PunchSubtypeInferrer.InferPunchSubtypes(rounded, ctx);
-        var (pairs, fixedEntries) = PunchPairer.PairPunches(subtyped, ctx);
+        var (pairs, fixedEntries) = PunchPairer.PairPunches(rounded, ctx);
         var enriched = PairEnricher.AttachPositionAndRateToPunchPairs(pairs, ctx);
         var shifts = ShiftBuilder.BuildShifts(enriched, fixedEntries, ctx);
-        return ShiftDater.AssignDatesToShifts(shifts, ctx);
+        var subtyped = PunchSubtypeInferrer.InferPunchSubtypes(shifts, ctx);
+        return ShiftDater.AssignDatesToShifts(subtyped, ctx);
     }
 
     /// <summary>Stages 9–13: group shifts into workweeks, then compute each week's pay.</summary>

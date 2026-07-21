@@ -3,7 +3,7 @@ using TimeCalculation.Model;
 namespace TimeCalculation.Pipeline;
 
 /// <summary>
-/// Stage 4 — Pair enrichment.
+/// Stage 3 — Pair enrichment.
 /// Attaches the effective Position and Rate to each PunchPair.
 /// If the punch carries a PositionId override, that position is used.
 /// Otherwise the employee's position assignment active at the In time is used.
