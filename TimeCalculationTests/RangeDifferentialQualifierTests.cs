@@ -2,6 +2,7 @@ using NodaTime;
 using TimeCalculation.Model;
 using TimeCalculation.Model.PayRules;
 using TimeCalculation.Pipeline;
+using TimeCalculation.Pipeline.Differentials;
 using Xunit;
 
 namespace TimeCalculationTests;

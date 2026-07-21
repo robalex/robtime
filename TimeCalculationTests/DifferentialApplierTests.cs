@@ -2,6 +2,7 @@ using NodaTime;
 using TimeCalculation.Model;
 using TimeCalculation.Model.PayRules;
 using TimeCalculation.Pipeline;
+using TimeCalculation.Pipeline.Differentials;
 using Xunit;
 
 namespace TimeCalculationTests;
@@ -32,7 +33,7 @@ public class DifferentialApplierTests
     {
         var ctx = TestEntityCreator.CreateContext(employee: _emp);
         var shift = ShiftUtc(9, 17);
-        var result = DifferentialApplier.Execute([shift], ctx);
+        var result = DifferentialApplier.ApplyDifferentials([shift], ctx);
         Assert.Empty(result[0].Differentials);
     }
 
@@ -49,7 +50,7 @@ public class DifferentialApplierTests
             AdjustmentValue = 2m,
         };
         var shift = ShiftUtc(20, 26); // 20:00 → 02:00 next day
-        var result = DifferentialApplier.Execute([shift], Ctx(_emp, rule));
+        var result = DifferentialApplier.ApplyDifferentials([shift], Ctx(_emp, rule));
 
         Assert.Single(result[0].Differentials);
         var diff = result[0].Differentials[0];
@@ -70,7 +71,7 @@ public class DifferentialApplierTests
             AdjustmentValue = 0.10m,
         };
         var shift = ShiftUtc(9, 17, rate: 20m);
-        var result = DifferentialApplier.Execute([shift], Ctx(_emp, rule));
+        var result = DifferentialApplier.ApplyDifferentials([shift], Ctx(_emp, rule));
 
         Assert.Equal(8m, result[0].Differentials[0].Hours);
         Assert.Equal(16m, result[0].Differentials[0].Amount);
@@ -92,8 +93,8 @@ public class DifferentialApplierTests
         var monday = ShiftUtc(9, 17, day: 2);        // Jan 2 2023 = Monday
         var saturday = ShiftUtc(9, 17, day: 7);      // Jan 7 2023 = Saturday
 
-        var mon = DifferentialApplier.Execute([monday], Ctx(_emp, rule));
-        var sat = DifferentialApplier.Execute([saturday], Ctx(_emp, rule));
+        var mon = DifferentialApplier.ApplyDifferentials([monday], Ctx(_emp, rule));
+        var sat = DifferentialApplier.ApplyDifferentials([saturday], Ctx(_emp, rule));
 
         Assert.Empty(mon[0].Differentials);
         Assert.Single(sat[0].Differentials);
@@ -112,8 +113,8 @@ public class DifferentialApplierTests
         };
         var holidays = new HolidayCalendar([new LocalDate(2023, 1, 2)]);
 
-        var onHoliday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 2)], Ctx(_emp, rule, holidays));
-        var offHoliday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 3)], Ctx(_emp, rule, holidays));
+        var onHoliday = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17, day: 2)], Ctx(_emp, rule, holidays));
+        var offHoliday = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17, day: 3)], Ctx(_emp, rule, holidays));
 
         Assert.Single(onHoliday[0].Differentials);
         Assert.Equal(50m, onHoliday[0].Differentials[0].Amount);   // fixed bonus once
@@ -133,8 +134,8 @@ public class DifferentialApplierTests
             AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
             AdjustmentValue = 3m,
         };
-        var wednesday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 4)], Ctx(_emp, rule));
-        var friday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 6)], Ctx(_emp, rule));
+        var wednesday = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17, day: 4)], Ctx(_emp, rule));
+        var friday = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17, day: 6)], Ctx(_emp, rule));
 
         Assert.Single(wednesday[0].Differentials);
         Assert.Empty(friday[0].Differentials);
@@ -154,8 +155,8 @@ public class DifferentialApplierTests
             AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
             AdjustmentValue = 3m,
         };
-        var thursday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 5)], Ctx(_emp, rule));
-        var wednesday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 4)], Ctx(_emp, rule));
+        var thursday = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17, day: 5)], Ctx(_emp, rule));
+        var wednesday = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17, day: 4)], Ctx(_emp, rule));
 
         Assert.Single(thursday[0].Differentials);
         Assert.Empty(wednesday[0].Differentials);
@@ -180,16 +181,16 @@ public class DifferentialApplierTests
 
         // Thursday Jan 5 2023, 14:00–20:00: the span runs continuously past 5pm, so the whole
         // 6 hours qualify (a per-day window would cap it at 17:00 → 3h).
-        var thu = DifferentialApplier.Execute([ShiftUtc(14, 20, day: 5)], Ctx(_emp, rule));
+        var thu = DifferentialApplier.ApplyDifferentials([ShiftUtc(14, 20, day: 5)], Ctx(_emp, rule));
         Assert.Equal(6m, thu[0].Differentials[0].Hours);
         Assert.Equal(12m, thu[0].Differentials[0].Amount);
 
         // A full interior day (Friday Jan 6, 09:00–17:00) is entirely inside the span → 8h.
-        var fri = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 6)], Ctx(_emp, rule));
+        var fri = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17, day: 6)], Ctx(_emp, rule));
         Assert.Equal(8m, fri[0].Differentials[0].Hours);
 
         // Monday Jan 9 is the last day: 15:00–19:00 qualifies only up to the 17:00 end → 2h.
-        var mon = DifferentialApplier.Execute([ShiftUtc(15, 19, day: 9)], Ctx(_emp, rule));
+        var mon = DifferentialApplier.ApplyDifferentials([ShiftUtc(15, 19, day: 9)], Ctx(_emp, rule));
         Assert.Equal(2m, mon[0].Differentials[0].Hours);
     }
 
@@ -209,11 +210,11 @@ public class DifferentialApplierTests
             AdjustmentValue = 2m,
         };
 
-        var thu = DifferentialApplier.Execute([ShiftUtc(14, 20, day: 5)], Ctx(_emp, rule));
+        var thu = DifferentialApplier.ApplyDifferentials([ShiftUtc(14, 20, day: 5)], Ctx(_emp, rule));
         Assert.Equal(3m, thu[0].Differentials[0].Hours);
 
         // Wednesday isn't listed → nothing qualifies.
-        var wed = DifferentialApplier.Execute([ShiftUtc(14, 20, day: 4)], Ctx(_emp, rule));
+        var wed = DifferentialApplier.ApplyDifferentials([ShiftUtc(14, 20, day: 4)], Ctx(_emp, rule));
         Assert.Empty(wed[0].Differentials);
     }
 
@@ -230,8 +231,8 @@ public class DifferentialApplierTests
             AdjustmentValue = 25m,
         };
 
-        var onDate = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 2)], Ctx(_emp, rule));
-        var offDate = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 3)], Ctx(_emp, rule));
+        var onDate = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17, day: 2)], Ctx(_emp, rule));
+        var offDate = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17, day: 3)], Ctx(_emp, rule));
 
         Assert.Single(onDate[0].Differentials);
         Assert.Equal(25m, onDate[0].Differentials[0].Amount);
@@ -257,9 +258,9 @@ public class DifferentialApplierTests
 
         // Jan 2 = Monday: in SpecificDates and would need consulting other modes, but mode is
         // DaysOfWeek(Tue) → does not qualify.
-        var monday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 2)], Ctx(_emp, rule));
+        var monday = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17, day: 2)], Ctx(_emp, rule));
         // Jan 3 = Tuesday: matches the active mode.
-        var tuesday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 3)], Ctx(_emp, rule));
+        var tuesday = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17, day: 3)], Ctx(_emp, rule));
 
         Assert.Empty(monday[0].Differentials);
         Assert.Single(tuesday[0].Differentials);
@@ -279,7 +280,7 @@ public class DifferentialApplierTests
             MinHoursInWindow = 3m,
         };
         var shift = ShiftUtc(4, 8);   // 04:00–08:00 → only 2 hrs before 06:00
-        var result = DifferentialApplier.Execute([shift], Ctx(_emp, rule));
+        var result = DifferentialApplier.ApplyDifferentials([shift], Ctx(_emp, rule));
 
         Assert.Empty(result[0].Differentials);
     }
@@ -297,7 +298,7 @@ public class DifferentialApplierTests
             MinHoursInWindow = 3m,
         };
         var shift = ShiftUtc(2, 8);   // 02:00–08:00 → 4 hrs before 06:00
-        var result = DifferentialApplier.Execute([shift], Ctx(_emp, rule));
+        var result = DifferentialApplier.ApplyDifferentials([shift], Ctx(_emp, rule));
 
         Assert.Single(result[0].Differentials);
         Assert.Equal(4m, result[0].Differentials[0].Hours);
@@ -327,7 +328,7 @@ public class DifferentialApplierTests
         var holidays = new HolidayCalendar([new LocalDate(2023, 1, 2)]);
         var ctx = CtxRules(_emp, [holiday, overnight], holidays);
 
-        var diffs = DifferentialApplier.Execute([ShiftUtc(22, 26, day: 2)], ctx)[0].Differentials;
+        var diffs = DifferentialApplier.ApplyDifferentials([ShiftUtc(22, 26, day: 2)], ctx)[0].Differentials;
 
         Assert.Equal(2, diffs.Count);
         Assert.Equal(10m, diffs.Single(d => d.Code == "HOLIDAY").Amount);   // 2h × $5
@@ -344,7 +345,7 @@ public class DifferentialApplierTests
             AdjustmentType = DifferentialAdjustmentType.FlatPerHour, AdjustmentValue = 5m };
         var ctx = CtxRules(_emp, [low, high]);
 
-        var diffs = DifferentialApplier.Execute([ShiftUtc(9, 17)], ctx)[0].Differentials;
+        var diffs = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17)], ctx)[0].Differentials;
 
         Assert.Single(diffs);
         Assert.Equal("HIGH", diffs[0].Code);
@@ -361,7 +362,7 @@ public class DifferentialApplierTests
             AdjustmentType = DifferentialAdjustmentType.FlatPerHour, AdjustmentValue = 5m };
         var ctx = CtxRules(_emp, [a, b]);
 
-        var diffs = DifferentialApplier.Execute([ShiftUtc(9, 17)], ctx)[0].Differentials;
+        var diffs = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17)], ctx)[0].Differentials;
 
         Assert.Equal(2, diffs.Count);
     }

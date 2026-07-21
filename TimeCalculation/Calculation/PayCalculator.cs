@@ -2,6 +2,7 @@ using TimeCalculation.Calculation.Overtime;
 using TimeCalculation.Model;
 using TimeCalculation.Model.Premiums;
 using TimeCalculation.Pipeline;
+using TimeCalculation.Pipeline.Differentials;
 
 namespace TimeCalculation.Calculation;
 
@@ -25,7 +26,7 @@ public static class PayCalculator
         var shifts = PrepareShifts(punches, ctx);
 
         // Differentials must run before grouping so the regular rate includes them (Stage 8).
-        var shiftsWithDifferentials = DifferentialApplier.Execute(shifts, ctx);
+        var shiftsWithDifferentials = DifferentialApplier.ApplyDifferentials(shifts, ctx);
 
         // Stage 8b: a consecutive-range differential with a MinHoursInRange threshold can only be
         // judged once the whole range occurrence is visible (independent of the payroll week), so

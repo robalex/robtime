@@ -1,7 +1,7 @@
 using NodaTime;
 using TimeCalculation.Model;
 
-namespace TimeCalculation.Pipeline;
+namespace TimeCalculation.Pipeline.Differentials;
 
 /// <summary>
 /// Stage 8b — Consecutive-range differential qualification.
@@ -43,7 +43,7 @@ public static class RangeDifferentialQualifier
             var failingAnchors = shifts
                 .SelectMany(s => s.Differentials
                     .Where(d => d.Code == rule.Code)
-                    .Select(d => (Anchor: DifferentialApplier.OccurrenceAnchor(s.ShiftDate, rule.DayOfWeekRangeStart), d.Hours)))
+                    .Select(d => (Anchor: DayOfWeekRange.OccurrenceAnchor(s.ShiftDate, rule.DayOfWeekRangeStart), d.Hours)))
                 .GroupBy(x => x.Anchor)
                 .Where(g => g.Sum(x => x.Hours) < rule.MinHoursInRange)
                 .Select(g => g.Key)
@@ -67,7 +67,7 @@ public static class RangeDifferentialQualifier
     {
         bool Fails(AppliedDifferential d) =>
             failingAnchorsByCode.TryGetValue(d.Code, out var anchors)
-            && anchors.Contains(DifferentialApplier.OccurrenceAnchor(shift.ShiftDate, rangeStartByCode[d.Code]));
+            && anchors.Contains(DayOfWeekRange.OccurrenceAnchor(shift.ShiftDate, rangeStartByCode[d.Code]));
 
         if (!shift.Differentials.Any(Fails)) return shift;
 
