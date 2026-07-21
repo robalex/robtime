@@ -16,7 +16,7 @@ public class DifferentialEndToEndTests : EndToEndTests
         var holiday = new DifferentialRule
         {
             Code = "HOLIDAY",
-            HolidaysOnly = true,
+            DayScheduleMode = DayScheduleMode.Holidays,
             AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
             AdjustmentValue = 5m,
         };
@@ -94,7 +94,7 @@ public class DifferentialEndToEndTests : EndToEndTests
         var holidayBonus = new DifferentialRule
         {
             Code = "HOL_BONUS",
-            HolidaysOnly = true,
+            DayScheduleMode = DayScheduleMode.Holidays,
             AdjustmentType = DifferentialAdjustmentType.FixedBonus,
             AdjustmentValue = 50m,
         };
@@ -112,6 +112,73 @@ public class DifferentialEndToEndTests : EndToEndTests
         Assert.Equal(50m, diffLine.Amount);
         Assert.Null(diffLine.BaseRate);
         Assert.Null(diffLine.Multiplier);
+    }
+
+    [Fact]
+    public void RangeHoursThreshold_Met_AcrossShifts_ThatIndividuallyWouldNotQualify_EndToEnd()
+    {
+        // A loyalty differential ($2/hr) active Mon–Fri and requiring 20 qualifying hours across
+        // that range occurrence. Mon–Fri (Jan 2–6 2023) at 5 hrs/day = 25 hrs. No single shift is
+        // close to 20, but the range total clears it, so every hour earns the differential.
+        var emp = new Employee { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 20m };
+        var loyalty = new DifferentialRule
+        {
+            Code = "LOYALTY",
+            DayScheduleMode = DayScheduleMode.ConsecutiveDayRange,
+            DayOfWeekRangeStart = IsoDayOfWeek.Monday,
+            DayOfWeekRangeEnd = IsoDayOfWeek.Friday,
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
+            AdjustmentValue = 2m,
+            MinHoursInRange = 20m,
+        };
+        var ctx = new PipelineContext(emp,
+            [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], [], [loyalty]);
+
+        var punches = new List<Punch>();
+        for (int day = 2; day <= 6; day++)
+        {
+            punches.Add(In(emp, At(day, 9)));
+            punches.Add(Out(emp, At(day, 14)));   // 5 hrs
+        }
+
+        var result = PayCalculator.Calculate(punches, ctx);
+
+        // straight 25×20=500; differential 25×2=50 → 550
+        Assert.Equal(550m, result.GrossPay);
+        Assert.Equal(50m, result.LineItems.Where(l => l.Code == "LOYALTY").Sum(l => l.Amount));
+    }
+
+    [Fact]
+    public void RangeHoursThreshold_NotMet_StripsDifferentialEntirely_EndToEnd()
+    {
+        // Same rule, but only Mon–Wed (3×5 = 15 hrs) < the 20-hr range threshold, so the loyalty
+        // differential never qualifies and contributes nothing to gross or the line items.
+        var emp = new Employee { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 20m };
+        var loyalty = new DifferentialRule
+        {
+            Code = "LOYALTY",
+            DayScheduleMode = DayScheduleMode.ConsecutiveDayRange,
+            DayOfWeekRangeStart = IsoDayOfWeek.Monday,
+            DayOfWeekRangeEnd = IsoDayOfWeek.Friday,
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
+            AdjustmentValue = 2m,
+            MinHoursInRange = 20m,
+        };
+        var ctx = new PipelineContext(emp,
+            [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], [], [loyalty]);
+
+        var punches = new List<Punch>();
+        for (int day = 2; day <= 4; day++)
+        {
+            punches.Add(In(emp, At(day, 9)));
+            punches.Add(Out(emp, At(day, 14)));   // 5 hrs
+        }
+
+        var result = PayCalculator.Calculate(punches, ctx);
+
+        // straight 15×20=300; differential stripped → 300
+        Assert.Equal(300m, result.GrossPay);
+        Assert.DoesNotContain(result.LineItems, l => l.Code == "LOYALTY");
     }
 
     [Fact]

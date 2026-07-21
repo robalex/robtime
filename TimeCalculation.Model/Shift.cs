@@ -41,4 +41,6 @@ public record Shift
                 ?? 0;
         }
     }
+
+    public bool HasMissingPunches => PunchPairs.Any(p => p.IsMissingPunch);
 }

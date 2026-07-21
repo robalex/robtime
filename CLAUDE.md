@@ -44,7 +44,14 @@ the plan's 13-stage design (see `PLAN.md`).
 6. `ShiftDater` — assign each `Shift` a calendar date per `PayRule.ShiftDateStrategy`.
 7. `PremiumApplier` — run active `IPremiumRule`s (meal/rest) per shift; applied *after* the regular
    rate is known (premiums are excluded from it, so this is not circular).
-8. `DifferentialApplier` — apply time-based `DifferentialRule`s per shift.
+8. `DifferentialApplier` — apply time-based `DifferentialRule`s per shift. A rule's active days come
+   from a single `DayScheduleMode` (EveryDay / DaysOfWeek / ConsecutiveDayRange / SpecificDates /
+   Holidays) — mutually exclusive, not ANDed filters.
+   - `RangeDifferentialQualifier` (Stage 8b) then runs on the full shift list: a `ConsecutiveDayRange`
+     rule with `MinHoursInRange` can only be judged once a whole range occurrence is visible (e.g.
+     one Thursday→Tuesday block, independent of the payroll week), so it strips differentials whose
+     range-summed qualifying hours fall short — before the regular rate (Stage 11) or line items
+     (Stage 13) read them.
 9. `WorkDayGrouper` — bucket shifts into `WorkDay`s by date.
 10. `WorkweekGrouper` — group days into FLSA `Workweek`s per `PayRule.WorkweekStartDay`, numbering
     consecutive days for the 7th-day overtime rule.

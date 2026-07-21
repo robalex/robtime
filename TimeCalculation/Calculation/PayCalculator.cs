@@ -27,7 +27,12 @@ public static class PayCalculator
         // Differentials must run before grouping so the regular rate includes them (Stage 8).
         var shiftsWithDifferentials = DifferentialApplier.Execute(shifts, ctx);
 
-        var weekPays = CalculateWeeklyPay(shiftsWithDifferentials, ctx, overridesForShift);
+        // Stage 8b: a consecutive-range differential with a MinHoursInRange threshold can only be
+        // judged once the whole range occurrence is visible (independent of the payroll week), so
+        // strip non-qualifying ones here before the regular rate reads them.
+        var shiftsQualified = RangeDifferentialQualifier.Execute(shiftsWithDifferentials, ctx);
+
+        var weekPays = CalculateWeeklyPay(shiftsQualified, ctx, overridesForShift);
 
         return new PayResult { EmployeeId = ctx.Employee.Id, Workweeks = weekPays };
     }

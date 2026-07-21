@@ -84,6 +84,7 @@ public class DifferentialApplierTests
         var rule = new DifferentialRule
         {
             Code = "WEEKEND",
+            DayScheduleMode = DayScheduleMode.DaysOfWeek,
             DaysOfWeek = new HashSet<IsoDayOfWeek> { IsoDayOfWeek.Saturday, IsoDayOfWeek.Sunday },
             AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
             AdjustmentValue = 3m,
@@ -100,12 +101,12 @@ public class DifferentialApplierTests
     }
 
     [Fact]
-    public void HolidaysOnly_RequiresHolidayCalendarMatch()
+    public void HolidaysMode_RequiresHolidayCalendarMatch()
     {
         var rule = new DifferentialRule
         {
             Code = "HOLIDAY",
-            HolidaysOnly = true,
+            DayScheduleMode = DayScheduleMode.Holidays,
             AdjustmentType = DifferentialAdjustmentType.FixedBonus,
             AdjustmentValue = 50m,
         };
@@ -117,6 +118,151 @@ public class DifferentialApplierTests
         Assert.Single(onHoliday[0].Differentials);
         Assert.Equal(50m, onHoliday[0].Differentials[0].Amount);   // fixed bonus once
         Assert.Empty(offHoliday[0].Differentials);
+    }
+
+    [Fact]
+    public void DayOfWeekRange_SameWeek_OnlyAppliesWithinRange()
+    {
+        // Tuesday..Thursday (Jan 3–5, 2023): Wednesday qualifies, Friday does not
+        var rule = new DifferentialRule
+        {
+            Code = "MIDWEEK",
+            DayScheduleMode = DayScheduleMode.ConsecutiveDayRange,
+            DayOfWeekRangeStart = IsoDayOfWeek.Tuesday,
+            DayOfWeekRangeEnd = IsoDayOfWeek.Thursday,
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
+            AdjustmentValue = 3m,
+        };
+        var wednesday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 4)], Ctx(_emp, rule));
+        var friday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 6)], Ctx(_emp, rule));
+
+        Assert.Single(wednesday[0].Differentials);
+        Assert.Empty(friday[0].Differentials);
+    }
+
+    [Fact]
+    public void DayOfWeekRange_WrapsPastSunday()
+    {
+        // Thursday..Tuesday (a long-weekend differential): Thursday (Jan 5) qualifies,
+        // Wednesday (Jan 4, the one day excluded) does not.
+        var rule = new DifferentialRule
+        {
+            Code = "LONG_WEEKEND",
+            DayScheduleMode = DayScheduleMode.ConsecutiveDayRange,
+            DayOfWeekRangeStart = IsoDayOfWeek.Thursday,
+            DayOfWeekRangeEnd = IsoDayOfWeek.Tuesday,
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
+            AdjustmentValue = 3m,
+        };
+        var thursday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 5)], Ctx(_emp, rule));
+        var wednesday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 4)], Ctx(_emp, rule));
+
+        Assert.Single(thursday[0].Differentials);
+        Assert.Empty(wednesday[0].Differentials);
+    }
+
+    [Fact]
+    public void ConsecutiveDayRange_Window_IsOneContinuousSpan_NotPerDay()
+    {
+        // Range Thu→Mon with a noon–5pm window is a single span: noon Thursday to 5pm Monday, with
+        // the interior days fully covered — NOT noon–5pm on each day.
+        var rule = new DifferentialRule
+        {
+            Code = "LONG_WEEKEND",
+            DayScheduleMode = DayScheduleMode.ConsecutiveDayRange,
+            DayOfWeekRangeStart = IsoDayOfWeek.Thursday,
+            DayOfWeekRangeEnd = IsoDayOfWeek.Monday,
+            WindowStart = new LocalTime(12, 0),
+            WindowEnd = new LocalTime(17, 0),
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
+            AdjustmentValue = 2m,
+        };
+
+        // Thursday Jan 5 2023, 14:00–20:00: the span runs continuously past 5pm, so the whole
+        // 6 hours qualify (a per-day window would cap it at 17:00 → 3h).
+        var thu = DifferentialApplier.Execute([ShiftUtc(14, 20, day: 5)], Ctx(_emp, rule));
+        Assert.Equal(6m, thu[0].Differentials[0].Hours);
+        Assert.Equal(12m, thu[0].Differentials[0].Amount);
+
+        // A full interior day (Friday Jan 6, 09:00–17:00) is entirely inside the span → 8h.
+        var fri = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 6)], Ctx(_emp, rule));
+        Assert.Equal(8m, fri[0].Differentials[0].Hours);
+
+        // Monday Jan 9 is the last day: 15:00–19:00 qualifies only up to the 17:00 end → 2h.
+        var mon = DifferentialApplier.Execute([ShiftUtc(15, 19, day: 9)], Ctx(_emp, rule));
+        Assert.Equal(2m, mon[0].Differentials[0].Hours);
+    }
+
+    [Fact]
+    public void DaysOfWeek_Window_AppliesPerDay()
+    {
+        // Contrast with the range: Mon & Thu with a noon–5pm window applies that window on each day
+        // independently, so the same Thursday 14:00–20:00 shift is capped at 17:00 → 3h.
+        var rule = new DifferentialRule
+        {
+            Code = "SPLIT",
+            DayScheduleMode = DayScheduleMode.DaysOfWeek,
+            DaysOfWeek = new HashSet<IsoDayOfWeek> { IsoDayOfWeek.Monday, IsoDayOfWeek.Thursday },
+            WindowStart = new LocalTime(12, 0),
+            WindowEnd = new LocalTime(17, 0),
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
+            AdjustmentValue = 2m,
+        };
+
+        var thu = DifferentialApplier.Execute([ShiftUtc(14, 20, day: 5)], Ctx(_emp, rule));
+        Assert.Equal(3m, thu[0].Differentials[0].Hours);
+
+        // Wednesday isn't listed → nothing qualifies.
+        var wed = DifferentialApplier.Execute([ShiftUtc(14, 20, day: 4)], Ctx(_emp, rule));
+        Assert.Empty(wed[0].Differentials);
+    }
+
+    [Fact]
+    public void SpecificDates_RequiresDateMatch()
+    {
+        // Corporate holiday (e.g. a company anniversary) not in any federal HolidayCalendar
+        var rule = new DifferentialRule
+        {
+            Code = "CORP_HOLIDAY",
+            DayScheduleMode = DayScheduleMode.SpecificDates,
+            SpecificDates = new HashSet<LocalDate> { new(2023, 1, 2) },
+            AdjustmentType = DifferentialAdjustmentType.FixedBonus,
+            AdjustmentValue = 25m,
+        };
+
+        var onDate = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 2)], Ctx(_emp, rule));
+        var offDate = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 3)], Ctx(_emp, rule));
+
+        Assert.Single(onDate[0].Differentials);
+        Assert.Equal(25m, onDate[0].Differentials[0].Amount);
+        Assert.Empty(offDate[0].Differentials);
+    }
+
+    [Fact]
+    public void DayScheduleMode_IsExclusive_OtherModesFieldsIgnored()
+    {
+        // Mode is DaysOfWeek (Tuesday only). SpecificDates and a range are also populated but must
+        // be ignored entirely — only the selected mode's field is consulted.
+        var rule = new DifferentialRule
+        {
+            Code = "MIXED",
+            DayScheduleMode = DayScheduleMode.DaysOfWeek,
+            DaysOfWeek = new HashSet<IsoDayOfWeek> { IsoDayOfWeek.Tuesday },
+            SpecificDates = new HashSet<LocalDate> { new(2023, 1, 2) },  // Monday — ignored
+            DayOfWeekRangeStart = IsoDayOfWeek.Friday,                   // ignored
+            DayOfWeekRangeEnd = IsoDayOfWeek.Sunday,                     // ignored
+            AdjustmentType = DifferentialAdjustmentType.FixedBonus,
+            AdjustmentValue = 25m,
+        };
+
+        // Jan 2 = Monday: in SpecificDates and would need consulting other modes, but mode is
+        // DaysOfWeek(Tue) → does not qualify.
+        var monday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 2)], Ctx(_emp, rule));
+        // Jan 3 = Tuesday: matches the active mode.
+        var tuesday = DifferentialApplier.Execute([ShiftUtc(9, 17, day: 3)], Ctx(_emp, rule));
+
+        Assert.Empty(monday[0].Differentials);
+        Assert.Single(tuesday[0].Differentials);
     }
 
     [Fact]
@@ -170,7 +316,7 @@ public class DifferentialApplierTests
         // With no exclusivity group they stack — overlapping 22:00–24:00 hours earn both.
         var holiday = new DifferentialRule
         {
-            Code = "HOLIDAY", HolidaysOnly = true,
+            Code = "HOLIDAY", DayScheduleMode = DayScheduleMode.Holidays,
             AdjustmentType = DifferentialAdjustmentType.FlatPerHour, AdjustmentValue = 5m,
         };
         var overnight = new DifferentialRule
