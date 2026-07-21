@@ -15,7 +15,7 @@ public record PunchPair
 
     public decimal TotalHours =>
         !IsMissingPunch
-            ? (decimal)(OutPunch.EffectiveTime - InPunch.EffectiveTime).TotalHours
+            ? (decimal)(OutPunch!.EffectiveTime - InPunch!.EffectiveTime).TotalHours
             : 0;
 
     public bool IsMissingPunch => InPunch is null || OutPunch is null;

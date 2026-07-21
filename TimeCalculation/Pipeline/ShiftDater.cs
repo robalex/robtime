@@ -38,10 +38,10 @@ public static class ShiftDater
     private static LocalDate GetLastPunchDate(Shift shift, PipelineContext ctx)
     {
         var lastPunch = shift.PunchPairs
-            .OrderByDescending(p => p.OutPunch?.EffectiveTime ?? p.InPunch.EffectiveTime)
+            .OrderByDescending(p => p.OutPunch?.EffectiveTime ?? p.InPunch!.EffectiveTime)
             .First();
 
-        var lastTime = lastPunch.OutPunch?.EffectiveTime ?? lastPunch.InPunch.EffectiveTime;
+        var lastTime = lastPunch.OutPunch?.EffectiveTime ?? lastPunch.InPunch!.EffectiveTime;
         return lastTime.InZone(ctx.EmployeeTimeZone).Date;
     }
 
