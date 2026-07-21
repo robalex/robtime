@@ -38,6 +38,22 @@ public class DifferentialApplierTests
     }
 
     [Fact]
+    public void ConsecutiveDayRange_WithSameStartAndEndDay_IsRejected()
+    {
+        // A single-day "range" is a DaysOfWeek selection; the context rejects it so the continuous
+        // span can never invert (single day + wrapping window).
+        var rule = new DifferentialRule
+        {
+            Code = "BAD",
+            DayScheduleMode = DayScheduleMode.ConsecutiveDayRange,
+            DayOfWeekRangeStart = IsoDayOfWeek.Monday,
+            DayOfWeekRangeEnd = IsoDayOfWeek.Monday,
+        };
+
+        Assert.Throws<ArgumentException>(() => Ctx(_emp, rule));
+    }
+
+    [Fact]
     public void NightWindow_FlatPerHour_AppliesToHoursInsideWindowOnly()
     {
         // Night window 22:00–06:00, work 20:00–02:00 → 4 qualifying hours (22:00–02:00)

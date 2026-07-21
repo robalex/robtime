@@ -35,6 +35,27 @@ public class PipelineContext
         _positionAssignments = positionAssignments.OrderBy(a => a.EffectiveFrom).ToList();
         DifferentialRules = differentialRules ?? [];
         HolidayCalendar = holidayCalendar;
+
+        ValidateDifferentialRules(DifferentialRules);
+    }
+
+    // A ConsecutiveDayRange must span at least two distinct weekdays. A single-day "range" is
+    // semantically a DaysOfWeek selection of one day, and it's the only shape that lets a range
+    // occurrence's [start, end) span invert (a single day plus a midnight-wrapping window), so
+    // rejecting it here lets ContinuousRangeQualifyingHoursCalculator assume start < end.
+    private static void ValidateDifferentialRules(IReadOnlyList<DifferentialRule> rules)
+    {
+        foreach (var rule in rules)
+        {
+            if (rule.DayScheduleMode == DayScheduleMode.ConsecutiveDayRange
+                && rule.DayOfWeekRangeStart == rule.DayOfWeekRangeEnd)
+            {
+                throw new ArgumentException(
+                    $"DifferentialRule '{rule.Code}' uses ConsecutiveDayRange but its range start and " +
+                    $"end are the same day ({rule.DayOfWeekRangeStart}). A single-day selection should " +
+                    "use DayScheduleMode.DaysOfWeek instead.");
+            }
+        }
     }
 
     /// <summary>
