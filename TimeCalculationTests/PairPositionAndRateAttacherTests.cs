@@ -5,7 +5,7 @@ using Xunit;
 
 namespace TimeCalculationTests;
 
-public class PairEnricherTests
+public class PairPositionAndRateAttacherTests
 {
     private readonly Employee _emp = new() { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 15m };
     private static Instant At(int hour) => Instant.FromUtc(2023, 1, 2, hour, 0);
@@ -23,7 +23,7 @@ public class PairEnricherTests
         var ctx  = TestEntityCreator.CreateContext(employee: _emp);
         var pair = MakePair();
 
-        var result = PairEnricher.AttachPositionAndRateToPunchPairs([pair], ctx);
+        var result = PairPositionAndRateAttacher.AttachPositionAndRateToPunchPairs([pair], ctx);
 
         Assert.Null(result[0].Position);
         Assert.Equal(15m, result[0].Rate);
@@ -37,7 +37,7 @@ public class PairEnricherTests
         var ctx = TestEntityCreator.CreateContext(employee: _emp, positions: assignments);
         var pair = MakePair();
 
-        var result = PairEnricher.AttachPositionAndRateToPunchPairs([pair], ctx);
+        var result = PairPositionAndRateAttacher.AttachPositionAndRateToPunchPairs([pair], ctx);
 
         Assert.Equal(position, result[0].Position);
         Assert.Equal(20m, result[0].Rate);
@@ -54,7 +54,7 @@ public class PairEnricherTests
         var ctx = TestEntityCreator.CreateContext(employee: _emp, positions: assignments);
         var orphanOut = TestEntityCreator.CreateTestPunchPair(null, TestEntityCreator.CreateTestPunch(At(17), PunchKind.Out, _emp));
 
-        var result = PairEnricher.AttachPositionAndRateToPunchPairs([orphanOut], ctx);
+        var result = PairPositionAndRateAttacher.AttachPositionAndRateToPunchPairs([orphanOut], ctx);
 
         Assert.Equal(position, result[0].Position);
         Assert.Equal(20m, result[0].Rate);
@@ -73,7 +73,7 @@ public class PairEnricherTests
         var ctx  = TestEntityCreator.CreateContext(employee: _emp, positions: assignments);
         var pair = MakePair(positionId: 2);   // punch specifies position 2
 
-        var result = PairEnricher.AttachPositionAndRateToPunchPairs([pair], ctx);
+        var result = PairPositionAndRateAttacher.AttachPositionAndRateToPunchPairs([pair], ctx);
 
         Assert.Equal(overridePos, result[0].Position);
         Assert.Equal(20m, result[0].Rate);

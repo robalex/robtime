@@ -37,7 +37,7 @@ public static class PayCalculator
     {
         var rounded = PunchRounder.RoundPunches(punches, ctx);
         var (pairs, fixedEntries) = PunchPairer.PairPunches(rounded, ctx);
-        var enriched = PairEnricher.AttachPositionAndRateToPunchPairs(pairs, ctx);
+        var enriched = PairPositionAndRateAttacher.AttachPositionAndRateToPunchPairs(pairs, ctx);
         var shifts = ShiftBuilder.BuildShifts(enriched, fixedEntries, ctx);
         var subtyped = PunchSubtypeInferrer.InferPunchSubtypes(shifts, ctx);
         return ShiftDater.AssignDatesToShifts(subtyped, ctx);

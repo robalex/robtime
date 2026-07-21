@@ -35,7 +35,7 @@ the plan's 13-stage design (see `PLAN.md`).
 1. `PunchRounder` — apply `PayRule.RoundingRule` to punch times (raw + rounded both kept).
 2. `PunchPairer` — match In/Out into `PunchPair`s; split pairs at `PayRule`/`EmployeePosition`
    effective-date boundaries; incomplete (In-only / Out-only) pairs are intentional and surfaced.
-3. `PairEnricher` — attach the effective `Position` + `Rate` to each pair.
+3. `PairPositionAndRateAttacher` — attach the effective `Position` + `Rate` to each pair.
 4. `ShiftBuilder` — group pairs into `Shift`s (new shift when gap > `DistanceBetweenShiftsHours`).
 5. `PunchSubtypeInferrer` — runs after shifts are built, so shift boundaries are already settled;
    classifies each Out→In gap *between two PunchPairs already in the same Shift* as `Break` or
@@ -115,6 +115,6 @@ per-stage tests, `PropertyBasedTests` assert purity/idempotency/invariants over 
 `EndToEndTests` is the broader confidence suite — one test per feature area (pairing/orphans,
 overtime, effective dating, rounding, subtype-driven premiums, differentials, all six state
 premiums, DST, retroactive bonus), always starting from raw `Punch`es through `PayCalculator.Calculate`.
-It's what found three real crash bugs (`PairEnricher`/`ShiftBuilder`/`ShiftDater` all
+It's what found three real crash bugs (`PairPositionAndRateAttacher`/`ShiftBuilder`/`ShiftDater` all
 unconditionally dereferenced `PunchPair.InPunch`, which is null for an orphan Out) that no
 per-stage unit test caught, because none of them chained stages together.

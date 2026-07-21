@@ -164,7 +164,7 @@ public class PunchPairerTests
         Assert.Equal(2m, pairs[0].TotalHours);   // 22:00 → midnight = 2 hrs
         Assert.Equal(6m, pairs[1].TotalHours);   // midnight → 06:00 = 6 hrs
 
-        var enriched = PairEnricher.AttachPositionAndRateToPunchPairs(pairs, ctx);
+        var enriched = PairPositionAndRateAttacher.AttachPositionAndRateToPunchPairs(pairs, ctx);
         Assert.Equal(posA, enriched[0].Position);
         Assert.Equal(15m, enriched[0].Rate);
         Assert.Equal(posB, enriched[1].Position);

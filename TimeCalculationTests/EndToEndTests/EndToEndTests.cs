@@ -15,7 +15,7 @@ namespace TimeCalculationTests.EndToEndTests;
 /// pipeline produces), asserting hand-computed expected pay. Grouped by feature area so the file
 /// reads as a map of what's been proven to work together, not just in isolation.
 ///
-/// This suite is what found (and this file's fixes proved) three real crash bugs: PairEnricher,
+/// This suite is what found (and this file's fixes proved) three real crash bugs: PairPositionAndRateAttacher,
 /// ShiftBuilder, and ShiftDater all used to unconditionally dereference PunchPair.InPunch, which
 /// is null for an orphan Out (an Out punch with no preceding In). Every existing unit test for
 /// those stages happened to pass a pair with InPunch set, so the bug only surfaced once stages
