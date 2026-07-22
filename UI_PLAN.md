@@ -1,7 +1,8 @@
 # RobTimeUI — Frontend & API Plan
 
-Companion to `PLAN.md` (the engine plan). That document declared "HTTP API, UI" out of scope; this
-one brings them into scope. Read `CLAUDE.md` first for the engine architecture.
+Companion to `PLAN.md` (the engine plan) and `DEPLOY_PLAN.md` (AWS deployment, added 2026-07-22).
+`PLAN.md` declared "HTTP API, UI" out of scope; this one brings them into scope. Read `CLAUDE.md`
+first for the engine architecture.
 
 ---
 
@@ -624,6 +625,12 @@ deliberately skipped with reasons recorded). Nothing is half-finished. What's le
       decision #1 stays open, but it's no longer a blocker for anything in this plan.
 - [x] **`.gitignore` — done 2026-07-22.** Added `RobTimeUI/{node_modules,dist,.vite,*.local}`
       ahead of the folder existing.
+
+### Phase 0b — AWS deployment foundation *(runs parallel to Phase 0; see `DEPLOY_PLAN.md`)*
+Terraform bootstrap (remote state + GitHub OIDC role) · network/database/frontend modules ·
+`staging` environment, no custom domain yet. No code dependency on Phase 0 except the eventual
+Dockerfile — can start immediately. First real deploy happens once Phase 0 has a working API to
+containerize.
 
 ### Phase 0 — API foundation *(backend only)*
 - Response DTOs for every entity; stop returning EF entities (Gap C).
