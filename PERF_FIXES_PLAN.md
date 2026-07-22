@@ -1,4 +1,13 @@
-# Performance & Correctness Fix Plan
+# Performance & Correctness Fix Plan — CLOSED 2026-07-22
+
+**All items done.** Part 1 (1.1–1.4) landed in `da41334`; Part 2 (2.1–2.3) in `2920a0b`. Item 2.4
+was attempted, found to break record value-equality, and reverted before ever being committed
+(see its entry below — the account is preserved as the record of *why* it was rejected). Item 2.5
+was skipped per its own recommendation. Final state: `dotnet build` clean, 281/281 tests passing
+(the 196 referenced below was the count before Phases 5–9 of the engine plan added more tests).
+Kept as a historical record — see `UI_PLAN.md` §8 Phase 0a for what's next.
+
+---
 
 Self-contained work plan from the scale review (50k employees × 1 year). Work through items in
 order — correctness first, then performance. Each item lists the files, the exact change, and the
@@ -12,9 +21,9 @@ Conventions used throughout the codebase (do not violate):
 
 ---
 
-## Part 1 — Correctness
+## Part 1 — Correctness ☑ (`da41334`)
 
-### 1.1 Coverage-gap policy: add `TryGetRuleAt`, keep `GetRuleAt` throwing
+### 1.1 Coverage-gap policy: add `TryGetRuleAt`, keep `GetRuleAt` throwing ☑ `da41334`
 
 **Problem:** `PipelineContext.GetRuleAt` (TimeCalculation/Pipeline/PipelineContext.cs, ~line 38)
 throws when no `PayRuleAssignment` covers a date. In a future batch run, one employee with an
@@ -36,7 +45,7 @@ layer needs a non-throwing probe.
 - `TryGetRuleAt_InsideCoverage_ReturnsTrueAndRule`
 - `GetRuleAt_OutsideCoverage_Throws` (pin existing behavior explicitly)
 
-### 1.2 `FixedHours` participation in the regular rate
+### 1.2 `FixedHours` participation in the regular rate ☑ `da41334`
 
 **Problem:** PLAN.md says FixedHours "contributes to total-hours-for-regular-rate per FLSA rules
 where applicable" — never implemented. `RegularRateCalculator` ignores FixedHours entirely
@@ -68,7 +77,7 @@ wage. For FixedHours entries that represent *worked* time, RROP is overstated.
   hrs (flag true, min wage $15) → RROP = (200 + 75) / 15.
 - Existing tests: update calls for the new parameter; expected values unchanged.
 
-### 1.3 Consistent rule resolution at Out→In gap boundaries
+### 1.3 Consistent rule resolution at Out→In gap boundaries ☑ `da41334`
 
 **Problem:** `PunchSubtypeInferrer` classifies a mid-shift gap using the rule at the **prior Out**
 (gap start); `ShiftBuilder` decides shift membership using the rule at the **next pair's In**
@@ -89,7 +98,7 @@ gap's start.*
   that `PunchSubtypeInferrer` + `ShiftBuilder` agree: a gap classified Break/Lunch never becomes
   a shift boundary for the same input.
 
-### 1.4 Premium anchor identity when a shift starts with a synthetic punch
+### 1.4 Premium anchor identity when a shift starts with a synthetic punch ☑ `da41334`
 
 **Problem:** `PunchPairer.SplitAtBoundaries` creates interior sub-pair punches with `Id = 0`.
 `PremiumApplier.AnchorPunchId(shift)` uses the shift's earliest In punch id. If shift dating ever
@@ -108,9 +117,9 @@ waive/override identity `(AnchorPunchId, Code)` collides across shifts.
 
 ---
 
-## Part 2 — Performance
+## Part 2 — Performance ☑ (`2920a0b`; 2.4 reverted, 2.5 skipped — see their entries)
 
-### 2.1 Binary search in `PipelineContext` lookups
+### 2.1 Binary search in `PipelineContext` lookups ☑ `2920a0b`
 
 **Problem:** `GetRuleAt` / `GetPositionAt` / `GetBoundaryInstantsBetween` linearly scan the
 assignment lists; they're called per punch / pair / shift / day, so cost is O(P × A).
@@ -136,7 +145,7 @@ must pass unmodified.
 **Tests:** existing suite covers behavior; add one overlapping-assignment test pinning
 "latest EffectiveFrom wins" before refactoring, so the refactor is provably behavior-preserving.
 
-### 2.2 Compute `ShiftAnalysis` once per shift
+### 2.2 Compute `ShiftAnalysis` once per shift ☑ `2920a0b`
 
 **Problem:** every premium rule calls `ShiftAnalysis.From(shift)` in both `Applies` and
 `Calculate` → 2 × rules full rebuilds per shift (see CaMealPremiumRule.cs:20,24 and the same
@@ -157,7 +166,7 @@ pattern in all six rules).
 - Update PremiumRulesTests to build a `ShiftAnalysis` (via `ShiftAnalysis.From(Build(...))`) —
   mechanical change, assertions unchanged.
 
-### 2.3 Binary search for nearest shift in `ShiftBuilder.AttachFixedEntries`
+### 2.3 Binary search for nearest shift in `ShiftBuilder.AttachFixedEntries` ☑ `2920a0b`
 
 **Problem:** `FindNearestShiftIndex` (ShiftBuilder.cs:85) scans every punch of every shift per
 fixed entry → O(F × S × P).

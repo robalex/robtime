@@ -575,21 +575,30 @@ deliberately skipped with reasons recorded). Nothing is half-finished. What's le
       - Full solution rebuild (`--no-incremental`) and `dotnet test`: still **281/281 passing**. App
         boots and serves `/openapi/v1.json` successfully on the new packages.
       - Changed files: the four `.csproj`s, `PersistenceModelTests.cs`,
-        `StatePremiumEndToEndTests.cs`. **Not yet committed** — left for review alongside this plan.
-- [ ] **Set up CI — there is none.** `.github/` contains only `copilot-instructions.md`; no
-      workflows. Three things in this plan assume CI exists and are worth much less without it:
-      the schema-drift gate (§3), the Phase 1 tenant-isolation suite (§5), and the 281 tests, which
-      currently run only when someone remembers. Start with build + test on PR; add the codegen
-      diff check in Phase 2.
-- [ ] **Confirm database state** — that the local Postgres is reachable and `Initial` is applied.
-      Phase 0 adds real migrations (`ClientId` columns, `PayRule` versioning) and needs a known
-      starting point.
-- [ ] **Close out `PERF_FIXES_PLAN.md`** — mark items ☑ or archive it. Right now it reads as
-      pending work when it isn't, which is a trap for anyone (or any agent) picking this up cold.
-- [ ] **Answer §10 Q1 and Q4** — they block Phase 2 nav and Phase 3 screens respectively.
+        `StatePremiumEndToEndTests.cs`. Committed (`e90e0b6`) and pushed to `origin/main`.
+- [x] **Set up CI — done 2026-07-22 (`.github/workflows/ci.yml`).** Build (Release,
+      `TreatWarningsAsErrors=true`) + test on push/PR to `main`, `.trx` results uploaded as an
+      artifact. Runs on `ubuntu-latest` with no Postgres service container — confirmed the only
+      test touching `PayrollDbContext` is `PersistenceModelTests`, which builds the EF model
+      against the Npgsql provider without connecting (per the Persistence README), so the full
+      281-test suite is genuinely DB-free. Verified all three CI steps locally in Release config
+      before committing the workflow. Not yet exercised by an actual PR — first PR against `main`
+      will be the real test of the YAML.
+- [x] **Confirm database state — done 2026-07-22.** Local Postgres reachable on `localhost:5432`;
+      `dotnet ef migrations list` / `dbcontext info` confirm `Initial` is applied to the `robtime`
+      database and no migrations are pending. Also updated the global `dotnet-ef` tool 9.0.7 →
+      10.0.10 to match the just-upgraded runtime — it was silently working against a version
+      mismatch before.
+- [x] **Close out `PERF_FIXES_PLAN.md` — done 2026-07-22.** Traced each item to its landing commit
+      via `git log`/`git show`: Part 1 (1.1–1.4) in `da41334`, Part 2 (2.1–2.3) in `2920a0b`. Marked
+      every heading with its commit hash; added a closure banner at the top so the file reads as
+      history, not a live checklist, for anyone picking this up cold.
+- [ ] **Answer §10 Q1 and Q4** — they block Phase 2 nav and Phase 3 screens respectively. Needs you.
 - [ ] **Start the legal review for premium waiver policies** (`PLAN.md` open decision #1). Long lead
-      time, and it blocks half the pay-rule templates — see the note in Phase 4.
-- [ ] **`.gitignore`** — add `node_modules/`, `dist/`, `.vite/` before the UI folder exists.
+      time, and it blocks half the pay-rule templates — see the note in Phase 4. Needs you to
+      actually kick off (I can't retain outside counsel).
+- [x] **`.gitignore` — done 2026-07-22.** Added `RobTimeUI/{node_modules,dist,.vite,*.local}`
+      ahead of the folder existing.
 
 ### Phase 0 — API foundation *(backend only)*
 - Response DTOs for every entity; stop returning EF entities (Gap C).
