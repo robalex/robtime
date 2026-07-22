@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore RobTime.sln
+
+      # No live Postgres in this job: TimeCalculationTests only touches PayrollDbContext via
+      # PersistenceModelTests, which builds the EF model against the Npgsql provider without
+      # connecting (see TimeCalculation.Persistence/README.md) — the whole suite is DB-free.
+      - name: Build (warnings as errors)
+        run: dotnet build RobTime.sln --no-restore --configuration Release -p:TreatWarningsAsErrors=true
+
+      - name: Test
+        run: dotnet test RobTime.sln --no-build --configuration Release --logger "trx;LogFileName=test-results.trx"
+
+      - name: Publish test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: "**/test-results.trx"
