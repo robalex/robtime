@@ -26,11 +26,12 @@ configuration UI is ~80% reads. There is also nothing to log in as.
 | **F** | **`PayRule` versioning is nominal.** `Version` is an int nobody increments; there is no `EffectiveFrom`/`EffectiveTo` on the rule itself. An edit mutates the row. | `PLAN.md` §5 says "Edits create new versions, never mutate." Right now, editing a pay rule silently rewrites the past. **A UI makes editing easy, and therefore makes accidental retroactive rewrites easy.** See §7 — this also makes impact-preview impossible to retrofit. |
 | **G** | **`HolidayCalendar` is code-only** (`UsFederal(year)`), not stored, not per-client. | Differentials reference holidays; clients have their own. |
 | **H** | **`PayRule` has no `Name`/`Description`.** | A list showing "PayRule 3, PayRule 7" is unusable. |
-| **I** | **Premium overrides/waivers aren't persisted** (`OverrideKind`/`WaiverPolicy` are model types with no table). | Needed for the supervisor override screen. Not urgent — Phase 6+. |
+| **I** | **`WaiverPolicy` is hardcoded per premium-rule class, identical for every client.** `CaMealPremiumRule.WaiverPolicy`, `PrMealPremiumRule.WaiverPolicy`, etc. return a fixed enum value; there is no table, so no client can hold a different policy than RobTime's default — and for `PR_MEAL`/`OR_MEAL`/`WA_MEAL` that default is an explicit unverified guess (`// TODO: verify {state} waiver rules`). | **Decided 2026-07-22: make waiver policy client-configurable instead of RobTime asserting it.** Safe default (`NotWaivable`) stays RobTime's suggestion; a client can loosen it only through an explicit attestation step, effective-dated and audited — so the legal determination is the client's, documented, not RobTime's. This supersedes the "defer legal review" call from earlier the same day: RobTime no longer needs its own answer to ship PR/OR/WA templates, because it isn't asserting one. Applies to **all six** premium rules, not just the three unconfirmed ones — a CBA can legitimately override even a "confirmed" state default. See the Phase 4/5 notes below. **Separately**, per-*occurrence* overrides (`OverrideKind` — a supervisor/employee waiving one specific shift's premium, distinct from the client-wide policy) still have no table and are still Phase 6 work. |
 | **J** | **Multi-tenancy is wired but inert.** `PayrollDbContext` accepts `tenantClientId`, but `AddDbContext` never supplies one, so every filter short-circuits to "no filter." | Auth is what turns it on. Until then, any caller sees every client's data. |
 
-Gaps **E** and **F** are model changes. They are cheap now and expensive after there's a UI and
-production data shaped around the current behaviour. Do them in Phase 0.
+Gaps **E**, **F**, and **I**'s policy-persistence half are model changes. They are cheap now and
+expensive after there's a UI and production data shaped around the current behaviour. Do them in
+Phase 0.
 
 ---
 
@@ -594,10 +595,12 @@ deliberately skipped with reasons recorded). Nothing is half-finished. What's le
       every heading with its commit hash; added a closure banner at the top so the file reads as
       history, not a live checklist, for anyone picking this up cold.
 - [ ] **Answer §10 Q1 and Q4** — they block Phase 2 nav and Phase 3 screens respectively. Needs you.
-- [x] **Legal review of premium waiver policies — deferred, not scheduled.** Decided 2026-07-22:
-      don't chase this ahead of need. PR/OR/WA templates simply aren't offered until a client in
-      one of those states is actually being onboarded — see the revised note in Phase 4. Revisit
-      `PLAN.md` open decision #1 at that point, not before.
+- [x] **Legal review of premium waiver policies — superseded, not just deferred.** First decided
+      2026-07-22 to defer until a PR/OR/WA client showed up; revised the same day to a better fix:
+      **waiver policy becomes client-configurable** (Gap I) instead of something RobTime asserts.
+      RobTime never needs to answer "is this waivable in Oregon" — the client does, explicitly,
+      with an audited attestation, defaulting to the conservative `NotWaivable`. `PLAN.md` open
+      decision #1 stays open, but it's no longer a blocker for anything in this plan.
 - [x] **`.gitignore` — done 2026-07-22.** Added `RobTimeUI/{node_modules,dist,.vite,*.local}`
       ahead of the folder existing.
 
@@ -623,6 +626,13 @@ deliberately skipped with reasons recorded). Nothing is half-finished. What's le
   boundary deliberately, so cross it on purpose and update the comment — don't let it happen by
   accident in a later PR.
 - Persist `DifferentialRule` (+ `ClientId`, + `PayRule` association) and `HolidayCalendar` (D, G).
+- **Persist client-configurable waiver policy (Gap I).** New effective-dated entity —
+  `ClientPremiumPolicy(ClientId, PremiumCode, WaiverPolicy, SetBy, SetAt, EffectiveFrom, Justification?)`
+  — same pattern as `PayRuleAssignment`. `IPremiumRule.WaiverPolicy` becomes the fallback default,
+  not the source of truth; resolution is "client override as of the effective date, else the rule's
+  default." Thread the resolved policy into `PayCalculationSnapshot` alongside the rule versions
+  already recorded there, so a snapshot stays reproducible even after a client later changes the
+  policy. The attestation UI itself is Phase 5 — this is the schema + resolution logic only.
 - `GET /metadata/premium-rules` from `PremiumRegistry`; API references the engine project.
 - `ProblemDetails` everywhere; one validation-error shape.
 - OpenAPI build-time document generation; CORS for the Vite dev origin.
@@ -658,15 +668,16 @@ Pay rule list + editor with the three-tier taxonomy · template picker + "modifi
 version history view (reading what Phase 0 made possible) · pay rule assignment via the timeline
 widget · **single-employee what-if diff** (§7).
 
-> **PR/OR/WA templates are out of scope until a client needs them — deliberately, not blocked.**
-> `PLAN.md` §6's override matrix still has `?` rows for **PR, OR, and WA** waiver policies
-> (`PERF_FIXES_PLAN.md` Part 3 flagged them pending legal review). Rather than gate Phase 4 on
-> review that has no scheduled trigger, ship the template picker with only *Federal*, *California*,
-> and *Colorado* — the three whose override matrices are actually filled in. Build the template
-> picker so adding a fourth is a data change, not a code change (§6 Rule 3 already models this as
-> template + version, not a hardcoded switch), and treat "sales is about to close a PR/OR/WA
-> client" as the trigger to open the legal review and add that template. Until then, those states
-> are simply absent from the picker — no half-built, no-waiver-support state to accidentally ship.
+> **PR/OR/WA templates ship from day one — the client-configurable waiver policy (Gap I) is what
+> unblocks this.** Previously excluded because offering the template meant RobTime implicitly
+> asserting an unverified waiver rule. That's no longer true: the template presets
+> `ActivePremiumCodes` including `PR_MEAL`/`OR_MEAL`/`WA_MEAL` with RobTime's conservative
+> `NotWaivable` default, same as every other state, and the template picker doesn't need to know or
+> claim anything about the underlying legal question — the client does, later, if they choose to
+> loosen it (Phase 5). The calculation logic for all three was already implemented and tested
+> (`PrMealPremiumRule`/`OrMealPremiumRule`/`WaMealPremiumRule` + their `StatePremiumEndToEndTests`
+> cases) — only the waiver *policy* was ever in question, and that question now belongs to the
+> client, not the template.
 
 ### Phase 5 — Advanced configuration
 Differential rule editor (the `DayScheduleMode` modes are mutually exclusive — the form must be a
@@ -674,9 +685,19 @@ mode selector that swaps its body, not five ANDed filter sections; `PipelineCont
 rejects a single-day `ConsecutiveDayRange`, so the UI should too) · premium selection UI backed by
 the metadata endpoint · holiday calendar management · state minimum wage table.
 
+**Waiver-policy attestation UI (Gap I, schema from Phase 0).** Each active premium on the selection
+screen shows its current waiver policy with RobTime's default pre-selected and visually distinct
+from a client override. Changing it away from the default requires an explicit confirmation step
+— "you are asserting this waiver is permitted in your jurisdiction; RobTime has not verified this"
+— not a plain dropdown pick, so the decision is provably deliberate rather than a field someone
+absent-mindedly changed. Every change is logged (`SetBy`/`SetAt`) and effective-dated, matching the
+`<EffectiveDatedTimeline>` component already built in Phase 3.
+
 ### Phase 6 — Employee self-service
 Punch entry · own timecard view · punch edit with audit trail surfaced · supervisor punch approval
-and premium override screens (needs Gap I closed).
+and premium override screens (needs the occurrence-level override table — `SupervisorOverride`/
+`EmployeeWaiver` keyed to one shift's premium — the remaining half of Gap I not closed by Phase 0/5's
+client-wide waiver *policy*).
 
 ### Phase 7 — Full impact preview
 Worker queue (open decision #6) · client-wide impact jobs · per-employee/per-shift diff drill-down ·
@@ -702,15 +723,20 @@ Settled — say the word and I'll rework any of them.
 
 **Yours (answered):**
 
-8. **Cookie auth**, with a documented exit path to bearer tokens (§5). Implies same-origin deployment for now.
-9. **Email + password for everyone**, including employees. Timeclock + badge number is a later
-   addition, tracked in §5 and §11.
-10. **Template is a mandatory starting point; every field editable afterwards.** Requires template
+9. **Cookie auth**, with a documented exit path to bearer tokens (§5). Implies same-origin deployment for now.
+10. **Email + password for everyone**, including employees. Timeclock + badge number is a later
+    addition, tracked in §5 and §11.
+11. **Template is a mandatory starting point; every field editable afterwards.** Requires template
     lineage tracking so "customised" stays visible (§6, Rule 3).
-11. **True SaaS multi-tenant** — isolation is a correctness requirement, and Phase 1 ships a test
+12. **True SaaS multi-tenant** — isolation is a correctness requirement, and Phase 1 ships a test
     suite that proves it (§5).
-12. **No approval step** on pay rule changes; save-is-live. The `Draft` status still lands in Phase 0
+13. **No approval step** on pay rule changes; save-is-live. The `Draft` status still lands in Phase 0
     because impact preview needs it — which means approval stays cheap to add later (§11).
+14. **Premium waiver policy is client-configurable, for all six premium rules** — a safe
+    (`NotWaivable`) RobTime default, loosened only through an explicit, effective-dated, audited
+    attestation by the client (Gap I). Supersedes the earlier "defer legal review" call — RobTime
+    never needs its own answer, so PR/OR/WA templates ship in Phase 4 instead of waiting for a
+    client to need them.
 
 ## 10. Follow-on questions
 
