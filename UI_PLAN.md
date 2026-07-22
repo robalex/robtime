@@ -633,14 +633,56 @@ Dockerfile — can start immediately. First real deploy happens once Phase 0 has
 containerize.
 
 ### Phase 0 — API foundation *(backend only)*
+
+**Model/schema sub-phase done 2026-07-22** (all verified: 296/296 tests, clean `--no-incremental`
+build, API smoke-tested against the fresh schema — a real `POST /clients` round-tripped through the
+new migration end-to-end):
+
+- [x] Model changes: `PayRule.Name`/`Description` (H), `EmployeePositionAssignment.Rate` (E) —
+      threaded through `PipelineContext.GetRateAt` (new) and `PairPositionAndRateAttacher`, which
+      now prefers the assignment's own rate over `Position.BaseRate`, **`PayRule` versioning +
+      effective dating + draft status (F)**, `PayRule.TemplateCode`/`TemplateVersion`.
+      Versioning design: `PayRule` gained `RuleFamilyId` (stable across a rule's edit history — by
+      convention equals the first version's own `Id`), `Version` (now starts at 1), `Status`
+      (`Draft`/`Active`/`Superseded`), and its own `EffectiveFrom`/`EffectiveTo` — bookkeeping for
+      the version-history UI only, **not** consulted by the calculation pipeline, which still
+      resolves the applicable rule purely through `PayRuleAssignment`'s dates. This was a
+      deliberate choice to land the versioning *fields* without touching `PipelineContext.GetRuleAt`
+      at all — the actual "create a new version, don't mutate" *workflow* is CRUD-endpoint work,
+      not schema work, and is still ahead of us.
+- [x] **Tenancy schema prep** (§5): `ClientId` added to `Punch`, `PunchAuditEntry`, both assignment
+      entities, plus FK constraints (`Restrict`) on all of them. Every hot index re-indexed with
+      `client_id` leading (verified by inspecting the generated migration directly, not just
+      trusting the C# config). **Deliberately stopped at schema** — no `HasQueryFilter` predicates
+      were added or changed on these four; that's explicitly Phase 1 ("rework the tenant filters"),
+      once there's a real `_tenantClientId` to filter on. `EmployeePositionAssignmentEntity`'s
+      existing filter (via the `Position` navigation) was left untouched for the same reason, even
+      though the new direct `ClientId` column could simplify it — that's a filter-predicate change,
+      bundled into Phase 1's uniform pass instead of touched twice.
+- [x] Persist `DifferentialRule` (+ `ClientId`) and `HolidayCalendar` (D, G). `HolidayCalendar`
+      gained `Id`/`ClientId`/`Name` and a settable `Dates` while keeping its existing constructor
+      (so `HolidayCalendar.UsFederal(year)` and every existing call site still work unchanged).
+      `PayRule.ActiveDifferentialCodes` added, mirroring `ActivePremiumCodes` — a client's pay rule
+      opts into a subset of that *client's own* differentials, not a fixed registry.
+- [x] **Persist client-configurable waiver policy (Gap I) — schema only, as scoped.** New
+      `ClientPremiumPolicy(Id, ClientId, PremiumCode, WaiverPolicy, SetBy, SetAt, EffectiveFrom,
+      EffectiveTo, Justification?)`, EF-mapped with a resolution index on
+      `(ClientId, PremiumCode, EffectiveFrom)`. **Explicitly not wired into `WaiverEvaluator` yet** —
+      resolving "client override as of the calculation date, else the rule's built-in default" is
+      real pipeline behavior change that deserves its own dedicated, tested pass, not a rider on a
+      schema change. Tracked as a clear follow-up, not silently dropped.
+- [x] **Clean migration regen, decided together 2026-07-22** (no production data exists anywhere).
+      Dropped the local dev database, deleted the old `Initial` migration + snapshot, regenerated a
+      fresh `Initial` against the full target schema (12 tables), applied it, and confirmed via
+      `dotnet ef migrations list`/`dbcontext info` — no pending migrations. Also updated the
+      `PersistenceModelTests` suite: fixed the one test pinning the old `(employee_id, punch_time)`
+      index shape, and added coverage for every new FK, index, and query filter this pass touched
+      (11 new tests) so none of this schema is unpinned going forward.
+
+**Still open:**
 - Response DTOs for every entity; stop returning EF entities (Gap C).
 - Full CRUD: `GET` list (paged/sorted/filtered), `GET` by id, `PUT`, soft-delete — Client, Employee,
   Position, PayRule (Gap B).
-- Model changes: `PayRule.Name`/`Description` (H), `EmployeePositionAssignment.Rate` (E),
-  **`PayRule` versioning + effective dating + draft status (F)**, `PayRule.TemplateCode`/`TemplateVersion`.
-- **Tenancy schema prep** (§5): add `ClientId` to `Punch`, `PunchAuditEntry`, and both assignment
-  entities; re-index with `client_id` leading — `punches(client_id, employee_id, punch_time)`.
-  Cheapest to do now, while `punches` is small.
 - **Data-protection groundwork** (§5): storage encryption + `SSL Mode=Require`; separately-keyed
   backups; log redaction on employee/pay endpoints; a doc comment on `PayCalculationSnapshot` and
   `PayLineItem` recording that PII must never be denormalised into them. Reserve `employee_sensitive`
@@ -648,22 +690,18 @@ containerize.
 - **Seed/demo data.** You cannot build or demo a configuration UI against an empty database. A
   seeder producing one client, ~20 employees, several positions, two or three pay rules on different
   templates, and a few weeks of punches is a Phase 0 deliverable, not an afterthought — Phases 2–4
-  are unworkable without it, and it doubles as integration-test fixture data.
+  are unworkable without it, and it doubles as integration-test fixture data. (The local dev DB
+  currently has exactly one manually-created smoke-test client from verifying the migration — not a
+  seed dataset, just proof the schema takes writes.)
 - **Decide the API→engine project reference.** `GET /metadata/premium-rules` (§3) and the Phase 4
   what-if (§7) both need `TimeCalculation` referenced from the API. The `.csproj` comment guards this
   boundary deliberately, so cross it on purpose and update the comment — don't let it happen by
   accident in a later PR.
-- Persist `DifferentialRule` (+ `ClientId`, + `PayRule` association) and `HolidayCalendar` (D, G).
-- **Persist client-configurable waiver policy (Gap I).** New effective-dated entity —
-  `ClientPremiumPolicy(ClientId, PremiumCode, WaiverPolicy, SetBy, SetAt, EffectiveFrom, Justification?)`
-  — same pattern as `PayRuleAssignment`. `IPremiumRule.WaiverPolicy` becomes the fallback default,
-  not the source of truth; resolution is "client override as of the effective date, else the rule's
-  default." Thread the resolved policy into `PayCalculationSnapshot` alongside the rule versions
-  already recorded there, so a snapshot stays reproducible even after a client later changes the
-  policy. The attestation UI itself is Phase 5 — this is the schema + resolution logic only.
 - `GET /metadata/premium-rules` from `PremiumRegistry`; API references the engine project.
 - `ProblemDetails` everywhere; one validation-error shape.
-- OpenAPI build-time document generation; CORS for the Vite dev origin.
+- OpenAPI *build-time* document generation (distinct from the runtime `/openapi/v1.json` endpoint
+  already live via `AddOpenApi()`/`MapOpenApi()` in `Program.cs` — §3 needs the build-time file for
+  the TypeScript codegen pipeline); CORS for the Vite dev origin.
 - Integration tests — `Program` is already `public partial`, so `WebApplicationFactory` is ready to go.
 
 ### Phase 1 — Users, auth, tenancy *(backend only)*

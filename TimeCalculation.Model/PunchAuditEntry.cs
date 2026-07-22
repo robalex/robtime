@@ -6,6 +6,7 @@ namespace TimeCalculation.Model;
 public record PunchAuditEntry
 {
     public int Id { get; init; }
+    public int ClientId { get; init; }
     public int PunchId { get; init; }
     public int ActorUserId { get; init; }
     public Instant OccurredAt { get; init; }

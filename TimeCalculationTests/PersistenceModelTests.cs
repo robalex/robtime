@@ -29,14 +29,17 @@ public class PersistenceModelTests
     }
 
     [Fact]
-    public void Punches_HaveEmployeePunchTimeIndex_AndUniqueDeviceIndex()
+    public void Punches_HaveClientIdLeadingPunchTimeIndex_AndUniqueDeviceIndex()
     {
+        // client_id leads the hot index (tenancy schema prep) — a tenant filter that isn't the
+        // leading index column isn't sargable under a generic query plan, so this has to be true
+        // before the filter predicate itself ever lands (that's Phase 1).
         using var ctx = NewContext();
         var punch = ctx.Model.FindEntityType(typeof(TimeCalculation.Model.Punch))!;
         var indexes = punch.GetIndexes().ToList();
 
         Assert.Contains(indexes, i =>
-            i.Properties.Select(p => p.Name).SequenceEqual(new[] { "EmployeeId", "PunchTime" }));
+            i.Properties.Select(p => p.Name).SequenceEqual(new[] { "ClientId", "EmployeeId", "PunchTime" }));
         Assert.Contains(indexes, i => i.IsUnique &&
             i.Properties.Select(p => p.Name).SequenceEqual(new[] { "EmployeeId", "DeviceId", "DevicePunchId" }));
     }
@@ -83,7 +86,14 @@ public class PersistenceModelTests
     [InlineData(typeof(TimeCalculation.Model.Employee), "ClientId", typeof(TimeCalculation.Model.Client))]
     [InlineData(typeof(TimeCalculation.Model.Position), "ClientId", typeof(TimeCalculation.Model.Client))]
     [InlineData(typeof(TimeCalculation.Model.PayRules.PayRule), "ClientId", typeof(TimeCalculation.Model.Client))]
+    [InlineData(typeof(TimeCalculation.Model.Punch), "ClientId", typeof(TimeCalculation.Model.Client))]
+    [InlineData(typeof(TimeCalculation.Model.PunchAuditEntry), "ClientId", typeof(TimeCalculation.Model.Client))]
+    [InlineData(typeof(TimeCalculation.Model.DifferentialRule), "ClientId", typeof(TimeCalculation.Model.Client))]
+    [InlineData(typeof(TimeCalculation.Model.HolidayCalendar), "ClientId", typeof(TimeCalculation.Model.Client))]
+    [InlineData(typeof(TimeCalculation.Model.Premiums.ClientPremiumPolicy), "ClientId", typeof(TimeCalculation.Model.Client))]
+    [InlineData(typeof(PayRuleAssignmentEntity), "ClientId", typeof(TimeCalculation.Model.Client))]
     [InlineData(typeof(PayRuleAssignmentEntity), "EmployeeId", typeof(TimeCalculation.Model.Employee))]
+    [InlineData(typeof(EmployeePositionAssignmentEntity), "ClientId", typeof(TimeCalculation.Model.Client))]
     [InlineData(typeof(EmployeePositionAssignmentEntity), "EmployeeId", typeof(TimeCalculation.Model.Employee))]
     public void OwnershipColumns_HaveEnforcedForeignKeys(Type dependent, string fkProperty, Type principal)
     {
@@ -99,5 +109,38 @@ public class PersistenceModelTests
         Assert.NotNull(fk);
         // Restrict, not Cascade: deleting a client or employee must never silently delete payroll records.
         Assert.Equal(DeleteBehavior.Restrict, fk.DeleteBehavior);
+    }
+
+    [Fact]
+    public void PayRule_HasRuleFamilyIdIndex()
+    {
+        // Version-history lookup: "every version of this rule family" (Gap F — versioning never
+        // mutates an Active row in place).
+        using var ctx = NewContext();
+        var payRule = ctx.Model.FindEntityType(typeof(TimeCalculation.Model.PayRules.PayRule))!;
+
+        Assert.Contains(payRule.GetIndexes(), i =>
+            i.Properties.Select(p => p.Name).SequenceEqual(new[] { "RuleFamilyId" }));
+    }
+
+    [Fact]
+    public void ClientPremiumPolicy_HasResolutionIndex_AndTenantFilter()
+    {
+        using var ctx = NewContext();
+        var policy = ctx.Model.FindEntityType(typeof(TimeCalculation.Model.Premiums.ClientPremiumPolicy))!;
+
+        Assert.Contains(policy.GetIndexes(), i =>
+            i.Properties.Select(p => p.Name).SequenceEqual(new[] { "ClientId", "PremiumCode", "EffectiveFrom" }));
+        Assert.NotEmpty(policy.GetDeclaredQueryFilters());
+    }
+
+    [Theory]
+    [InlineData(typeof(TimeCalculation.Model.DifferentialRule))]
+    [InlineData(typeof(TimeCalculation.Model.HolidayCalendar))]
+    public void NewTenantScopedEntities_HaveQueryFilter(Type entityType)
+    {
+        using var ctx = NewContext();
+        var entity = ctx.Model.FindEntityType(entityType)!;
+        Assert.NotEmpty(entity.GetDeclaredQueryFilters());
     }
 }

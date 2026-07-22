@@ -5,6 +5,7 @@ namespace TimeCalculation.Model;
 public record Punch
 {
     public int Id { get; init; }
+    public int ClientId { get; init; }
     public int EmployeeId { get; init; }
     public Instant PunchTime { get; init; }
     public Instant? RoundedPunchTime { get; init; }

@@ -7,7 +7,8 @@ namespace TimeCalculation.Pipeline.ShiftBuilding;
 /// Attaches the effective Position and Rate to each PunchPair.
 /// If the punch carries a PositionId override, that position is used.
 /// Otherwise the employee's position assignment active at the In time is used.
-/// Falls back to Employee.MinimumWage when no position is found.
+/// Rate prefers the assignment's own per-employee Rate (see EmployeePositionAssignment.Rate) over
+/// the Position's BaseRate, falling back to Employee.MinimumWage when no position is found.
 ///
 /// An orphan pair (In with no Out, or Out with no In) has no rate that matters for pay — its
 /// TotalHours is 0 and downstream stages skip it for earnings — but Position/Rate are still
@@ -28,7 +29,7 @@ public static class PairPositionAndRateAttacher
         return pair with
         {
             Position = position,
-            Rate = position?.BaseRate ?? ctx.Employee.MinimumWage,
+            Rate = ctx.GetRateAt(anchor.EffectiveTime, anchor.PositionId),
         };
     }
 }

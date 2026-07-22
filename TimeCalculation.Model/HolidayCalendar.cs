@@ -5,17 +5,20 @@ namespace TimeCalculation.Model;
 /// <summary>
 /// A set of observed holiday dates.  Federal holidays are generated with the standard observed-day
 /// shift (a Saturday holiday is observed the preceding Friday; a Sunday holiday the following Monday).
-/// Per-state calendars can be layered by passing additional dates.
+/// Per-state or per-client calendars can be layered by passing additional dates.
 /// </summary>
 public class HolidayCalendar
 {
-    private readonly HashSet<LocalDate> _observed;
+    public int Id { get; set; }
+    public int ClientId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public IReadOnlySet<LocalDate> Dates { get; set; } = new HashSet<LocalDate>();
 
-    public HolidayCalendar(IEnumerable<LocalDate> observedDates) => _observed = observedDates.ToHashSet();
+    public HolidayCalendar() { }
 
-    public bool IsHoliday(LocalDate date) => _observed.Contains(date);
+    public HolidayCalendar(IEnumerable<LocalDate> observedDates) => Dates = observedDates.ToHashSet();
 
-    public IReadOnlyCollection<LocalDate> Dates => _observed;
+    public bool IsHoliday(LocalDate date) => Dates.Contains(date);
 
     /// <summary>Applies the federal observed-day rule to an actual holiday date.</summary>
     public static LocalDate Observed(LocalDate actual) => actual.DayOfWeek switch

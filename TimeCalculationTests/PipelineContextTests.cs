@@ -179,4 +179,38 @@ public class PipelineContextTests
 
         Assert.Equal(2, position?.Id);
     }
+
+    [Fact]
+    public void GetRateAt_NoPositionAssignment_FallsBackToEmployeeMinimumWage()
+    {
+        var ctx = new PipelineContext(_emp, [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], []);
+
+        var rate = ctx.GetRateAt(Instant.FromUtc(2023, 4, 1, 0, 0));
+
+        Assert.Equal(15m, rate);
+    }
+
+    [Fact]
+    public void GetRateAt_AssignmentHasNoOwnRate_FallsBackToPositionBaseRate()
+    {
+        var position = new Position { Id = 1, BaseRate = 22m };
+        var assignments = new[] { new EmployeePositionAssignment(position, new LocalDate(2023, 1, 1)) };
+        var ctx = new PipelineContext(_emp, [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], assignments);
+
+        var rate = ctx.GetRateAt(Instant.FromUtc(2023, 4, 1, 0, 0));
+
+        Assert.Equal(22m, rate);
+    }
+
+    [Fact]
+    public void GetRateAt_AssignmentHasOwnRate_OverridesPositionBaseRate()
+    {
+        var position = new Position { Id = 1, BaseRate = 22m };
+        var assignments = new[] { new EmployeePositionAssignment(position, new LocalDate(2023, 1, 1), Rate: 27.5m) };
+        var ctx = new PipelineContext(_emp, [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], assignments);
+
+        var rate = ctx.GetRateAt(Instant.FromUtc(2023, 4, 1, 0, 0));
+
+        Assert.Equal(27.5m, rate);
+    }
 }

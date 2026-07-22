@@ -12,6 +12,7 @@ namespace TimeCalculation.Model;
 public class DifferentialRule
 {
     public int Id { get; set; }
+    public int ClientId { get; set; }
     public string Code { get; set; } = string.Empty;
 
     // ── Day schedule: exactly one mode selects the active days; the others' fields are ignored. ──

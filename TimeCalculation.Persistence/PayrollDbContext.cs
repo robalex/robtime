@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
+using NodaTime.Text;
 using TimeCalculation.Model;
 using TimeCalculation.Model.PayRules;
+using TimeCalculation.Model.Premiums;
 
 namespace TimeCalculation.Persistence;
 
@@ -34,6 +37,9 @@ public class PayrollDbContext : DbContext
     public DbSet<PayRuleAssignmentEntity> PayRuleAssignments => Set<PayRuleAssignmentEntity>();
     public DbSet<EmployeePositionAssignmentEntity> EmployeePositionAssignments => Set<EmployeePositionAssignmentEntity>();
     public DbSet<StateMinimumWage> StateMinimumWages => Set<StateMinimumWage>();
+    public DbSet<DifferentialRule> DifferentialRules => Set<DifferentialRule>();
+    public DbSet<HolidayCalendar> HolidayCalendars => Set<HolidayCalendar>();
+    public DbSet<ClientPremiumPolicy> ClientPremiumPolicies => Set<ClientPremiumPolicy>();
 
     /// <summary>
     /// Snake-cases every generated identifier so columns match the already snake_cased table names
@@ -85,8 +91,12 @@ public class PayrollDbContext : DbContext
             b.ToTable("punches");
             b.HasKey(p => p.Id);
 
-            // Hot index for effective-dated punch lookups.
-            b.HasIndex(p => new { p.EmployeeId, p.PunchTime });
+            // Hot index for effective-dated punch lookups, client_id leading (tenancy schema prep —
+            // see PayrollDbContext's class doc comment; the tenant query filter itself is Phase 1
+            // work, added once auth resolves a real _tenantClientId. A leading == null || ... filter
+            // isn't sargable under a generic query plan, so ClientId needs to be first in the index
+            // regardless of when the filter predicate lands, or the index is useless the day it does.
+            b.HasIndex(p => new { p.ClientId, p.EmployeeId, p.PunchTime });
 
             // Device idempotency: at most one punch per (employee, device, device punch id).
             b.HasIndex(p => new { p.EmployeeId, p.DeviceId, p.DevicePunchId })
@@ -96,10 +106,13 @@ public class PayrollDbContext : DbContext
             b.Property(p => p.Hours).HasPrecision(10, 4);   // hours quantity
             b.Property(p => p.Amount).HasPrecision(19, 4);  // money
 
+            b.HasOne<Client>().WithMany().HasForeignKey(p => p.ClientId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne(p => p.Employee).WithMany().HasForeignKey(p => p.EmployeeId);
             b.HasOne(p => p.Position).WithMany().HasForeignKey(p => p.PositionId);
 
-            // Soft delete: deleted punches are invisible to all queries.
+            // Soft delete: deleted punches are invisible to all queries. No tenant filter yet — see
+            // the index comment above; adding one is Phase 1, once ClientId is populated and auth
+            // can supply a real _tenantClientId.
             b.HasQueryFilter(p => !p.IsDeleted);
         });
 
@@ -107,13 +120,20 @@ public class PayrollDbContext : DbContext
         {
             b.ToTable("punch_audits");
             b.HasKey(a => a.Id);
-            b.HasIndex(a => a.PunchId);
+            b.HasIndex(a => new { a.ClientId, a.PunchId });
+            b.HasOne<Client>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Restrict);
         });
 
         model.Entity<PayRule>(b =>
         {
             b.ToTable("pay_rules");
             b.HasKey(r => r.Id);
+
+            // Version-history lookup: "every version of this rule family" / "the currently Active
+            // one." See PayRule's own doc comments on RuleFamilyId/Version/Status for the versioning
+            // design — never mutate an Active row, always insert a new one.
+            b.HasIndex(r => r.RuleFamilyId);
+
             b.OwnsOne(r => r.RoundingRule);
             b.OwnsOne(r => r.OvertimeRule, o =>
             {
@@ -140,14 +160,99 @@ public class PayrollDbContext : DbContext
                         (a, c) => a!.SetEquals(c!),
                         v => v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
                         v => v.ToHashSet()));
+
+            // Same treatment as ActivePremiumCodes, but selecting from the client's own
+            // (client-authored) DifferentialRule.Code values rather than a fixed built-in registry.
+            b.Property(r => r.ActiveDifferentialCodes)
+                .HasConversion(
+                    v => string.Join(',', v),
+                    v => v.Length == 0
+                        ? new HashSet<string>()
+                        : v.Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet())
+                .Metadata.SetValueComparer(
+                    new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<IReadOnlySet<string>>(
+                        (a, c) => a!.SetEquals(c!),
+                        v => v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
+                        v => v.ToHashSet()));
+        });
+
+        model.Entity<DifferentialRule>(b =>
+        {
+            b.ToTable("differential_rules");
+            b.HasKey(d => d.Id);
+            b.HasOne<Client>().WithMany().HasForeignKey(d => d.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasQueryFilter(d => _tenantClientId == null || d.ClientId == _tenantClientId);
+
+            b.Property(d => d.MinHoursInWindow).HasPrecision(10, 4);
+            b.Property(d => d.MinHoursInRange).HasPrecision(10, 4);
+            // AdjustmentValue is left at the (19,4) money default: DifferentialAdjustmentType decides
+            // whether it's a dollar amount or a multiplier, and (19,4) comfortably fits either.
+
+            b.Property(d => d.DaysOfWeek)
+                .HasConversion(
+                    v => string.Join(',', v.Select(x => x.ToString())),
+                    v => v.Length == 0
+                        ? new HashSet<IsoDayOfWeek>()
+                        : v.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(Enum.Parse<IsoDayOfWeek>).ToHashSet())
+                .Metadata.SetValueComparer(
+                    new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<IReadOnlySet<IsoDayOfWeek>>(
+                        (a, c) => a!.SetEquals(c!),
+                        v => v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
+                        v => v.ToHashSet()));
+
+            b.Property(d => d.SpecificDates)
+                .HasConversion(
+                    v => string.Join(',', v.Select(LocalDatePattern.Iso.Format)),
+                    v => v.Length == 0
+                        ? new HashSet<LocalDate>()
+                        : v.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => LocalDatePattern.Iso.Parse(s).Value).ToHashSet())
+                .Metadata.SetValueComparer(
+                    new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<IReadOnlySet<LocalDate>>(
+                        (a, c) => a!.SetEquals(c!),
+                        v => v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
+                        v => v.ToHashSet()));
+        });
+
+        model.Entity<HolidayCalendar>(b =>
+        {
+            b.ToTable("holiday_calendars");
+            b.HasKey(h => h.Id);
+            b.HasOne<Client>().WithMany().HasForeignKey(h => h.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasQueryFilter(h => _tenantClientId == null || h.ClientId == _tenantClientId);
+
+            b.Property(h => h.Dates)
+                .HasConversion(
+                    v => string.Join(',', v.Select(LocalDatePattern.Iso.Format)),
+                    v => v.Length == 0
+                        ? new HashSet<LocalDate>()
+                        : v.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => LocalDatePattern.Iso.Parse(s).Value).ToHashSet())
+                .Metadata.SetValueComparer(
+                    new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<IReadOnlySet<LocalDate>>(
+                        (a, c) => a!.SetEquals(c!),
+                        v => v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
+                        v => v.ToHashSet()));
+        });
+
+        model.Entity<ClientPremiumPolicy>(b =>
+        {
+            b.ToTable("client_premium_policies");
+            b.HasKey(c => c.Id);
+            b.HasOne<Client>().WithMany().HasForeignKey(c => c.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasQueryFilter(c => _tenantClientId == null || c.ClientId == _tenantClientId);
+
+            // Resolution lookup: "this client's policy for this premium code, as of a given date."
+            b.HasIndex(c => new { c.ClientId, c.PremiumCode, c.EffectiveFrom });
         });
 
         model.Entity<PayRuleAssignmentEntity>(b =>
         {
             b.ToTable("pay_rule_assignments");
             b.HasKey(a => a.Id);
-            b.HasIndex(a => new { a.EmployeeId, a.EffectiveFrom });   // effective-dated resolution index
+            // client_id leading (tenancy schema prep — see the Punch index comment above; the
+            // filter predicate itself is Phase 1).
+            b.HasIndex(a => new { a.ClientId, a.EmployeeId, a.EffectiveFrom });
             b.HasOne(a => a.PayRule).WithMany().HasForeignKey(a => a.PayRuleId);
+            b.HasOne<Client>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne<Employee>().WithMany().HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -155,14 +260,19 @@ public class PayrollDbContext : DbContext
         {
             b.ToTable("employee_position_assignments");
             b.HasKey(a => a.Id);
-            b.HasIndex(a => new { a.EmployeeId, a.EffectiveFrom });
+            b.HasIndex(a => new { a.ClientId, a.EmployeeId, a.EffectiveFrom });
             b.HasOne(a => a.Position).WithMany().HasForeignKey(a => a.PositionId);
+            b.HasOne<Client>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne<Employee>().WithMany().HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+            b.Property(a => a.Rate).HasPrecision(19, 4);
 
             // Position is tenant-filtered and is the REQUIRED end of this relationship, so without a
             // matching filter an assignment could survive a query whose Position was filtered away,
             // leaving a required navigation unsatisfiable. Filtering through the navigation keeps
-            // both ends consistent.
+            // both ends consistent. Still keyed off Position.ClientId, not the entity's own new
+            // ClientId column, deliberately — switching the filter's predicate is Phase 1's "rework
+            // the tenant filters" pass, not this one; the column exists now so that pass has
+            // something to switch to.
             b.HasQueryFilter(a => _tenantClientId == null || a.Position.ClientId == _tenantClientId);
         });
 

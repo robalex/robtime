@@ -12,6 +12,7 @@ namespace TimeCalculation.Persistence;
 public class PayRuleAssignmentEntity
 {
     public int Id { get; set; }
+    public int ClientId { get; set; }
     public int EmployeeId { get; set; }
     public int PayRuleId { get; set; }
     public PayRule PayRule { get; set; } = null!;
@@ -24,11 +25,13 @@ public class PayRuleAssignmentEntity
 public class EmployeePositionAssignmentEntity
 {
     public int Id { get; set; }
+    public int ClientId { get; set; }
     public int EmployeeId { get; set; }
     public int PositionId { get; set; }
     public Position Position { get; set; } = null!;
     public LocalDate EffectiveFrom { get; set; }
     public LocalDate? EffectiveTo { get; set; }
+    public decimal? Rate { get; set; }
 
-    public EmployeePositionAssignment ToDomain() => new(Position, EffectiveFrom, EffectiveTo);
+    public EmployeePositionAssignment ToDomain() => new(Position, EffectiveFrom, EffectiveTo, Rate);
 }

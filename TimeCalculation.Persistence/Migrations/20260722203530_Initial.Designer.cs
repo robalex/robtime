@@ -13,7 +13,7 @@ using TimeCalculation.Persistence;
 namespace TimeCalculation.Persistence.Migrations
 {
     [DbContext(typeof(PayrollDbContext))]
-    [Migration("20260722165118_Initial")]
+    [Migration("20260722203530_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -21,7 +21,7 @@ namespace TimeCalculation.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.4")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -53,6 +53,86 @@ namespace TimeCalculation.Persistence.Migrations
                         .HasName("pk_clients");
 
                     b.ToTable("clients", (string)null);
+                });
+
+            modelBuilder.Entity("TimeCalculation.Model.DifferentialRule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AdjustmentType")
+                        .HasColumnType("integer")
+                        .HasColumnName("adjustment_type");
+
+                    b.Property<decimal>("AdjustmentValue")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("adjustment_value");
+
+                    b.Property<int>("ClientId")
+                        .HasColumnType("integer")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("code");
+
+                    b.Property<int>("DayOfWeekRangeEnd")
+                        .HasColumnType("integer")
+                        .HasColumnName("day_of_week_range_end");
+
+                    b.Property<int>("DayOfWeekRangeStart")
+                        .HasColumnType("integer")
+                        .HasColumnName("day_of_week_range_start");
+
+                    b.Property<int>("DayScheduleMode")
+                        .HasColumnType("integer")
+                        .HasColumnName("day_schedule_mode");
+
+                    b.Property<string>("DaysOfWeek")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("days_of_week");
+
+                    b.Property<string>("ExclusivityGroup")
+                        .HasColumnType("text")
+                        .HasColumnName("exclusivity_group");
+
+                    b.Property<decimal>("MinHoursInRange")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("numeric(10,4)")
+                        .HasColumnName("min_hours_in_range");
+
+                    b.Property<decimal>("MinHoursInWindow")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("numeric(10,4)")
+                        .HasColumnName("min_hours_in_window");
+
+                    b.Property<string>("SpecificDates")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("specific_dates");
+
+                    b.Property<LocalTime>("WindowEnd")
+                        .HasColumnType("time")
+                        .HasColumnName("window_end");
+
+                    b.Property<LocalTime>("WindowStart")
+                        .HasColumnType("time")
+                        .HasColumnName("window_start");
+
+                    b.HasKey("Id")
+                        .HasName("pk_differential_rules");
+
+                    b.HasIndex("ClientId")
+                        .HasDatabaseName("ix_differential_rules_client_id");
+
+                    b.ToTable("differential_rules", (string)null);
                 });
 
             modelBuilder.Entity("TimeCalculation.Model.Employee", b =>
@@ -117,6 +197,38 @@ namespace TimeCalculation.Persistence.Migrations
                     b.ToTable("employees", (string)null);
                 });
 
+            modelBuilder.Entity("TimeCalculation.Model.HolidayCalendar", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClientId")
+                        .HasColumnType("integer")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("Dates")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("dates");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_holiday_calendars");
+
+                    b.HasIndex("ClientId")
+                        .HasDatabaseName("ix_holiday_calendars_client_id");
+
+                    b.ToTable("holiday_calendars", (string)null);
+                });
+
             modelBuilder.Entity("TimeCalculation.Model.PayRules.PayRule", b =>
                 {
                     b.Property<int>("Id")
@@ -125,6 +237,11 @@ namespace TimeCalculation.Persistence.Migrations
                         .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActiveDifferentialCodes")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("active_differential_codes");
 
                     b.Property<string>("ActivePremiumCodes")
                         .IsRequired()
@@ -135,10 +252,22 @@ namespace TimeCalculation.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("client_id");
 
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
                     b.Property<decimal>("DistanceBetweenShiftsHours")
                         .HasPrecision(10, 4)
                         .HasColumnType("numeric(10,4)")
                         .HasColumnName("distance_between_shifts_hours");
+
+                    b.Property<LocalDate?>("EffectiveFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_from");
+
+                    b.Property<LocalDate?>("EffectiveTo")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_to");
 
                     b.Property<int>("ExpectedBreakLengthMinutes")
                         .HasColumnType("integer")
@@ -153,14 +282,35 @@ namespace TimeCalculation.Persistence.Migrations
                         .HasColumnType("numeric(10,4)")
                         .HasColumnName("max_shift_length_hours");
 
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
                     b.Property<decimal>("PunchPairResetHours")
                         .HasPrecision(10, 4)
                         .HasColumnType("numeric(10,4)")
                         .HasColumnName("punch_pair_reset_hours");
 
+                    b.Property<int>("RuleFamilyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("rule_family_id");
+
                     b.Property<int>("ShiftDateStrategy")
                         .HasColumnType("integer")
                         .HasColumnName("shift_date_strategy");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TemplateCode")
+                        .HasColumnType("text")
+                        .HasColumnName("template_code");
+
+                    b.Property<int?>("TemplateVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("template_version");
 
                     b.Property<int>("Version")
                         .HasColumnType("integer")
@@ -175,6 +325,9 @@ namespace TimeCalculation.Persistence.Migrations
 
                     b.HasIndex("ClientId")
                         .HasDatabaseName("ix_pay_rules_client_id");
+
+                    b.HasIndex("RuleFamilyId")
+                        .HasDatabaseName("ix_pay_rules_rule_family_id");
 
                     b.ToTable("pay_rules", (string)null);
                 });
@@ -216,6 +369,58 @@ namespace TimeCalculation.Persistence.Migrations
                     b.ToTable("positions", (string)null);
                 });
 
+            modelBuilder.Entity("TimeCalculation.Model.Premiums.ClientPremiumPolicy", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClientId")
+                        .HasColumnType("integer")
+                        .HasColumnName("client_id");
+
+                    b.Property<LocalDate>("EffectiveFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_from");
+
+                    b.Property<LocalDate?>("EffectiveTo")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_to");
+
+                    b.Property<string>("Justification")
+                        .HasColumnType("text")
+                        .HasColumnName("justification");
+
+                    b.Property<string>("PremiumCode")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("premium_code");
+
+                    b.Property<Instant>("SetAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("set_at");
+
+                    b.Property<string>("SetBy")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("set_by");
+
+                    b.Property<int>("WaiverPolicy")
+                        .HasColumnType("integer")
+                        .HasColumnName("waiver_policy");
+
+                    b.HasKey("Id")
+                        .HasName("pk_client_premium_policies");
+
+                    b.HasIndex("ClientId", "PremiumCode", "EffectiveFrom")
+                        .HasDatabaseName("ix_client_premium_policies_client_id_premium_code_effective_fr");
+
+                    b.ToTable("client_premium_policies", (string)null);
+                });
+
             modelBuilder.Entity("TimeCalculation.Model.Punch", b =>
                 {
                     b.Property<int>("Id")
@@ -233,6 +438,10 @@ namespace TimeCalculation.Persistence.Migrations
                     b.Property<int?>("BonusKind")
                         .HasColumnType("integer")
                         .HasColumnName("bonus_kind");
+
+                    b.Property<int>("ClientId")
+                        .HasColumnType("integer")
+                        .HasColumnName("client_id");
 
                     b.Property<bool>("CountsTowardRegularRate")
                         .HasColumnType("boolean")
@@ -299,8 +508,8 @@ namespace TimeCalculation.Persistence.Migrations
                     b.HasIndex("PositionId")
                         .HasDatabaseName("ix_punches_position_id");
 
-                    b.HasIndex("EmployeeId", "PunchTime")
-                        .HasDatabaseName("ix_punches_employee_id_punch_time");
+                    b.HasIndex("ClientId", "EmployeeId", "PunchTime")
+                        .HasDatabaseName("ix_punches_client_id_employee_id_punch_time");
 
                     b.HasIndex("EmployeeId", "DeviceId", "DevicePunchId")
                         .IsUnique()
@@ -327,6 +536,10 @@ namespace TimeCalculation.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("actor_user_id");
 
+                    b.Property<int>("ClientId")
+                        .HasColumnType("integer")
+                        .HasColumnName("client_id");
+
                     b.Property<string>("NewValues")
                         .HasColumnType("text")
                         .HasColumnName("new_values");
@@ -350,8 +563,8 @@ namespace TimeCalculation.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_punch_audits");
 
-                    b.HasIndex("PunchId")
-                        .HasDatabaseName("ix_punch_audits_punch_id");
+                    b.HasIndex("ClientId", "PunchId")
+                        .HasDatabaseName("ix_punch_audits_client_id_punch_id");
 
                     b.ToTable("punch_audits", (string)null);
                 });
@@ -401,6 +614,10 @@ namespace TimeCalculation.Persistence.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("ClientId")
+                        .HasColumnType("integer")
+                        .HasColumnName("client_id");
+
                     b.Property<LocalDate>("EffectiveFrom")
                         .HasColumnType("date")
                         .HasColumnName("effective_from");
@@ -417,14 +634,22 @@ namespace TimeCalculation.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("position_id");
 
+                    b.Property<decimal?>("Rate")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("rate");
+
                     b.HasKey("Id")
                         .HasName("pk_employee_position_assignments");
+
+                    b.HasIndex("EmployeeId")
+                        .HasDatabaseName("ix_employee_position_assignments_employee_id");
 
                     b.HasIndex("PositionId")
                         .HasDatabaseName("ix_employee_position_assignments_position_id");
 
-                    b.HasIndex("EmployeeId", "EffectiveFrom")
-                        .HasDatabaseName("ix_employee_position_assignments_employee_id_effective_from");
+                    b.HasIndex("ClientId", "EmployeeId", "EffectiveFrom")
+                        .HasDatabaseName("ix_employee_position_assignments_client_id_employee_id_effecti");
 
                     b.ToTable("employee_position_assignments", (string)null);
                 });
@@ -437,6 +662,10 @@ namespace TimeCalculation.Persistence.Migrations
                         .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClientId")
+                        .HasColumnType("integer")
+                        .HasColumnName("client_id");
 
                     b.Property<LocalDate>("EffectiveFrom")
                         .HasColumnType("date")
@@ -457,13 +686,26 @@ namespace TimeCalculation.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_pay_rule_assignments");
 
+                    b.HasIndex("EmployeeId")
+                        .HasDatabaseName("ix_pay_rule_assignments_employee_id");
+
                     b.HasIndex("PayRuleId")
                         .HasDatabaseName("ix_pay_rule_assignments_pay_rule_id");
 
-                    b.HasIndex("EmployeeId", "EffectiveFrom")
-                        .HasDatabaseName("ix_pay_rule_assignments_employee_id_effective_from");
+                    b.HasIndex("ClientId", "EmployeeId", "EffectiveFrom")
+                        .HasDatabaseName("ix_pay_rule_assignments_client_id_employee_id_effective_from");
 
                     b.ToTable("pay_rule_assignments", (string)null);
+                });
+
+            modelBuilder.Entity("TimeCalculation.Model.DifferentialRule", b =>
+                {
+                    b.HasOne("TimeCalculation.Model.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_differential_rules_clients_client_id");
                 });
 
             modelBuilder.Entity("TimeCalculation.Model.Employee", b =>
@@ -474,6 +716,16 @@ namespace TimeCalculation.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_employees_clients_client_id");
+                });
+
+            modelBuilder.Entity("TimeCalculation.Model.HolidayCalendar", b =>
+                {
+                    b.HasOne("TimeCalculation.Model.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_holiday_calendars_clients_client_id");
                 });
 
             modelBuilder.Entity("TimeCalculation.Model.PayRules.PayRule", b =>
@@ -567,8 +819,25 @@ namespace TimeCalculation.Persistence.Migrations
                         .HasConstraintName("fk_positions_clients_client_id");
                 });
 
+            modelBuilder.Entity("TimeCalculation.Model.Premiums.ClientPremiumPolicy", b =>
+                {
+                    b.HasOne("TimeCalculation.Model.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_client_premium_policies_clients_client_id");
+                });
+
             modelBuilder.Entity("TimeCalculation.Model.Punch", b =>
                 {
+                    b.HasOne("TimeCalculation.Model.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_punches_clients_client_id");
+
                     b.HasOne("TimeCalculation.Model.Employee", "Employee")
                         .WithMany()
                         .HasForeignKey("EmployeeId")
@@ -586,8 +855,25 @@ namespace TimeCalculation.Persistence.Migrations
                     b.Navigation("Position");
                 });
 
+            modelBuilder.Entity("TimeCalculation.Model.PunchAuditEntry", b =>
+                {
+                    b.HasOne("TimeCalculation.Model.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_punch_audits_clients_client_id");
+                });
+
             modelBuilder.Entity("TimeCalculation.Persistence.EmployeePositionAssignmentEntity", b =>
                 {
+                    b.HasOne("TimeCalculation.Model.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_employee_position_assignments_clients_client_id");
+
                     b.HasOne("TimeCalculation.Model.Employee", null)
                         .WithMany()
                         .HasForeignKey("EmployeeId")
@@ -607,6 +893,13 @@ namespace TimeCalculation.Persistence.Migrations
 
             modelBuilder.Entity("TimeCalculation.Persistence.PayRuleAssignmentEntity", b =>
                 {
+                    b.HasOne("TimeCalculation.Model.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_pay_rule_assignments_clients_client_id");
+
                     b.HasOne("TimeCalculation.Model.Employee", null)
                         .WithMany()
                         .HasForeignKey("EmployeeId")

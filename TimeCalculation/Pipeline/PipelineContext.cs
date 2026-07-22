@@ -96,17 +96,33 @@ public class PipelineContext
     /// Falls back to the employee's default position for the date, then null.
     /// </summary>
     public Position? GetPositionAt(Instant time, int? positionIdOverride = null)
+        => FindPositionAssignmentAt(time, positionIdOverride)?.Position;
+
+    /// <summary>
+    /// Returns the effective hourly rate at the given instant: the resolved
+    /// <see cref="EmployeePositionAssignment"/>'s own <c>Rate</c> when set (per-employee pay for a
+    /// shared Position), else that Position's <c>BaseRate</c>, else the employee's MinimumWage when
+    /// no position is found at all — the same fallback chain the caller used inline before this
+    /// method existed.
+    /// </summary>
+    public decimal GetRateAt(Instant time, int? positionIdOverride = null)
+    {
+        var assignment = FindPositionAssignmentAt(time, positionIdOverride);
+        return assignment?.Rate ?? assignment?.Position.BaseRate ?? Employee.MinimumWage;
+    }
+
+    private EmployeePositionAssignment? FindPositionAssignmentAt(Instant time, int? positionIdOverride)
     {
         if (positionIdOverride is not null)
         {
             for (int i = 0; i < _positionAssignments.Count; i++)
                 if (_positionAssignments[i].Position.Id == positionIdOverride)
-                    return _positionAssignments[i].Position;
+                    return _positionAssignments[i];
             return null;
         }
 
         var date = time.InZone(EmployeeTimeZone).Date;
-        return FindEffective(_positionAssignments, date, a => a.EffectiveFrom, a => a.EffectiveTo)?.Position;
+        return FindEffective(_positionAssignments, date, a => a.EffectiveFrom, a => a.EffectiveTo);
     }
 
     /// <summary>

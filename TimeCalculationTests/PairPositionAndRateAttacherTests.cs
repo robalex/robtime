@@ -61,6 +61,21 @@ public class PairPositionAndRateAttacherTests
     }
 
     [Fact]
+    public void AssignmentHasOwnRate_OverridesPositionBaseRate()
+    {
+        // Two employees in the same job code, paid differently (Gap E).
+        var position = new Position { Id = 10, BaseRate = 20m, Name = "Cook" };
+        var assignments = new[] { new EmployeePositionAssignment(position, new LocalDate(2023, 1, 1), Rate: 23.5m) };
+        var ctx = TestEntityCreator.CreateContext(employee: _emp, positions: assignments);
+        var pair = MakePair();
+
+        var result = PairPositionAndRateAttacher.AttachPositionAndRateToPunchPairs([pair], ctx);
+
+        Assert.Equal(position, result[0].Position);
+        Assert.Equal(23.5m, result[0].Rate);
+    }
+
+    [Fact]
     public void PunchPositionIdOverride_UsesOverridePosition()
     {
         var defaultPos = new Position { Id = 1, BaseRate = 15m, Name = "Server" };
