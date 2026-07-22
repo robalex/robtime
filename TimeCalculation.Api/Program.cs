@@ -18,10 +18,18 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 builder.Services.AddSingleton<IClock>(SystemClock.Instance);
 
+// Resolved per environment from appsettings.{EnvironmentName}.json, overridable by the
+// ConnectionStrings__PayrollDb environment variable — which is how staging/production should supply
+// it, never a committed file. `dotnet ef` boots this same host, so migrations target whichever
+// environment is selected (see TimeCalculation.Persistence/README.md).
+var connectionString = builder.Configuration.GetConnectionString("PayrollDb")
+    ?? throw new InvalidOperationException(
+        $"No 'PayrollDb' connection string found for environment '{builder.Environment.EnvironmentName}'. " +
+        "Set it in the matching appsettings file, in user-secrets, or via the " +
+        "ConnectionStrings__PayrollDb environment variable.");
+
 builder.Services.AddDbContext<PayrollDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("PayrollDb"),
-        npgsql => npgsql.UseNodaTime()));
+    options.UseNpgsql(connectionString, npgsql => npgsql.UseNodaTime()));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();

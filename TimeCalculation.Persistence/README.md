@@ -44,7 +44,36 @@ dotnet ef migrations add <Name> --project TimeCalculation.Persistence --startup-
 dotnet ef database update --project TimeCalculation.Persistence --startup-project TimeCalculation.Api
 ```
 
-The connection string comes from `ConnectionStrings:PayrollDb` in the API's configuration.
+### Choosing an environment
+
+`dotnet ef` boots the API's host, so it reads the same configuration chain the running app does:
+`appsettings.json` → `appsettings.{Environment}.json` → environment variables. The connection
+string is `ConnectionStrings:PayrollDb`.
+
+**The tools default to `Development`**, which is why the commands above target the local database
+with no extra flags. To target another environment, pass `--environment` *after* `--` (everything
+after `--` goes to the app, not to `dotnet ef`):
+
+```bash
+dotnet ef database update --project TimeCalculation.Persistence --startup-project TimeCalculation.Api -- --environment Staging
+```
+
+Setting `ASPNETCORE_ENVIRONMENT` works too; the `--` form is preferable because it's explicit at the
+call site and can't leak into unrelated commands in the same shell.
+
+Deliberately, **only `appsettings.Development.json` contains a connection string** — the base
+`appsettings.json` has none, so a non-local environment can never silently inherit the developer's
+database. Real environments supply theirs out-of-band, which keeps credentials out of the repo:
+
+```bash
+ConnectionStrings__PayrollDb="Host=...;Database=...;Username=...;Password=..." \
+  dotnet ef database update --project TimeCalculation.Persistence --startup-project TimeCalculation.Api -- --environment Production
+```
+
+(The `__` double underscore is the .NET configuration separator for `ConnectionStrings:PayrollDb`.)
+For local-only secrets, `dotnet user-secrets --project TimeCalculation.Api set ConnectionStrings:PayrollDb "..."`
+keeps them off disk in the repo. If the connection string is missing, startup throws naming the
+environment it looked for, rather than failing later with an opaque driver error.
 
 ## Deferred / open decisions
 - **Table partitioning** — declarative partitioning of `punches` and snapshots by year is Postgres
