@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using NodaTime.Serialization.SystemTextJson;
@@ -7,7 +8,13 @@ using TimeCalculation.Persistence;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.ConfigureHttpJsonOptions(options =>
-    options.SerializerOptions.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb));
+{
+    options.SerializerOptions.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
+
+    // Accept and emit enums as their names ("In", "IntervalWithGrace") rather than opaque ordinals,
+    // so payloads are self-describing and stay valid if an enum's members are ever reordered.
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 builder.Services.AddSingleton<IClock>(SystemClock.Instance);
 

@@ -30,10 +30,23 @@ mapping entities to tables, not running ingest/recalculation logic.
 The EF model is validated by `PersistenceModelTests` (builds the model against the Npgsql provider
 without a live database — the most that is verifiable here).
 
-## Deferred / open decisions
+## Migrations
 
-- **Migrations & live schema** — no PostgreSQL is provisioned in this environment, so migrations
-  are not generated here. `dotnet ef migrations add Initial` against a real database is the next step.
+The `Initial` migration is generated and has been applied against a live PostgreSQL 18 instance.
+Migrations live in `Migrations/`; the design-time context is resolved through the API project's
+host, so both flags are required:
+
+```bash
+dotnet ef migrations add <Name> --project TimeCalculation.Persistence --startup-project TimeCalculation.Api
+```
+
+```bash
+dotnet ef database update --project TimeCalculation.Persistence --startup-project TimeCalculation.Api
+```
+
+The connection string comes from `ConnectionStrings:PayrollDb` in the API's configuration.
+
+## Deferred / open decisions
 - **Table partitioning** — declarative partitioning of `punches` and snapshots by year is Postgres
   DDL applied in a migration, not model config.
 - **Worker queue** for parallel per-`(employee, pay period)` calculation — open decision #6
