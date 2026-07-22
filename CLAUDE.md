@@ -41,7 +41,10 @@ the plan's 13-stage design (see `PLAN.md`).
    classifies each Out→In gap *between two PunchPairs already in the same Shift* as `Break` or
    `Lunch` (nearest of the `PayRule` expected lengths wins) without re-deriving the boundary
    decision itself; a forced subtype is never overwritten.
-6. `ShiftDater` — assign each `Shift` a calendar date per `PayRule.ShiftDateStrategy`.
+6. `ShiftDater` — assign each `Shift` a calendar date per `PayRule.ShiftDateStrategy`
+   (first-punch / last-punch / majority-hours). `SplitAtMidnight` instead splits a midnight-crossing
+   shift into one shift per day via `MidnightShiftSplitter`, so this stage can return more shifts
+   than it received.
 7. `PremiumApplier` — run active `IPremiumRule`s (meal/rest) per shift; applied *after* the regular
    rate is known (premiums are excluded from it, so this is not circular).
 8. `DifferentialApplier` — apply time-based `DifferentialRule`s per shift. A rule's active days come

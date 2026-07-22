@@ -6,21 +6,32 @@ namespace TimeCalculation.Pipeline.ShiftBuilding;
 /// <summary>
 /// Stage 6 — Shift date assignment.
 /// Sets Shift.ShiftDate according to PayRule.ShiftDateStrategy:
-///   FirstPunchLocalDate  — date of the first In punch in the employee's timezone (default).
+///   FirstPunchLocalDate    — date of the first In punch in the employee's timezone (default).
+///   LastPunchLocalDate     — date of the last Out punch.
 ///   MajorityHoursLocalDate — date on which the majority of worked hours fall.
+///   SplitAtMidnight        — split a midnight-crossing shift into one shift per day it touches,
+///                            each dated to its own day (see MidnightShiftSplitter).
+///
+/// Every other strategy is 1 shift in → 1 shift out; SplitAtMidnight can return more shifts than it
+/// received, which is why the stage maps with SelectMany.
 /// </summary>
 public static class ShiftDater
 {
     public static IReadOnlyList<Shift> AssignDatesToShifts(IReadOnlyList<Shift> shifts, PipelineContext ctx)
-        => shifts.Select(s => AssignDate(s, ctx)).ToList();
+        => shifts.SelectMany(s => AssignDate(s, ctx)).ToList();
 
-    private static Shift AssignDate(Shift shift, PipelineContext ctx)
+    private static IEnumerable<Shift> AssignDate(Shift shift, PipelineContext ctx)
     {
         var firstPair = shift.PunchPairs.OrderBy(AnchorTime).FirstOrDefault();
-        if (firstPair is null) return shift;
+        if (firstPair is null) return [shift];
 
         var firstTime = AnchorTime(firstPair);
         var rule = ctx.GetRuleAt(firstTime);
+
+        if (rule.ShiftDateStrategy == ShiftDateStrategy.SplitAtMidnight)
+        {
+            return MidnightShiftSplitter.Split(shift, ctx);
+        }
 
         var date = rule.ShiftDateStrategy switch
         {
@@ -29,7 +40,7 @@ public static class ShiftDater
             _                                       => firstTime.InZone(ctx.EmployeeTimeZone).Date,
         };
 
-        return shift with { ShiftDate = date };
+        return [shift with { ShiftDate = date }];
     }
 
     // A pair's own anchor time: its In, or its Out when it's an orphan Out with no In.
