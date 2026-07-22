@@ -56,7 +56,7 @@ public class PersistenceModelTests
     {
         using var ctx = NewContext();
         var punch = ctx.Model.FindEntityType(typeof(TimeCalculation.Model.Punch))!;
-        Assert.NotNull(punch.GetQueryFilter());
+        Assert.NotEmpty(punch.GetDeclaredQueryFilters());
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class PersistenceModelTests
     {
         using var ctx = NewContext(tenant: 42);
         var emp = ctx.Model.FindEntityType(typeof(TimeCalculation.Model.Employee))!;
-        Assert.NotNull(emp.GetQueryFilter());
+        Assert.NotEmpty(emp.GetDeclaredQueryFilters());
     }
 
     [Fact]

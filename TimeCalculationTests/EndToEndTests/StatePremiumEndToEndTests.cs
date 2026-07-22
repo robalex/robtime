@@ -62,7 +62,7 @@ public class StatePremiumEndToEndTests : EndToEndTests
 
         // straight 14h×20=280; only ONE $20 premium for the day (not two) → 300
         Assert.Equal(300m, result.GrossPay);
-        Assert.Single(result.LineItems.Where(l => l.Type == PayLineType.Premium));
+        Assert.Single(result.LineItems, l => l.Type == PayLineType.Premium);
     }
 
     [Fact]
