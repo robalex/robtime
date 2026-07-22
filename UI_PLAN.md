@@ -174,15 +174,30 @@ class AppUser : IdentityUser<int>
 
 | Role | Can |
 |---|---|
-| `SystemAdmin` | Everything, across all clients. Creates clients and client admins. Rare. |
+| `SystemAdmin` | Everything, but **scoped into one client at a time** — creates clients and client admins, then works within a selected client like a `ClientAdmin` would. Rare. |
 | `ClientAdmin` | Everything within one client: employees, positions, pay rules, differentials, users. |
-| `Supervisor` | View/edit punches for their client, approve premium overrides. Read-only on config. |
+| `Supervisor` | View/edit punches for their client, approve premium overrides, **and sees wage rates and pay amounts**. Read-only on config. |
 | `Employee` | Own punches, own profile. Read-only on everything else. |
 
 This is the smallest set that covers what you described (employee self-service + at least one
 admin) while leaving room for the supervisor override workflow `PLAN.md` §6 already models. Start
 with role-based checks behind a `lib/permissions.ts` shim so moving to claims/policies later is a
 one-file change.
+
+**`SystemAdmin` scoping (decided 2026-07-22):** one client at a time, never a cross-client view by
+default — "creates clients" is the only action that's inherently cross-tenant; everything else a
+`SystemAdmin` does happens inside a selected client, same permission surface as `ClientAdmin`. This
+keeps every tenant filter from §5 correct with zero exceptions: a `SystemAdmin` session just carries
+whatever `ClientId` they've currently selected, the same `_tenantClientId` every other role uses.
+Cross-client aggregate dashboards/reports are wanted eventually but are a distinct, later capability
+— see §11 — not a `SystemAdmin` permission. When they land, build them as an explicit reporting path
+(`IgnoreQueryFilters` behind its own audited endpoint), not as a loosening of the per-request filter.
+
+**Supervisor wage visibility (decided 2026-07-22):** `Supervisor` sees wage rates and pay amounts.
+Anticipate a second, more restricted tier later (a `Supervisor` who approves punches without seeing
+pay) — see §11. Don't build that tier speculatively now; when it's needed, it's a fifth role name
+plus a `lib/permissions.ts` branch, not a redesign, because permissions are already centralized
+there rather than scattered through components.
 
 ### Login: email + password
 
@@ -403,12 +418,15 @@ does** — expect it from your second or third enterprise customer.
    retention surface you don't have. **Don't let a "convenient" denormalised `EmployeeName` get added
    to a snapshot or line item.** Worth a comment on the type.
 5. **Field-level authorization beats encryption for the insider threat**, which is the realistic risk
-   in payroll. Concretely: *should a `Supervisor` see wage rates at all?* They need to approve
-   punches and premium overrides — neither requires knowing what anyone earns. I'd say no, and that
-   belongs in the §5 role matrix now rather than as a retrofit.
+   in payroll. **Decided 2026-07-22: `Supervisor` sees wage rates and pay amounts** — not the
+   restrictive default I'd suggested, so item 6 below (read auditing) matters more here than it
+   would have otherwise. A second, more restricted supervisor tier is anticipated later (§11); the
+   role matrix (above) already notes this is a `lib/permissions.ts` branch when it's needed, not a
+   redesign.
 6. **Read auditing on sensitive data.** Who looked at whose pay, and when. For insider misuse this is
    worth more than any encryption scheme, because encryption doesn't protect against a user with
-   legitimate credentials.
+   legitimate credentials — and it's the control that actually matters now that `Supervisor` has
+   standing wage visibility rather than none.
 7. **PII in logs is the leak nobody plans for.** Structured logging with redaction; never log request
    or response bodies for employee/pay endpoints. Cheap now, painful to retrofit once log volume and
    retention are established.
@@ -594,7 +612,10 @@ deliberately skipped with reasons recorded). Nothing is half-finished. What's le
       via `git log`/`git show`: Part 1 (1.1–1.4) in `da41334`, Part 2 (2.1–2.3) in `2920a0b`. Marked
       every heading with its commit hash; added a closure banner at the top so the file reads as
       history, not a live checklist, for anyone picking this up cold.
-- [ ] **Answer §10 Q1 and Q4** — they block Phase 2 nav and Phase 3 screens respectively. Needs you.
+- [x] **Answer §10 Q1 and Q4 — done 2026-07-22.** `SystemAdmin` scopes into one client at a time,
+      never cross-client (cross-client dashboards are a distinct future capability, §11).
+      `Supervisor` sees wage rates and pay amounts, with a restricted tier anticipated but not built
+      (§11). Both written into §5's role matrix and §9 as decisions 15–16.
 - [x] **Legal review of premium waiver policies — superseded, not just deferred.** First decided
       2026-07-22 to defer until a PR/OR/WA client showed up; revised the same day to a better fix:
       **waiver policy becomes client-configurable** (Gap I) instead of something RobTime asserts.
@@ -737,24 +758,23 @@ Settled — say the word and I'll rework any of them.
     attestation by the client (Gap I). Supersedes the earlier "defer legal review" call — RobTime
     never needs its own answer, so PR/OR/WA templates ship in Phase 4 instead of waiting for a
     client to need them.
+15. **`SystemAdmin` always scopes into one client at a time**; no cross-client aggregate view. Every
+    session, `SystemAdmin` included, carries a single `_tenantClientId` — no code path with a
+    partially-relaxed filter. Cross-client dashboards are a distinct future capability (§11), not a
+    permission on this role.
+16. **`Supervisor` sees wage rates and pay amounts.** A restricted supervisor tier is anticipated but
+    not built now (§11) — `lib/permissions.ts` is the seam for it when it's needed.
 
 ## 10. Follow-on questions
 
-None blocking. Three that will want answers before their phase:
+None blocking. Two remain (the other two — `SystemAdmin` scoping and `Supervisor` wage visibility —
+were answered 2026-07-22 and moved into §5/§9):
 
-1. **Client switching for `SystemAdmin`** — in true SaaS, does a SystemAdmin impersonate/scope into
-   one client at a time (simple, safe, and the tenant filter keeps working), or see cross-client
-   aggregate views (needs `IgnoreQueryFilters` paths and a separate read model)? Phase 2 nav design
-   depends on it. I'd start with scope-into-one.
-2. **Client self-signup, or do you onboard them?** Determines whether Phase 1 needs a registration
+1. **Client self-signup, or do you onboard them?** Determines whether Phase 1 needs a registration
    flow and email verification at all, or just SystemAdmin-creates-ClientAdmin.
-3. **Where do employees get their initial password?** Admin-set temporary password vs. emailed invite
+2. **Where do employees get their initial password?** Admin-set temporary password vs. emailed invite
    link. The invite flow is more work but is the only sane answer at any real headcount — and it
    becomes moot for shop-floor staff once badge auth lands.
-4. **Should a `Supervisor` see wage rates and pay amounts?** They approve punches and premium
-   overrides; neither requires knowing what anyone earns. I'd say no — but it's a policy call, and
-   it's much easier to decide now than to claw back a permission later. Blocks the Phase 3 employee
-   detail screen (§5, data protection).
 
 ## 11. Future improvements
 
@@ -773,3 +793,5 @@ Deliberately deferred. Recorded here so the design doesn't accidentally preclude
 | **Effective-dated `Employee.State`** | `PLAN.md` §9 item 12 — employee moves CA→NV mid-period. | Reuse `<EffectiveDatedTimeline>`; no new UI concept. |
 | **Bulk employee import** | CSV onboarding for a new client. | Response DTOs and validation shapes should be reusable per-row, not just per-request. |
 | **Punch geofencing / IP restriction** | Explicitly out of scope in `PLAN.md`. | None — device registration is the natural hook when it arrives. |
+| **Cross-client dashboards/reports for `SystemAdmin`** | Aggregate metrics across all clients — explicitly wanted eventually, explicitly not a `SystemAdmin` permission today (§5). | Build as its own audited reporting path (`IgnoreQueryFilters` behind a dedicated endpoint), never as a loosened per-request tenant filter. |
+| **Restricted-visibility `Supervisor` tier** | A second supervisor role that approves punches without seeing wage rates/pay amounts, alongside today's full-visibility `Supervisor` (§5). | `lib/permissions.ts` centralizes the check now specifically so this is a new role + branch later, not a scattered retrofit. |
