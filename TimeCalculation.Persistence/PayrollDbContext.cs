@@ -35,6 +35,15 @@ public class PayrollDbContext : DbContext
     public DbSet<EmployeePositionAssignmentEntity> EmployeePositionAssignments => Set<EmployeePositionAssignmentEntity>();
     public DbSet<StateMinimumWage> StateMinimumWages => Set<StateMinimumWage>();
 
+    /// <summary>
+    /// Snake-cases every generated identifier so columns match the already snake_cased table names
+    /// (`punch_time`, not `"PunchTime"`) and hand-written SQL never needs quoting. Applied here
+    /// rather than in the composition root so the model is identical however the context is built —
+    /// the API host, the tests, and `dotnet ef` design-time all produce the same schema.
+    /// </summary>
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        => optionsBuilder.UseSnakeCaseNamingConvention();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     {
         // Money default; hour quantities are overridden to (10,4) per property below.
@@ -55,6 +64,10 @@ public class PayrollDbContext : DbContext
             b.ToTable("employees");
             b.HasKey(e => e.Id);
             b.Property(e => e.MinimumWage).HasPrecision(19, 4);
+            // No navigation on the entity — TimeCalculation.Model stays pure data, so the FK is
+            // declared without one. Restrict, not Cascade: deleting a client must never silently
+            // take payroll records with it.
+            b.HasOne<Client>().WithMany().HasForeignKey(e => e.ClientId).OnDelete(DeleteBehavior.Restrict);
             b.HasQueryFilter(e => _tenantClientId == null || e.ClientId == _tenantClientId);
         });
 
@@ -63,6 +76,7 @@ public class PayrollDbContext : DbContext
             b.ToTable("positions");
             b.HasKey(p => p.Id);
             b.Property(p => p.BaseRate).HasPrecision(19, 4);
+            b.HasOne<Client>().WithMany().HasForeignKey(p => p.ClientId).OnDelete(DeleteBehavior.Restrict);
             b.HasQueryFilter(p => _tenantClientId == null || p.ClientId == _tenantClientId);
         });
 
@@ -108,6 +122,8 @@ public class PayrollDbContext : DbContext
                 o.Property(x => x.DailyDoubletimeThresholdHours).HasPrecision(10, 4);
             });
 
+            b.HasOne<Client>().WithMany().HasForeignKey(r => r.ClientId).OnDelete(DeleteBehavior.Restrict);
+
             b.Property(r => r.PunchPairResetHours).HasPrecision(10, 4);
             b.Property(r => r.MaxShiftLengthHours).HasPrecision(10, 4);
             b.Property(r => r.DistanceBetweenShiftsHours).HasPrecision(10, 4);
@@ -132,6 +148,7 @@ public class PayrollDbContext : DbContext
             b.HasKey(a => a.Id);
             b.HasIndex(a => new { a.EmployeeId, a.EffectiveFrom });   // effective-dated resolution index
             b.HasOne(a => a.PayRule).WithMany().HasForeignKey(a => a.PayRuleId);
+            b.HasOne<Employee>().WithMany().HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Restrict);
         });
 
         model.Entity<EmployeePositionAssignmentEntity>(b =>
@@ -140,6 +157,13 @@ public class PayrollDbContext : DbContext
             b.HasKey(a => a.Id);
             b.HasIndex(a => new { a.EmployeeId, a.EffectiveFrom });
             b.HasOne(a => a.Position).WithMany().HasForeignKey(a => a.PositionId);
+            b.HasOne<Employee>().WithMany().HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+
+            // Position is tenant-filtered and is the REQUIRED end of this relationship, so without a
+            // matching filter an assignment could survive a query whose Position was filtered away,
+            // leaving a required navigation unsatisfiable. Filtering through the navigation keeps
+            // both ends consistent.
+            b.HasQueryFilter(a => _tenantClientId == null || a.Position.ClientId == _tenantClientId);
         });
 
         model.Entity<StateMinimumWage>(b =>
