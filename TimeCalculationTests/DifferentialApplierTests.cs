@@ -54,6 +54,29 @@ public class DifferentialApplierTests
     }
 
     [Fact]
+    public void ShiftWithMissingPunch_IsSkippedEntirely()
+    {
+        // An orphan pair (In with no Out) has no real worked interval to intersect, so the whole
+        // shift is skipped even though an all-day rule would otherwise apply.
+        var rule = new DifferentialRule
+        {
+            Code = "SHIFT",
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
+            AdjustmentValue = 2m,
+        };
+        var inOnly = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 2, 9, 0), PunchKind.In, _emp);
+        var shift = new Shift
+        {
+            ShiftDate = new LocalDate(2023, 1, 2),
+            PunchPairs = [new PunchPair { InPunch = inOnly, OutPunch = null, Rate = 20m }],
+        };
+
+        var result = DifferentialApplier.ApplyDifferentials([shift], Ctx(_emp, rule));
+
+        Assert.Empty(result[0].Differentials);
+    }
+
+    [Fact]
     public void NightWindow_FlatPerHour_AppliesToHoursInsideWindowOnly()
     {
         // Night window 22:00–06:00, work 20:00–02:00 → 4 qualifying hours (22:00–02:00)
@@ -256,6 +279,51 @@ public class DifferentialApplierTests
     }
 
     [Fact]
+    public void FixedBonus_NotPaid_WhenNoQualifyingHoursInWindow()
+    {
+        // A FixedBonus still requires qualifying hours — a night-window bonus on an all-daytime
+        // shift has zero in-window hours, so the lump sum is not paid.
+        var rule = new DifferentialRule
+        {
+            Code = "NIGHT_BONUS",
+            WindowStart = new LocalTime(22, 0),
+            WindowEnd = new LocalTime(6, 0),
+            AdjustmentType = DifferentialAdjustmentType.FixedBonus,
+            AdjustmentValue = 50m,
+        };
+        var shift = ShiftUtc(9, 17);   // 09:00–17:00, entirely outside the night window
+
+        var result = DifferentialApplier.ApplyDifferentials([shift], Ctx(_emp, rule));
+
+        Assert.Empty(result[0].Differentials);
+    }
+
+    [Fact]
+    public void ConsecutiveDayRange_ShiftStartingInGapBeforeRange_QualifiesForNextOccurrence()
+    {
+        // Range Thu→Mon (all-day). A shift starts Wednesday 22:00 (in the Tue/Wed gap before the
+        // range) and crosses into Thursday 02:00. Anchoring only on the Wednesday start date would
+        // point at the *previous* occurrence and miss it; the next-occurrence pass catches the
+        // 2 Thursday hours that fall inside this occurrence's span.
+        var rule = new DifferentialRule
+        {
+            Code = "LONG_WEEKEND",
+            DayScheduleMode = DayScheduleMode.ConsecutiveDayRange,
+            DayOfWeekRangeStart = IsoDayOfWeek.Thursday,
+            DayOfWeekRangeEnd = IsoDayOfWeek.Monday,
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
+            AdjustmentValue = 2m,
+        };
+        // Wed Jan 4 2023 22:00 → Thu Jan 5 02:00 (day 4, 22:00 → 26:00).
+        var shift = ShiftUtc(22, 26, day: 4);
+
+        var result = DifferentialApplier.ApplyDifferentials([shift], Ctx(_emp, rule));
+
+        Assert.Single(result[0].Differentials);
+        Assert.Equal(2m, result[0].Differentials[0].Hours);   // only the 00:00–02:00 Thursday portion
+    }
+
+    [Fact]
     public void DayScheduleMode_IsExclusive_OtherModesFieldsIgnored()
     {
         // Mode is DaysOfWeek (Tuesday only). SpecificDates and a range are also populated but must
@@ -366,6 +434,23 @@ public class DifferentialApplierTests
         Assert.Single(diffs);
         Assert.Equal("HIGH", diffs[0].Code);
         Assert.Equal(40m, diffs[0].Amount);   // 8h × $5
+    }
+
+    [Fact]
+    public void SameExclusivityGroup_EqualAmounts_TieBrokenByCodeForDeterminism()
+    {
+        // Two grouped rules with identical amounts — the winner is decided by ordinal Code so the
+        // result is deterministic regardless of rule order. "AAA" < "BBB", so "AAA" wins.
+        var bbb = new DifferentialRule { Code = "BBB", ExclusivityGroup = "premium",
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour, AdjustmentValue = 5m };
+        var aaa = new DifferentialRule { Code = "AAA", ExclusivityGroup = "premium",
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour, AdjustmentValue = 5m };
+        var ctx = CtxRules(_emp, [bbb, aaa]);   // deliberately not in code order
+
+        var diffs = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17)], ctx)[0].Differentials;
+
+        Assert.Single(diffs);
+        Assert.Equal("AAA", diffs[0].Code);
     }
 
     [Fact]
