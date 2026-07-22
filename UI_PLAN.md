@@ -594,9 +594,10 @@ deliberately skipped with reasons recorded). Nothing is half-finished. What's le
       every heading with its commit hash; added a closure banner at the top so the file reads as
       history, not a live checklist, for anyone picking this up cold.
 - [ ] **Answer §10 Q1 and Q4** — they block Phase 2 nav and Phase 3 screens respectively. Needs you.
-- [ ] **Start the legal review for premium waiver policies** (`PLAN.md` open decision #1). Long lead
-      time, and it blocks half the pay-rule templates — see the note in Phase 4. Needs you to
-      actually kick off (I can't retain outside counsel).
+- [x] **Legal review of premium waiver policies — deferred, not scheduled.** Decided 2026-07-22:
+      don't chase this ahead of need. PR/OR/WA templates simply aren't offered until a client in
+      one of those states is actually being onboarded — see the revised note in Phase 4. Revisit
+      `PLAN.md` open decision #1 at that point, not before.
 - [x] **`.gitignore` — done 2026-07-22.** Added `RobTimeUI/{node_modules,dist,.vite,*.local}`
       ahead of the folder existing.
 
@@ -657,12 +658,15 @@ Pay rule list + editor with the three-tier taxonomy · template picker + "modifi
 version history view (reading what Phase 0 made possible) · pay rule assignment via the timeline
 widget · **single-employee what-if diff** (§7).
 
-> **Partially blocked on legal review.** Templates need real field values, including
-> `ActivePremiumCodes` and waiver policies. `PLAN.md` §6's override matrix still has `?` rows for
-> **PR, OR, and WA**, and `PERF_FIXES_PLAN.md` Part 3 confirms those are pending legal review. So
-> *Federal*, *California*, and *Colorado* templates can be built now; the other three cannot be
-> finished accurately. Start that review during Phase 0a — it has a long lead time and nothing else
-> in the plan unblocks it.
+> **PR/OR/WA templates are out of scope until a client needs them — deliberately, not blocked.**
+> `PLAN.md` §6's override matrix still has `?` rows for **PR, OR, and WA** waiver policies
+> (`PERF_FIXES_PLAN.md` Part 3 flagged them pending legal review). Rather than gate Phase 4 on
+> review that has no scheduled trigger, ship the template picker with only *Federal*, *California*,
+> and *Colorado* — the three whose override matrices are actually filled in. Build the template
+> picker so adding a fourth is a data change, not a code change (§6 Rule 3 already models this as
+> template + version, not a hardcoded switch), and treat "sales is about to close a PR/OR/WA
+> client" as the trigger to open the legal review and add that template. Until then, those states
+> are simply absent from the picker — no half-built, no-waiver-support state to accidentally ship.
 
 ### Phase 5 — Advanced configuration
 Differential rule editor (the `DayScheduleMode` modes are mutually exclusive — the form must be a
