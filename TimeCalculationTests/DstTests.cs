@@ -1,7 +1,7 @@
 using NodaTime;
 using TimeCalculation.Model;
 using TimeCalculation.Model.PayRules;
-using TimeCalculation.Pipeline;
+using TimeCalculation.Pipeline.ShiftBuilding;
 using Xunit;
 
 namespace TimeCalculationTests;

@@ -1,7 +1,7 @@
 using NodaTime;
 using TimeCalculation.Model;
 
-namespace TimeCalculation.Pipeline;
+namespace TimeCalculation.Pipeline.ShiftBuilding;
 
 /// <summary>
 /// Stage 6 — Shift date assignment.

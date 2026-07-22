@@ -1,6 +1,6 @@
 using TimeCalculation.Model;
 
-namespace TimeCalculation.Pipeline;
+namespace TimeCalculation.Pipeline.ShiftBuilding;
 
 /// <summary>
 /// Stage 3 — Pair position and rate attachment.

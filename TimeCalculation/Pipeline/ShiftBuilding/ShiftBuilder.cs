@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 using NodaTime;
 using TimeCalculation.Model;
 
-namespace TimeCalculation.Pipeline;
+namespace TimeCalculation.Pipeline.ShiftBuilding;
 
 /// <summary>
 /// Stage 4 — Shift building.

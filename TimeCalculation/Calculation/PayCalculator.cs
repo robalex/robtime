@@ -3,6 +3,7 @@ using TimeCalculation.Model;
 using TimeCalculation.Model.Premiums;
 using TimeCalculation.Pipeline;
 using TimeCalculation.Pipeline.Differentials;
+using TimeCalculation.Pipeline.ShiftBuilding;
 
 namespace TimeCalculation.Calculation;
 

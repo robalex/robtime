@@ -2,7 +2,7 @@ using NodaTime;
 using TimeCalculation.Model;
 using TimeCalculation.Model.PayRules;
 
-namespace TimeCalculation.Pipeline;
+namespace TimeCalculation.Pipeline.ShiftBuilding;
 
 /// <summary>
 /// Stage 5 — Punch-subtype inference.
