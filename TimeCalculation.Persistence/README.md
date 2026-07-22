@@ -33,47 +33,45 @@ without a live database — the most that is verifiable here).
 ## Migrations
 
 The `Initial` migration is generated and has been applied against a live PostgreSQL 18 instance.
-Migrations live in `Migrations/`; the design-time context is resolved through the API project's
-host, so both flags are required:
+Migrations live in `Migrations/`.
+
+This project is self-sufficient for migrations — it needs **no startup project**. The schema belongs
+to Persistence, so Persistence describes it without reaching through the API.
+`PayrollDbContextFactory` (an `IDesignTimeDbContextFactory`) supplies the design-time context, and
+`dotnet ef` prefers a factory over booting a host. Run from this directory:
 
 ```bash
-dotnet ef migrations add <Name> --project TimeCalculation.Persistence --startup-project TimeCalculation.Api
+cd TimeCalculation.Persistence
+dotnet ef migrations add <Name>
+dotnet ef database update
 ```
+
+### Choosing the target database
+
+The factory resolves the connection string in this order:
+
+1. `ROBTIME_PAYROLL_DB` — the knob for any non-local target
+2. `ConnectionStrings__PayrollDb` — the same variable the API honours, convenient in a shared shell
+3. the local development database — so everyday local work stays zero-config
 
 ```bash
-dotnet ef database update --project TimeCalculation.Persistence --startup-project TimeCalculation.Api
+ROBTIME_PAYROLL_DB="Host=...;Database=...;Username=...;Password=..." dotnet ef database update
 ```
 
-### Choosing an environment
+Naming the database is deliberately explicit rather than inheriting an ambient environment name: a
+migration alters schema, and it should be obvious at the call site what it is about to alter.
+Defaulting to local is the safe failure mode — forgetting the variable migrates your own machine,
+never someone else's environment. Credentials for real environments therefore never live in the repo.
 
-`dotnet ef` boots the API's host, so it reads the same configuration chain the running app does:
-`appsettings.json` → `appsettings.{Environment}.json` → environment variables. The connection
-string is `ConnectionStrings:PayrollDb`.
+### How the running API resolves its connection string
 
-**The tools default to `Development`**, which is why the commands above target the local database
-with no extra flags. To target another environment, pass `--environment` *after* `--` (everything
-after `--` goes to the app, not to `dotnet ef`):
-
-```bash
-dotnet ef database update --project TimeCalculation.Persistence --startup-project TimeCalculation.Api -- --environment Staging
-```
-
-Setting `ASPNETCORE_ENVIRONMENT` works too; the `--` form is preferable because it's explicit at the
-call site and can't leak into unrelated commands in the same shell.
-
-Deliberately, **only `appsettings.Development.json` contains a connection string** — the base
-`appsettings.json` has none, so a non-local environment can never silently inherit the developer's
-database. Real environments supply theirs out-of-band, which keeps credentials out of the repo:
-
-```bash
-ConnectionStrings__PayrollDb="Host=...;Database=...;Username=...;Password=..." \
-  dotnet ef database update --project TimeCalculation.Persistence --startup-project TimeCalculation.Api -- --environment Production
-```
-
-(The `__` double underscore is the .NET configuration separator for `ConnectionStrings:PayrollDb`.)
-For local-only secrets, `dotnet user-secrets --project TimeCalculation.Api set ConnectionStrings:PayrollDb "..."`
-keeps them off disk in the repo. If the connection string is missing, startup throws naming the
-environment it looked for, rather than failing later with an opaque driver error.
+Separately from migrations, the API uses the normal ASP.NET Core configuration chain:
+`appsettings.json` → `appsettings.{Environment}.json` → environment variables. Only
+`appsettings.Development.json` carries a connection string, so a deployed environment cannot
+silently inherit a developer's database — it must supply `ConnectionStrings__PayrollDb` itself (the
+`__` is .NET's separator for `ConnectionStrings:PayrollDb`). If it is missing, startup throws naming
+the environment it looked in. For local-only secrets:
+`dotnet user-secrets --project TimeCalculation.Api set ConnectionStrings:PayrollDb "..."`.
 
 ## Deferred / open decisions
 - **Table partitioning** — declarative partitioning of `punches` and snapshots by year is Postgres
