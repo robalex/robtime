@@ -41,6 +41,12 @@ code isn't retroactively rewritten to match just because a rule was added after 
   this automatically — note that doesn't fail `dotnet build` today (`EnforceCodeStyleInBuild` isn't
   set), so it won't turn into a CI break on its own.
 
+**Tooling:**
+- **No object-mapping library** (AutoMapper, Mapperly, etc.) — hand-written mapping/extension
+  methods, even for entity ↔ DTO. Decided 2026-07-23 when the question came up for the upcoming
+  response-DTO work (Gap C); revisit if that gets big/tedious enough to reconsider, but don't add
+  one by default.
+
 **Architecture:**
 - **No business logic or database access directly in endpoints/controllers.** An endpoint's job is
   translating HTTP ↔ a call into a service — nothing else. The actual work (querying/persisting via
