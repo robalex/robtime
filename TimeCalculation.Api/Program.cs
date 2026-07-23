@@ -43,6 +43,12 @@ var connectionString = builder.Configuration.GetConnectionString("PayrollDb")
         "ConnectionStrings__PayrollDb environment variable. " +
         "If this is happening during `dotnet build` (not `dotnet run`), set ASPNETCORE_ENVIRONMENT=Development first.");
 
+// Never add .EnableSensitiveDataLogging() here. EF Core already masks parameter values in its own
+// query logs by default ("Parameters=[@p0='?', ...]") — that's the one piece of PII-in-logs
+// protection this codebase gets for free, and turning that flag on for local debugging is exactly
+// the kind of thing that accidentally survives into a commit. There's also no HTTP request/response
+// body logging wired up (no UseHttpLogging()) — if that's ever added, employee/pay endpoint bodies
+// need to be excluded, not just trusted to redact themselves.
 builder.Services.AddDbContext<PayrollDbContext>(options =>
     options.UseNpgsql(connectionString, npgsql => npgsql.UseNodaTime()));
 

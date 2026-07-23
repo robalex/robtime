@@ -16,6 +16,9 @@ public enum PayLineType
 /// One itemized line of a pay result, retained so a pay statement can be reconstructed. ShiftDate
 /// and AnchorPunchId identify which shift the line belongs to (same identity scheme as
 /// PremiumResult — see Shift.AnchorPunchId), so a UI can answer "why was this shift paid this way."
+///
+/// No employee-identifying fields by design (see PayCalculationSnapshot, which is what actually
+/// carries EmployeeId around a tree of these) — don't add one for query/display convenience.
 /// </summary>
 public record PayLineItem
 {

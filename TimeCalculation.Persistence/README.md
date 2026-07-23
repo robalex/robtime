@@ -73,6 +73,15 @@ silently inherit a developer's database — it must supply `ConnectionStrings__P
 the environment it looked in. For local-only secrets:
 `dotnet user-secrets --project TimeCalculation.Api set ConnectionStrings:PayrollDb "..."`.
 
+**Every non-local `ConnectionStrings__PayrollDb` must include `SSL Mode=Require`** (RDS's default
+self-signed cert needs `Trust Server Certificate=true` alongside it, unless the CA bundle is
+installed — see Npgsql's SSL docs when DEPLOY_PLAN.md's Terraform work actually provisions RDS).
+Not enforced by this codebase — there's no production connection string committed here to enforce
+it *on* — so this is a checklist item for whoever writes that string, not something `dotnet build`
+can catch. The local dev connection string above deliberately has no SSL setting: it's a loopback
+connection to a local Postgres instance with no SSL configured, and forcing `Require` there would
+just break local dev for a protection that doesn't apply to traffic that never leaves the machine.
+
 ## Deferred / open decisions
 - **Table partitioning** — declarative partitioning of `punches` and snapshots by year is Postgres
   DDL applied in a migration, not model config.

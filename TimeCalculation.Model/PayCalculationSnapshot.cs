@@ -6,6 +6,11 @@ namespace TimeCalculation.Model;
 /// A frozen PayResult plus the identities/versions of every rule used to produce it, so a
 /// calculation can be defended in audit and reproduced exactly.  Append-only; re-running a
 /// calculation creates a new snapshot rather than mutating one.
+///
+/// Deliberately carries only EmployeeId, not the employee's name or any other PII — snapshots are
+/// retained indefinitely for audit, so they're a PII-retention surface this type doesn't have today
+/// and shouldn't gain. Resolve a name for display by joining on EmployeeId at read time; never add
+/// a denormalised EmployeeName (or similar) field here for query convenience.
 /// </summary>
 public record PayCalculationSnapshot
 {
