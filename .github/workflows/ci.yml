@@ -27,9 +27,11 @@ jobs:
       - name: Restore
         run: dotnet restore RobTime.sln
 
-      # No live Postgres in this job: TimeCalculationTests only touches PayrollDbContext via
-      # PersistenceModelTests, which builds the EF model against the Npgsql provider without
-      # connecting (see TimeCalculation.Persistence/README.md) — the whole suite is DB-free.
+      # TimeCalculationTests itself is DB-free (PersistenceModelTests builds the EF model against
+      # the Npgsql provider without connecting — see TimeCalculation.Persistence/README.md), but
+      # TimeCalculation.Api.Tests is not: it spins up a real, ephemeral Postgres per test run via
+      # Testcontainers. No extra setup needed here — ubuntu-latest GitHub-hosted runners have Docker
+      # pre-installed and running by default, which is all Testcontainers needs.
       - name: Build (warnings as errors)
         run: dotnet build RobTime.sln --no-restore --configuration Release -p:TreatWarningsAsErrors=true
 

@@ -30,8 +30,13 @@ public abstract record PayRuleFieldsRequest
     public ShiftDateStrategy? ShiftDateStrategy { get; init; }
     public IsoDayOfWeek? WorkweekStartDay { get; init; }
 
-    public IReadOnlySet<string>? ActivePremiumCodes { get; init; }
-    public IReadOnlySet<string>? ActiveDifferentialCodes { get; init; }
+    // HashSet, not IReadOnlySet — System.Text.Json can't deserialize an interface-typed collection
+    // without a custom converter (found via TimeCalculation.Api.Tests actually round-tripping this
+    // DTO through JSON, not just checking it serialized). Wire-format DTOs need to be shaped for
+    // what JSON (de)serialization actually supports; that's a different concern from the domain
+    // model's own IReadOnlySet<string>, which never goes through this deserializer.
+    public HashSet<string>? ActivePremiumCodes { get; init; }
+    public HashSet<string>? ActiveDifferentialCodes { get; init; }
 
     public decimal? WeeklyOvertimeThresholdHours { get; init; }
     public bool? HasDailyOvertime { get; init; }
