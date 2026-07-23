@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using NodaTime.Serialization.SystemTextJson;
+using TimeCalculation.Api;
 using TimeCalculation.Api.Endpoints;
 using TimeCalculation.Api.Services;
 using TimeCalculation.Persistence;
@@ -82,6 +83,17 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// `dotnet run -- --seed` populates a freshly-migrated empty database with demo data (DevSeeder),
+// then exits without starting the web host — a local-dev convenience, not a real deployment path.
+if (args.Contains("--seed"))
+{
+    using var seedScope = app.Services.CreateScope();
+    var seedDb = seedScope.ServiceProvider.GetRequiredService<PayrollDbContext>();
+    var seedClock = seedScope.ServiceProvider.GetRequiredService<IClock>();
+    await DevSeeder.SeedAsync(seedDb, seedClock, CancellationToken.None);
+    return;
+}
 
 if (app.Environment.IsDevelopment())
 {
