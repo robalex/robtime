@@ -14,11 +14,13 @@ public static class PayRuleEndpoints
         app.MapPost("/payrules", CreatePayRule).WithName("CreatePayRule");
     }
 
-    private static async Task<Results<Created<PayRule>, ValidationProblem, NotFound<string>>> CreatePayRule(
+    private static async Task<Results<Created<PayRule>, ValidationProblem, ProblemHttpResult>> CreatePayRule(
         CreatePayRuleRequest request, PayrollDbContext db, CancellationToken ct)
     {
         var clientExists = await db.Clients.AnyAsync(c => c.Id == request.ClientId, ct);
-        if (!clientExists) return TypedResults.NotFound($"No client with id {request.ClientId}.");
+        if (!clientExists)
+            return TypedResults.Problem(
+                detail: $"No client with id {request.ClientId}.", statusCode: StatusCodes.Status404NotFound);
 
         // Only fields the request actually supplied override PayRule's own defaults — never
         // duplicate those defaults here (see CreatePayRuleRequest's doc comment).

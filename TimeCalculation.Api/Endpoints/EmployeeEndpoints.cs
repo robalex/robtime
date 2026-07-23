@@ -13,7 +13,7 @@ public static class EmployeeEndpoints
         app.MapPost("/employees", CreateEmployee).WithName("CreateEmployee");
     }
 
-    private static async Task<Results<Created<Employee>, ValidationProblem, NotFound<string>>> CreateEmployee(
+    private static async Task<Results<Created<Employee>, ValidationProblem, ProblemHttpResult>> CreateEmployee(
         CreateEmployeeRequest request, PayrollDbContext db, CancellationToken ct)
     {
         var errors = new Dictionary<string, string[]>();
@@ -23,7 +23,9 @@ public static class EmployeeEndpoints
         if (errors.Count > 0) return TypedResults.ValidationProblem(errors);
 
         var clientExists = await db.Clients.AnyAsync(c => c.Id == request.ClientId, ct);
-        if (!clientExists) return TypedResults.NotFound($"No client with id {request.ClientId}.");
+        if (!clientExists)
+            return TypedResults.Problem(
+                detail: $"No client with id {request.ClientId}.", statusCode: StatusCodes.Status404NotFound);
 
         var employee = new Employee
         {

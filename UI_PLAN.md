@@ -57,7 +57,7 @@ becomes a publish-and-consume versioning problem for zero benefit at this scale.
 
 ```
 RobTime/
-  TimeCalculation.Api/          # emits openapi/v1.json on build
+  TimeCalculation.Api/          # emits openapi/TimeCalculation.Api.json on build
   RobTimeUI/
     src/
       api/            schema.d.ts (generated — do not edit), client.ts, queries/
@@ -75,21 +75,38 @@ You've done dotnet-generates-TypeScript before. Current best practice has moved 
 "generate a whole client class" model toward **generate types only, use a tiny typed fetch wrapper**.
 
 ```
-dotnet build                      →  TimeCalculation.Api/openapi/v1.json
+dotnet build                      →  TimeCalculation.Api/openapi/TimeCalculation.Api.json
 npm run gen:api                   →  src/api/schema.d.ts        (openapi-typescript)
 openapi-fetch createClient<paths> →  fully typed paths/params/bodies/responses
 ```
 
-**Setup:**
+**Setup — done 2026-07-23, with two wrinkles worth flagging (verified empirically, not assumed;
+the property names really had shifted since .NET 8/9 the way this section originally warned):**
 
-1. Add `Microsoft.Extensions.ApiDescription.Server` to `TimeCalculation.Api.csproj`, with
+1. `Microsoft.Extensions.ApiDescription.Server` added to `TimeCalculation.Api.csproj`, with
    `<OpenApiGenerateDocumentsOnBuild>true</OpenApiGenerateDocumentsOnBuild>` and
-   `<OpenApiDocumentsDirectory>openapi</OpenApiDocumentsDirectory>`. `AddOpenApi()` is already
-   registered in `Program.cs`, so this is additive. (Verify exact property names against the .NET 10
-   docs — they shifted between 8 and 9.)
-2. UI `package.json`: `"gen:api": "openapi-typescript ../TimeCalculation.Api/openapi/v1.json -o src/api/schema.d.ts"`.
-3. **Commit `schema.d.ts`.** A CI step regenerates and fails on diff — that turns "someone changed
-   the API and broke the UI" into a red build on the API PR, not a runtime 400 next week.
+   `<OpenApiDocumentsDirectory>openapi</OpenApiDocumentsDirectory>`. `AddOpenApi()` was already
+   registered in `Program.cs`.
+   - **Output filename is `TimeCalculation.Api.json`, not `v1.json`.** The generator names the file
+     after the project, not the document (the document's own internal name is still "v1" — that's
+     what the *runtime* `/openapi/v1.json` endpoint is named after, a separate, already-working
+     thing served by `MapOpenApi()`). No supported flag forces a different output filename without
+     fighting the vendored `.targets` file, so the plan adjusted to the real name instead — point
+     `gen:api` at what's actually on disk.
+   - **A bare `dotnet build` throws.** The doc generator boots `Program.cs`'s full composition root
+     via `HostFactoryResolver` (the same mechanism `dotnet ef` uses for migrations) to introspect
+     routes — which means it also hits the eager `PayrollDb` connection-string check. With no
+     `ASPNETCORE_ENVIRONMENT` set, that defaults to `Production`, which has no committed connection
+     string by design, so the build fails with an `InvalidOperationException`. Fix:
+     `ASPNETCORE_ENVIRONMENT=Development` picks up `appsettings.Development.json`'s already-committed,
+     localhost-only connection string. Wired into `.github/workflows/ci.yml` as a job-level `env:`;
+     local devs need it too for a plain `dotnet build` (documented directly in `Program.cs` at the
+     exact line that throws, so the error message itself points here).
+2. UI `package.json`: `"gen:api": "openapi-typescript ../TimeCalculation.Api/openapi/TimeCalculation.Api.json -o src/api/schema.d.ts"`.
+3. **`openapi/` is gitignored — it's a build artifact, regenerated every build.** **Commit
+   `schema.d.ts` instead** (once `RobTimeUI` exists) — a CI step regenerates it and fails on diff,
+   which turns "someone changed the API and broke the UI" into a red build on the API PR, not a
+   runtime 400 next week. The intermediate JSON has no reason to live in source control.
 
 **Why this over the alternatives:** NSwag/Kiota generate a client class per endpoint group — more
 code, more coupling, and a runtime dependency you maintain. `openapi-typescript` emits *only*
@@ -679,6 +696,39 @@ new migration end-to-end):
       index shape, and added coverage for every new FK, index, and query filter this pass touched
       (11 new tests) so none of this schema is unpinned going forward.
 
+**API-surface sub-phase done 2026-07-23** (296/296 tests throughout; CORS and ProblemDetails
+smoke-tested live against a running instance, not just compiled):
+
+- [x] **Decided the API→engine project reference.** Crossed deliberately — `TimeCalculation.Api.csproj`
+      now references `TimeCalculation`, with the `.csproj` comment updated to say why (the metadata
+      endpoint below, and the Phase 4 what-if later) rather than silently dropping the old guard comment.
+- [x] **`ProblemDetails` everywhere; one validation-error shape.** `builder.Services.AddProblemDetails()`
+      plus `app.UseExceptionHandler()` outside Development, so even an unhandled exception comes back
+      `application/problem+json` instead of a bare 500. The two endpoints that returned bare
+      `NotFound<string>`/`Conflict<string>` (Employee, PayRule, Punch) now return `TypedResults.Problem(...)`
+      instead — verified live: both validation and not-found responses now carry the same
+      `type`/`title`/`status`/`detail` shape.
+- [x] **CORS for the Vite dev origin.** A named `ViteDev` policy (`http://localhost:5173`,
+      credentialed — cookie auth needs that), applied only in Development. Deliberately not a
+      general-purpose policy to widen later: production serves the SPA same-origin behind
+      CloudFront (§5's cookie-auth design), which needs no CORS policy at all — delete this once
+      same-origin proxying exists in dev too, don't grow it. Verified live: allowed origin gets
+      `Access-Control-Allow-Origin` echoed back with credentials; a disallowed origin gets nothing.
+- [x] **OpenAPI build-time document generation — with two corrections to what this section
+      originally assumed, both found by actually running it, not by reading docs:**
+      1. The output file is `openapi/TimeCalculation.Api.json`, not `v1.json` — the generator names
+         the file after the project, not the document. `gen:api` and the file tree above were wrong
+         until this pass; fixed.
+      2. **The doc generator boots the full `Program.cs` composition root** (via `HostFactoryResolver`,
+         same mechanism `dotnet ef` uses) to introspect routes — which means a bare `dotnet build`
+         throws on the eager `PayrollDb` connection-string check, because the build-time environment
+         defaults to `Production`, which has no committed connection string by design.
+         `ASPNETCORE_ENVIRONMENT=Development` fixes it (picks up the already-committed, localhost-only
+         `appsettings.Development.json`); wired into CI as a job-level `env:`, and the exact line in
+         `Program.cs` that throws now says so directly, since that's where a future developer lands.
+      `openapi/` itself is gitignored — a build artifact, not something to commit (`schema.d.ts` is,
+      once `RobTimeUI` exists).
+
 **Still open:**
 - Response DTOs for every entity; stop returning EF entities (Gap C).
 - Full CRUD: `GET` list (paged/sorted/filtered), `GET` by id, `PUT`, soft-delete — Client, Employee,
@@ -693,15 +743,8 @@ new migration end-to-end):
   are unworkable without it, and it doubles as integration-test fixture data. (The local dev DB
   currently has exactly one manually-created smoke-test client from verifying the migration — not a
   seed dataset, just proof the schema takes writes.)
-- **Decide the API→engine project reference.** `GET /metadata/premium-rules` (§3) and the Phase 4
-  what-if (§7) both need `TimeCalculation` referenced from the API. The `.csproj` comment guards this
-  boundary deliberately, so cross it on purpose and update the comment — don't let it happen by
-  accident in a later PR.
-- `GET /metadata/premium-rules` from `PremiumRegistry`; API references the engine project.
-- `ProblemDetails` everywhere; one validation-error shape.
-- OpenAPI *build-time* document generation (distinct from the runtime `/openapi/v1.json` endpoint
-  already live via `AddOpenApi()`/`MapOpenApi()` in `Program.cs` — §3 needs the build-time file for
-  the TypeScript codegen pipeline); CORS for the Vite dev origin.
+- `GET /metadata/premium-rules` from `PremiumRegistry` — the project reference is crossed; the
+  endpoint itself (plus `IPremiumRule.Name`/`Description`, which don't exist yet) is still ahead.
 - Integration tests — `Program` is already `public partial`, so `WebApplicationFactory` is ready to go.
 
 ### Phase 1 — Users, auth, tenancy *(backend only)*

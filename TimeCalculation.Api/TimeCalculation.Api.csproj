@@ -4,11 +4,21 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Emits openapi/v1.json on every build (distinct from the runtime /openapi/v1.json endpoint
+         MapOpenApi() already serves) — this is the file RobTimeUI's TypeScript codegen pipeline
+         reads from (see UI_PLAN.md §3). Committed to source; CI diffs it against a fresh build so
+         an API change that breaks the generated TS types fails the API's own PR, not the UI's. -->
+    <OpenApiGenerateDocumentsOnBuild>true</OpenApiGenerateDocumentsOnBuild>
+    <OpenApiDocumentsDirectory>openapi</OpenApiDocumentsDirectory>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server" Version="10.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.OpenApi" Version="2.11.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime" Version="10.0.3" />
@@ -16,10 +26,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Only Persistence — this project does CRUD, not calculation. It gets TimeCalculation.Model
-         transitively through Persistence. Add a reference to the TimeCalculation engine project
-         only when an endpoint needs to actually invoke PayCalculator. -->
     <ProjectReference Include="..\TimeCalculation.Persistence\TimeCalculation.Persistence.csproj" />
+    <!-- Crossed deliberately (2026-07-23), not by accident — see the .csproj history for the
+         guarding comment this replaced. First real need: GET /metadata/premium-rules reads
+         PremiumRegistry so the UI's premium-selection screen doesn't hardcode rule codes/names.
+         The Phase 4 single-employee what-if (running PayCalculator twice and diffing) is the other
+         planned consumer. Still no endpoint should invoke PayCalculator for its own sake outside
+         those two purposes — this project does CRUD, not calculation. -->
+    <ProjectReference Include="..\TimeCalculation\TimeCalculation.csproj" />
   </ItemGroup>
 
 </Project>

@@ -14,7 +14,7 @@ public static class PunchEndpoints
         app.MapPost("/punches", CreatePunch).WithName("CreatePunch");
     }
 
-    private static async Task<Results<Created<Punch>, ValidationProblem, NotFound<string>, Conflict<string>>> CreatePunch(
+    private static async Task<Results<Created<Punch>, ValidationProblem, ProblemHttpResult>> CreatePunch(
         CreatePunchRequest request, PayrollDbContext db, IClock clock, CancellationToken ct)
     {
         var errors = new Dictionary<string, string[]>();
@@ -25,12 +25,16 @@ public static class PunchEndpoints
         if (errors.Count > 0) return TypedResults.ValidationProblem(errors);
 
         var employeeExists = await db.Employees.AnyAsync(e => e.Id == request.EmployeeId, ct);
-        if (!employeeExists) return TypedResults.NotFound($"No employee with id {request.EmployeeId}.");
+        if (!employeeExists)
+            return TypedResults.Problem(
+                detail: $"No employee with id {request.EmployeeId}.", statusCode: StatusCodes.Status404NotFound);
 
         if (request.PositionId is { } positionId)
         {
             var positionExists = await db.Positions.AnyAsync(p => p.Id == positionId, ct);
-            if (!positionExists) return TypedResults.NotFound($"No position with id {positionId}.");
+            if (!positionExists)
+                return TypedResults.Problem(
+                    detail: $"No position with id {positionId}.", statusCode: StatusCodes.Status404NotFound);
         }
 
         var punch = new Punch
@@ -59,8 +63,9 @@ public static class PunchEndpoints
         }
         catch (DbUpdateException) when (request.DeviceId is not null && request.DevicePunchId is not null)
         {
-            return TypedResults.Conflict(
-                $"A punch from device {request.DeviceId} with device punch id {request.DevicePunchId} already exists for employee {request.EmployeeId}.");
+            return TypedResults.Problem(
+                detail: $"A punch from device {request.DeviceId} with device punch id {request.DevicePunchId} already exists for employee {request.EmployeeId}.",
+                statusCode: StatusCodes.Status409Conflict);
         }
 
         return TypedResults.Created($"/punches/{punch.Id}", punch);

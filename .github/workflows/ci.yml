@@ -9,6 +9,13 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      # The build-time OpenAPI document generation (TimeCalculation.Api.csproj) boots Program.cs's
+      # composition root via HostFactoryResolver, which hits the eager PayrollDb connection-string
+      # check. Production (the default with no ASPNETCORE_ENVIRONMENT set) has no committed
+      # connection string by design; Development's is safe to commit (localhost-only, see
+      # appsettings.Development.json) and is what lets a bare `dotnet build` succeed here.
+      ASPNETCORE_ENVIRONMENT: Development
 
     steps:
       - uses: actions/checkout@v4
