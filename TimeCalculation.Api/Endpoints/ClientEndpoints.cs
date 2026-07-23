@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
-using NodaTime;
 using TimeCalculation.Api.Contracts;
+using TimeCalculation.Api.Services;
 using TimeCalculation.Model;
-using TimeCalculation.Persistence;
 
 namespace TimeCalculation.Api.Endpoints;
 
@@ -14,26 +13,15 @@ public static class ClientEndpoints
     }
 
     private static async Task<Results<Created<Client>, ValidationProblem>> CreateClient(
-        CreateClientRequest request, PayrollDbContext db, IClock clock, CancellationToken ct)
+        CreateClientRequest request, ClientService service, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
+        var result = await service.CreateAsync(request, ct);
+        return result.Kind switch
         {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["name"] = ["Name is required."],
-            });
-        }
-
-        var client = new Client
-        {
-            Name = request.Name,
-            CreatedBy = request.CreatedBy,
-            CreatedDate = clock.GetCurrentInstant().ToDateTimeUtc(),
+            ServiceResultKind.Success => TypedResults.Created($"/clients/{result.Value!.Id}", result.Value),
+            ServiceResultKind.ValidationFailed => TypedResults.ValidationProblem(result.ValidationErrors!),
+            _ => throw new InvalidOperationException(
+                $"Unexpected {nameof(ServiceResultKind)} '{result.Kind}' for client creation."),
         };
-
-        db.Clients.Add(client);
-        await db.SaveChangesAsync(ct);
-
-        return TypedResults.Created($"/clients/{client.Id}", client);
     }
 }

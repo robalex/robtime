@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using NodaTime.Serialization.SystemTextJson;
 using TimeCalculation.Api.Endpoints;
+using TimeCalculation.Api.Services;
 using TimeCalculation.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -44,6 +45,13 @@ var connectionString = builder.Configuration.GetConnectionString("PayrollDb")
 
 builder.Services.AddDbContext<PayrollDbContext>(options =>
     options.UseNpgsql(connectionString, npgsql => npgsql.UseNodaTime()));
+
+// Endpoints depend on these, never on PayrollDbContext directly (see CLAUDE.md's Code Style rules —
+// no business logic or DB access in endpoints). Scoped to match PayrollDbContext's own lifetime.
+builder.Services.AddScoped<ClientService>();
+builder.Services.AddScoped<EmployeeService>();
+builder.Services.AddScoped<PayRuleService>();
+builder.Services.AddScoped<PunchService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();

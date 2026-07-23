@@ -41,6 +41,28 @@ code isn't retroactively rewritten to match just because a rule was added after 
   this automatically — note that doesn't fail `dotnet build` today (`EnforceCodeStyleInBuild` isn't
   set), so it won't turn into a CI break on its own.
 
+**Architecture:**
+- **No business logic or database access directly in endpoints/controllers.** An endpoint's job is
+  translating HTTP ↔ a call into a service — nothing else. The actual work (querying/persisting via
+  `PayrollDbContext`, orchestrating multiple steps) belongs in a service class instead
+  (`TimeCalculation.Api/Services/`).
+- **Services should delegate real business logic to plain classes with no DB dependency**, so that
+  logic is unit-testable without a database or EF Core mocking. Shape: a service *orchestrates*
+  (fetch → decide → persist); the "decide" part should be a method on a class that only takes and
+  returns plain data — no `PayrollDbContext`, no `IQueryable`. Keep this distinct from the
+  `TimeCalculation` engine project: API-layer business rules (request validation, cross-field
+  invariants, "does this request make sense") belong in `TimeCalculation.Api`, not in the
+  calculation engine, which is reserved for the actual pay-calculation pipeline (see Architecture
+  below) — don't blur that boundary just because both are "business logic."
+- General north star: prefer SOLID and clean-code principles over expedience — single-responsibility
+  types, depend on abstractions rather than concretions where it genuinely helps testability, small
+  well-named methods over long ones.
+
+  *Currently out of compliance, not yet fixed:* all four existing endpoints
+  (`ClientEndpoints`/`EmployeeEndpoints`/`PayRuleEndpoints`/`PunchEndpoints`) inject `PayrollDbContext`
+  directly and call it inline. Flagged rather than silently left — ask before assuming whether/when
+  to refactor these versus applying the rule fresh starting with the next endpoint work.
+
 ## Architecture
 
 RobTime is a payroll time-calculation library: raw clock punches in, an itemized `PayResult` out.

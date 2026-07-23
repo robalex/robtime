@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 using TimeCalculation.Api.Contracts;
+using TimeCalculation.Api.Services;
 using TimeCalculation.Model;
-using TimeCalculation.Persistence;
 
 namespace TimeCalculation.Api.Endpoints;
 
@@ -14,35 +13,17 @@ public static class EmployeeEndpoints
     }
 
     private static async Task<Results<Created<Employee>, ValidationProblem, ProblemHttpResult>> CreateEmployee(
-        CreateEmployeeRequest request, PayrollDbContext db, CancellationToken ct)
+        CreateEmployeeRequest request, EmployeeService service, CancellationToken ct)
     {
-        var errors = new Dictionary<string, string[]>();
-        if (string.IsNullOrWhiteSpace(request.FirstName)) errors["firstName"] = ["First name is required."];
-        if (string.IsNullOrWhiteSpace(request.LastName)) errors["lastName"] = ["Last name is required."];
-        if (request.MinimumWage < 0) errors["minimumWage"] = ["Minimum wage cannot be negative."];
-        if (errors.Count > 0) return TypedResults.ValidationProblem(errors);
-
-        var clientExists = await db.Clients.AnyAsync(c => c.Id == request.ClientId, ct);
-        if (!clientExists)
-            return TypedResults.Problem(
-                detail: $"No client with id {request.ClientId}.", statusCode: StatusCodes.Status404NotFound);
-
-        var employee = new Employee
+        var result = await service.CreateAsync(request, ct);
+        return result.Kind switch
         {
-            ClientId = request.ClientId,
-            FirstName = request.FirstName,
-            MiddleName = request.MiddleName ?? string.Empty,
-            LastName = request.LastName,
-            Salutation = request.Salutation ?? string.Empty,
-            PostNominalLetters = request.PostNominalLetters ?? string.Empty,
-            MinimumWage = request.MinimumWage,
-            HomeTimeZoneId = request.HomeTimeZoneId ?? "America/New_York",
-            State = request.State ?? string.Empty,
+            ServiceResultKind.Success => TypedResults.Created($"/employees/{result.Value!.Id}", result.Value),
+            ServiceResultKind.ValidationFailed => TypedResults.ValidationProblem(result.ValidationErrors!),
+            ServiceResultKind.NotFound => TypedResults.Problem(
+                detail: result.Detail, statusCode: StatusCodes.Status404NotFound),
+            _ => throw new InvalidOperationException(
+                $"Unexpected {nameof(ServiceResultKind)} '{result.Kind}' for employee creation."),
         };
-
-        db.Employees.Add(employee);
-        await db.SaveChangesAsync(ct);
-
-        return TypedResults.Created($"/employees/{employee.Id}", employee);
     }
 }
