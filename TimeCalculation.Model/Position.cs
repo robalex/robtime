@@ -7,4 +7,5 @@ public class Position
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public decimal BaseRate { get; set; }
+    public bool IsDeleted { get; set; }
 }

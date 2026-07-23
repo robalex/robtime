@@ -4,19 +4,48 @@ using TimeCalculation.Model.PayRules;
 namespace TimeCalculation.Api.Validation;
 
 /// <summary>
-/// Builds a <see cref="PayRule"/> from a <see cref="CreatePayRuleRequest"/>, applying only the
-/// fields the request actually supplied (see <see cref="CreatePayRuleRequest"/>'s own doc comment —
-/// never duplicate <see cref="PayRule"/>'s own defaults here). Pure, no DB access, so this and
+/// Builds/updates a <see cref="PayRule"/> from a request, applying only the fields the request
+/// actually supplied (see <see cref="PayRuleFieldsRequest"/>'s own doc comment — never duplicate
+/// <see cref="PayRule"/>'s own defaults here). Pure, no DB access, so this and
 /// <see cref="PayRuleRequestValidator"/> are unit-testable without a database.
 /// </summary>
 public static class PayRuleRequestMapper
 {
     public static PayRule BuildFromRequest(CreatePayRuleRequest request)
     {
-        var payRule = new PayRule { ClientId = request.ClientId };
-        if (request.Version is { } version)
+        var payRule = new PayRule { ClientId = request.ClientId, Name = request.Name };
+        ApplySharedFields(payRule, request);
+        return payRule;
+    }
+
+    /// <summary>Mutates an existing PayRule in place — omitted fields keep their current persisted
+    /// value, they do not reset to PayRule's compile-time default (see UpdatePayRuleRequest's own
+    /// doc comment for why that's a different merge semantic than Create's).</summary>
+    public static void ApplyUpdate(PayRule payRule, UpdatePayRuleRequest request)
+    {
+        if (request.Name is { } name)
         {
-            payRule.Version = version;
+            payRule.Name = name;
+        }
+
+        ApplySharedFields(payRule, request);
+    }
+
+    private static void ApplySharedFields(PayRule payRule, PayRuleFieldsRequest request)
+    {
+        if (request.Description is { } description)
+        {
+            payRule.Description = description;
+        }
+
+        if (request.TemplateCode is { } templateCode)
+        {
+            payRule.TemplateCode = templateCode;
+        }
+
+        if (request.TemplateVersion is { } templateVersion)
+        {
+            payRule.TemplateVersion = templateVersion;
         }
 
         if (request.PunchPairResetHours is { } resetHrs)
@@ -59,6 +88,11 @@ public static class PayRuleRequestMapper
             payRule.ActivePremiumCodes = premiumCodes;
         }
 
+        if (request.ActiveDifferentialCodes is { } differentialCodes)
+        {
+            payRule.ActiveDifferentialCodes = differentialCodes;
+        }
+
         if (request.RoundingStrategy is { } roundingStrategy)
         {
             payRule.RoundingRule.RoundingStrategy = roundingStrategy;
@@ -98,7 +132,5 @@ public static class PayRuleRequestMapper
         {
             payRule.OvertimeRule.HasSeventhDayRule = hasSeventh;
         }
-
-        return payRule;
     }
 }

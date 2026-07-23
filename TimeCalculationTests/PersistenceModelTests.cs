@@ -143,4 +143,25 @@ public class PersistenceModelTests
         var entity = ctx.Model.FindEntityType(entityType)!;
         Assert.NotEmpty(entity.GetDeclaredQueryFilters());
     }
+
+    [Theory]
+    [InlineData(typeof(TimeCalculation.Model.Client))]
+    [InlineData(typeof(TimeCalculation.Model.Employee))]
+    [InlineData(typeof(TimeCalculation.Model.Position))]
+    [InlineData(typeof(TimeCalculation.Model.PayRules.PayRule))]
+    public void TenantAndSoftDeleteFilters_BothApply_NotOneOverwritingTheOther(Type entityType)
+    {
+        // EF Core 10's named filters are supposed to AND together rather than the second
+        // HasQueryFilter call silently replacing the first (the old, single-filter-per-entity
+        // behavior). Verified directly rather than trusted from the docs: both "Tenant" and
+        // "SoftDelete" must be present as two distinct declared filters.
+        using var ctx = NewContext(tenant: 42);
+        var entity = ctx.Model.FindEntityType(entityType)!;
+        var filters = entity.GetDeclaredQueryFilters();
+
+        Assert.Equal(2, filters.Count);
+        var keys = filters.Select(f => f.Key).ToList();
+        Assert.Contains("Tenant", keys);
+        Assert.Contains("SoftDelete", keys);
+    }
 }

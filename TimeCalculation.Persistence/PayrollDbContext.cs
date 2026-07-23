@@ -62,7 +62,12 @@ public class PayrollDbContext : DbContext
         {
             b.ToTable("clients");
             b.HasKey(c => c.Id);
-            b.HasQueryFilter(c => _tenantClientId == null || c.Id == _tenantClientId);
+            // Two independent, named filters (EF Core 10) — tenant scoping and soft-delete are
+            // orthogonal concerns and read better apart than combined into one lambda. EF ANDs
+            // every named filter together automatically; verified this empirically (see
+            // PersistenceModelTests) rather than assuming from the docs alone.
+            b.HasQueryFilter("Tenant", c => _tenantClientId == null || c.Id == _tenantClientId);
+            b.HasQueryFilter("SoftDelete", c => !c.IsDeleted);
         });
 
         model.Entity<Employee>(b =>
@@ -74,7 +79,8 @@ public class PayrollDbContext : DbContext
             // declared without one. Restrict, not Cascade: deleting a client must never silently
             // take payroll records with it.
             b.HasOne<Client>().WithMany().HasForeignKey(e => e.ClientId).OnDelete(DeleteBehavior.Restrict);
-            b.HasQueryFilter(e => _tenantClientId == null || e.ClientId == _tenantClientId);
+            b.HasQueryFilter("Tenant", e => _tenantClientId == null || e.ClientId == _tenantClientId);
+            b.HasQueryFilter("SoftDelete", e => !e.IsDeleted);
         });
 
         model.Entity<Position>(b =>
@@ -83,7 +89,8 @@ public class PayrollDbContext : DbContext
             b.HasKey(p => p.Id);
             b.Property(p => p.BaseRate).HasPrecision(19, 4);
             b.HasOne<Client>().WithMany().HasForeignKey(p => p.ClientId).OnDelete(DeleteBehavior.Restrict);
-            b.HasQueryFilter(p => _tenantClientId == null || p.ClientId == _tenantClientId);
+            b.HasQueryFilter("Tenant", p => _tenantClientId == null || p.ClientId == _tenantClientId);
+            b.HasQueryFilter("SoftDelete", p => !p.IsDeleted);
         });
 
         model.Entity<Punch>(b =>
@@ -143,6 +150,8 @@ public class PayrollDbContext : DbContext
             });
 
             b.HasOne<Client>().WithMany().HasForeignKey(r => r.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasQueryFilter("Tenant", r => _tenantClientId == null || r.ClientId == _tenantClientId);
+            b.HasQueryFilter("SoftDelete", r => !r.IsDeleted);
 
             b.Property(r => r.PunchPairResetHours).HasPrecision(10, 4);
             b.Property(r => r.MaxShiftLengthHours).HasPrecision(10, 4);

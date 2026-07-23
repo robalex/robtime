@@ -12,4 +12,5 @@ public class Employee
     public decimal MinimumWage { get; set; }
     public string HomeTimeZoneId { get; set; } = "America/New_York";
     public string State { get; set; } = string.Empty;
+    public bool IsDeleted { get; set; }
 }

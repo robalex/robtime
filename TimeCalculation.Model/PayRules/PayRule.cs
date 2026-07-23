@@ -62,4 +62,6 @@ public class PayRule
 
     // Overtime
     public OvertimeRule OvertimeRule { get; set; } = new OvertimeRule();
+
+    public bool IsDeleted { get; set; }
 }

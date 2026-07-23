@@ -15,4 +15,15 @@ public static class ClientRequestValidator
 
         return errors;
     }
+
+    public static IDictionary<string, string[]> Validate(UpdateClientRequest request)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            errors["name"] = ["Name is required."];
+        }
+
+        return errors;
+    }
 }

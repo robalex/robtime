@@ -25,4 +25,25 @@ public static class EmployeeRequestValidator
 
         return errors;
     }
+
+    public static IDictionary<string, string[]> Validate(UpdateEmployeeRequest request)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(request.FirstName))
+        {
+            errors["firstName"] = ["First name is required."];
+        }
+
+        if (string.IsNullOrWhiteSpace(request.LastName))
+        {
+            errors["lastName"] = ["Last name is required."];
+        }
+
+        if (request.MinimumWage < 0)
+        {
+            errors["minimumWage"] = ["Minimum wage cannot be negative."];
+        }
+
+        return errors;
+    }
 }

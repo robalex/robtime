@@ -50,6 +50,7 @@ builder.Services.AddDbContext<PayrollDbContext>(options =>
 // no business logic or DB access in endpoints). Scoped to match PayrollDbContext's own lifetime.
 builder.Services.AddScoped<ClientService>();
 builder.Services.AddScoped<EmployeeService>();
+builder.Services.AddScoped<PositionService>();
 builder.Services.AddScoped<PayRuleService>();
 builder.Services.AddScoped<PunchService>();
 
@@ -88,6 +89,7 @@ else
 
 app.MapClientEndpoints();
 app.MapEmployeeEndpoints();
+app.MapPositionEndpoints();
 app.MapPayRuleEndpoints();
 app.MapPunchEndpoints();
 
