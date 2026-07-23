@@ -729,23 +729,47 @@ smoke-tested live against a running instance, not just compiled):
       `openapi/` itself is gitignored — a build artifact, not something to commit (`schema.d.ts` is,
       once `RobTimeUI` exists).
 
-**Still open:**
-- Response DTOs for every entity; stop returning EF entities (Gap C).
-- Full CRUD: `GET` list (paged/sorted/filtered), `GET` by id, `PUT`, soft-delete — Client, Employee,
-  Position, PayRule (Gap B).
-- **Data-protection groundwork** (§5): storage encryption + `SSL Mode=Require`; separately-keyed
-  backups; log redaction on employee/pay endpoints; a doc comment on `PayCalculationSnapshot` and
-  `PayLineItem` recording that PII must never be denormalised into them. Reserve `employee_sensitive`
-  as the landing place for Tier A fields — no table needed yet, just the decision written down.
-- **Seed/demo data.** You cannot build or demo a configuration UI against an empty database. A
-  seeder producing one client, ~20 employees, several positions, two or three pay rules on different
-  templates, and a few weeks of punches is a Phase 0 deliverable, not an afterthought — Phases 2–4
-  are unworkable without it, and it doubles as integration-test fixture data. (The local dev DB
-  currently has exactly one manually-created smoke-test client from verifying the migration — not a
-  seed dataset, just proof the schema takes writes.)
-- `GET /metadata/premium-rules` from `PremiumRegistry` — the project reference is crossed; the
-  endpoint itself (plus `IPremiumRule.Name`/`Description`, which don't exist yet) is still ahead.
-- Integration tests — `Program` is already `public partial`, so `WebApplicationFactory` is ready to go.
+**Phase 0 fully closed 2026-07-23.** Everything below landed, in order, each verified live (not
+just compiled) before moving to the next: 321/321 tests passing (300 engine/persistence + 21
+integration), 0 warnings under the same `TreatWarningsAsErrors` CI uses.
+
+- [x] **Response DTOs for every entity** (Gap C) — endpoints no longer return EF entities.
+- [x] **Full CRUD** — `GET` list (paged, `search`/`clientId`/`status` filters depending on entity),
+      `GET` by id, `PUT`, soft-delete (`DELETE`) — Client, Employee, Position (built from scratch —
+      it had zero endpoints before this), PayRule (Gap B). `PayRule`'s Update/Delete additionally
+      enforce the Draft-only mutation rule from Gap F (§7) — Active/Superseded rules 409 rather than
+      silently accepting a retroactive edit; the `RuleFamilyId == Id` convention from that same gap
+      is now actually implemented via a two-phase save, not just documented.
+- [x] **Soft delete** — `IsDeleted` on all four entities, each backed by two independent EF Core 10
+      named query filters (`Tenant`, `SoftDelete`) rather than one combined lambda; verified live
+      that named filters genuinely AND together instead of the second call silently overwriting the
+      first.
+- [x] **`GET /metadata/premium-rules`** — `IPremiumRule` gained `Name`/`Description` (all six state
+      rules), read from `PremiumRegistry` with no DB dependency.
+- [x] **Data-protection groundwork** (§5) — `SSL Mode=Require` documented for production's
+      connection string (not committed here, so nothing to mechanically enforce it *on* yet); doc
+      comments on `PayCalculationSnapshot`/`PayLineItem` guarding against a future "just add
+      EmployeeName for convenience" regression; a note against ever calling
+      `EnableSensitiveDataLogging()`.
+- [x] **Seed data** — `dotnet run -- --seed` populates 1 client, 4 positions, 2 pay rules
+      (Federal + California, both Active), 12 employees, 100 punches; verified by querying the
+      result back through the live API, not just checking it ran.
+- [x] **Integration tests** — new `TimeCalculation.Api.Tests` project,
+      `WebApplicationFactory<Program>` + `Testcontainers.PostgreSql` (a real, ephemeral Postgres per
+      run, not an in-memory provider), 21 tests. Caught a real bug in the process:
+      `ActivePremiumCodes`/`ActiveDifferentialCodes` were typed `IReadOnlySet<string>` on the wire
+      DTOs, which `System.Text.Json` can serialize but not deserialize without a custom converter —
+      invisible to every curl-based smoke test in this doc (none of them round-tripped a response
+      back into a typed object), guaranteed to break any real .NET client. Fixed to `HashSet<string>`.
+
+Two things surfaced along the way and fixed on the spot, not deferred: `[AsParameters] PagingQuery`
+treated `Page`/`PageSize` as *required* query parameters despite their C# property-initializer
+defaults (`[AsParameters]` binds by each property's own nullability, not the record's defaults) —
+a bare `GET /clients` 400'd until this was caught live. And `Punch.ClientId` had carried an FK
+constraint since the tenancy-schema-prep work several commits earlier, but nothing was ever setting
+it — every `POST /punches` had been failing 100% of the time since that migration landed, because
+that turn's smoke test only exercised `/clients`. Both are exactly the class of bug a live
+verification habit exists to catch before it reaches a commit, and both were caught by one.
 
 ### Phase 1 — Users, auth, tenancy *(backend only)*
 - `TimeCalculation.Identity` project, `AppUser`, four roles, seed a `SystemAdmin`.
