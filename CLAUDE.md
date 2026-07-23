@@ -18,6 +18,29 @@ dotnet test --filter "FullyQualifiedName~PunchPairerTests"
 dotnet test --filter "FullyQualifiedName~PunchPairerTests.InThenOut_ProducesOnePair"
 ```
 
+## Code Style & Conventions
+
+Living list — expect more entries over time. These apply to new/edited code in this repo; existing
+code isn't retroactively rewritten to match just because a rule was added after the fact.
+
+**Avoid:**
+- **Multiple `return` statements from a method.** Prefer a single return — often by computing a
+  result and returning it once at the end, or by giving the different outcomes a proper class/record
+  type instead of returning early from several branches. (Exception in practice: ASP.NET Core
+  minimal-API endpoint handlers returning `Results<T1, T2, ...>` unions — validation/not-found/success
+  branches each need their own `return` to produce a different union member. Flag it if you're unsure
+  whether a given method counts as this kind of exception.)
+- **Tuples** (`(int, string)`, named tuples, `ValueTuple`, etc.). If one genuinely seems like the
+  right shape, ask first rather than reaching for it — a record is usually the actual answer.
+- **Anonymous types** (`new { Foo = 1, Bar = 2 }`). Same rule: ask first rather than reaching for one.
+
+**Preferences:**
+- **Always use braces**, even for a single-line `if`/`for`/`foreach`/`while`/etc. body — span it
+  across multiple lines rather than writing `if (x) DoThing();` on one line. Backed by
+  `.editorconfig`'s `csharp_prefer_braces = true` (IDE0011), so the IDE/`dotnet format` will suggest
+  this automatically — note that doesn't fail `dotnet build` today (`EnforceCodeStyleInBuild` isn't
+  set), so it won't turn into a CI break on its own.
+
 ## Architecture
 
 RobTime is a payroll time-calculation library: raw clock punches in, an itemized `PayResult` out.

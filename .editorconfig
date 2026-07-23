@@ -1,0 +1,8 @@
+root = true
+
+# Mechanically-backed half of the "Code Style & Conventions" rules in CLAUDE.md. Everything else
+# there (avoid multiple returns, avoid tuples, avoid anonymous types) isn't expressible as an
+# analyzer rule, so CLAUDE.md is the source of truth for those — this file only covers what a
+# linter can actually check.
+[*.cs]
+csharp_prefer_braces = true:warning
