@@ -12,6 +12,11 @@ public class CaMealPremiumRule : PremiumRuleBase
 {
     public const string RuleCode = "CA_MEAL";
     public override string Code => RuleCode;
+    public override string Name => "California Meal Premium";
+    public override string Description =>
+        "A 30-minute meal must begin by the end of the 5th hour worked (and a second by the end of " +
+        "the 10th hour on shifts over 10 hours). A violation owes one hour at the regular rate, " +
+        "capped at one premium per day.";
     public override Jurisdiction Jurisdiction => Jurisdiction.California;
     public override WaiverPolicy WaiverPolicy => WaiverPolicy.BothRequired;
 

@@ -13,6 +13,10 @@ public class WaMealPremiumRule : PremiumRuleBase
 {
     public const string RuleCode = "WA_MEAL";
     public override string Code => RuleCode;
+    public override string Name => "Washington Meal Premium";
+    public override string Description =>
+        "For shifts over 5 hours, a 30-minute meal is required between the 2nd and 5th hour. When " +
+        "missed, the remedy is a half-hour paid premium at the regular rate.";
     public override Jurisdiction Jurisdiction => Jurisdiction.Washington;
     public override WaiverPolicy WaiverPolicy => WaiverPolicy.NotWaivable;   // TODO: verify WA waiver rules
 

@@ -11,6 +11,10 @@ public class CoRestPremiumRule : PremiumRuleBase
 {
     public const string RuleCode = "CO_REST";
     public override string Code => RuleCode;
+    public override string Name => "Colorado Rest Premium";
+    public override string Description =>
+        "A paid 10-minute rest is required per 4 hours worked (COMPS Order). A shortfall owes one " +
+        "hour at the regular rate. Not waivable.";
     public override Jurisdiction Jurisdiction => Jurisdiction.Colorado;
     public override WaiverPolicy WaiverPolicy => WaiverPolicy.NotWaivable;
 

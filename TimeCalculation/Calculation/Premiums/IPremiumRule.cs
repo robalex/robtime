@@ -13,6 +13,17 @@ namespace TimeCalculation.Calculation.Premiums;
 public interface IPremiumRule
 {
     string Code { get; }                 // "CA_MEAL", "CO_REST", ...
+
+    /// <summary>Short human-readable label for a premium-selection UI, e.g. "California Meal
+    /// Premium" — not mechanically derived from Code, since that mapping isn't 1:1 obvious.</summary>
+    string Name { get; }
+
+    /// <summary>One or two sentences: what triggers it and what it pays. Sourced from this rule's
+    /// own class doc comment, which is the actual legal citation/reasoning — kept in sync by hand,
+    /// not generated, since Description is meant to be read by someone configuring a client's pay
+    /// rules without opening the source.</summary>
+    string Description { get; }
+
     Jurisdiction Jurisdiction { get; }
     WaiverPolicy WaiverPolicy { get; }
 

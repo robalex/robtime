@@ -12,6 +12,10 @@ public class OrMealPremiumRule : PremiumRuleBase
 {
     public const string RuleCode = "OR_MEAL";
     public override string Code => RuleCode;
+    public override string Name => "Oregon Meal Premium";
+    public override string Description =>
+        "A 30-minute meal is required for shifts of 6 or more hours. A missed or short meal owes " +
+        "one hour at the regular rate.";
     public override Jurisdiction Jurisdiction => Jurisdiction.Oregon;
     public override WaiverPolicy WaiverPolicy => WaiverPolicy.NotWaivable;   // TODO: verify OR waiver rules
 

@@ -14,6 +14,11 @@ public class PrMealPremiumRule : PremiumRuleBase
 {
     public const string RuleCode = "PR_MEAL";
     public override string Code => RuleCode;
+    public override string Name => "Puerto Rico Meal Premium";
+    public override string Description =>
+        "Employees working more than 5 hours must take a meal period between the 3rd and 6th hour. " +
+        "A violation owes one hour at the overtime rate (not the regular rate, unlike the other " +
+        "states' meal premiums).";
     public override Jurisdiction Jurisdiction => Jurisdiction.PuertoRico;
     public override WaiverPolicy WaiverPolicy => WaiverPolicy.NotWaivable;   // TODO: verify PR waiver rules
 
