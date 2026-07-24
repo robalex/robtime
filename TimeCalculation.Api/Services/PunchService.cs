@@ -9,7 +9,7 @@ namespace TimeCalculation.Api.Services;
 
 public class PunchService(PayrollDbContext db, IClock clock)
 {
-    public async Task<ServiceResult<Punch>> CreateAsync(CreatePunchRequest request, CancellationToken ct)
+    public async Task<ServiceResult<Punch>> CreateAsync(CreatePunchRequest request, string createdBy, CancellationToken ct)
     {
         var errors = PunchRequestValidator.Validate(request);
         if (errors.Count > 0)
@@ -49,7 +49,7 @@ public class PunchService(PayrollDbContext db, IClock clock)
             BonusKind = request.BonusKind,
             CountsTowardRegularRate = request.CountsTowardRegularRate,
             CreatedAt = clock.GetCurrentInstant(),
-            CreatedBy = request.CreatedBy,
+            CreatedBy = createdBy,
             DeviceId = request.DeviceId,
             DevicePunchId = request.DevicePunchId,
         };

@@ -15,10 +15,10 @@ public class PayRuleEndpointsTests(ApiFixture fixture)
     [Fact]
     public async Task CreatePayRule_BlankName_Returns400()
     {
-        var clientId = await CreateClientAsync();
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"PayRule Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
         var request = new CreatePayRuleRequest { ClientId = clientId, Name = "" };
 
-        var response = await fixture.Client.PostAsJsonAsync("/payrules", request, TestJson.Options, TestContext.Current.CancellationToken);
+        var response = await api.PostAsJsonAsync("/payrules", request, TestJson.Options, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -29,10 +29,10 @@ public class PayRuleEndpointsTests(ApiFixture fixture)
         // Gap F's versioning convention: a first-created version's RuleFamilyId equals its own Id,
         // set via a two-phase save in PayRuleService — this is the thing that could silently regress
         // to 0 (the unsaved default) if that second save were ever accidentally dropped.
-        var clientId = await CreateClientAsync();
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"PayRule Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
         var request = new CreatePayRuleRequest { ClientId = clientId, Name = $"Rule {Guid.NewGuid()}" };
 
-        var response = await fixture.Client.PostAsJsonAsync("/payrules", request, TestJson.Options, TestContext.Current.CancellationToken);
+        var response = await api.PostAsJsonAsync("/payrules", request, TestJson.Options, TestContext.Current.CancellationToken);
         var body = await response.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -45,7 +45,7 @@ public class PayRuleEndpointsTests(ApiFixture fixture)
     [Fact]
     public async Task CreatePayRule_InvalidRoundingGraceInterval_Returns400()
     {
-        var clientId = await CreateClientAsync();
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"PayRule Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
         var request = new CreatePayRuleRequest
         {
             ClientId = clientId,
@@ -55,7 +55,7 @@ public class PayRuleEndpointsTests(ApiFixture fixture)
             RoundingGraceMinutes = 8,   // > half of 10 — invalid
         };
 
-        var response = await fixture.Client.PostAsJsonAsync("/payrules", request, TestJson.Options, TestContext.Current.CancellationToken);
+        var response = await api.PostAsJsonAsync("/payrules", request, TestJson.Options, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -63,11 +63,11 @@ public class PayRuleEndpointsTests(ApiFixture fixture)
     [Fact]
     public async Task UpdatePayRule_WhileDraft_Succeeds()
     {
-        var clientId = await CreateClientAsync();
-        var created = await CreatePayRuleAsync(clientId);
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"PayRule Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var created = await CreatePayRuleAsync(api, clientId);
 
         var update = new UpdatePayRuleRequest { Name = "Updated Name" };
-        var response = await fixture.Client.PutAsJsonAsync($"/payrules/{created.Id}", update, TestJson.Options, TestContext.Current.CancellationToken);
+        var response = await api.PutAsJsonAsync($"/payrules/{created.Id}", update, TestJson.Options, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken);
@@ -80,12 +80,12 @@ public class PayRuleEndpointsTests(ApiFixture fixture)
         // The entire point of Gap F's versioning design: an Active rule is never mutated in place.
         // No API path moves a rule to Active yet (that's Phase 4 UI work), so this flips it directly
         // via the DbContext — exactly the kind of thing this test project's real DB access is for.
-        var clientId = await CreateClientAsync();
-        var created = await CreatePayRuleAsync(clientId);
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"PayRule Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var created = await CreatePayRuleAsync(api, clientId);
         await SetStatusAsync(created.Id, PayRuleStatus.Active);
 
         var update = new UpdatePayRuleRequest { Name = "Should Not Apply" };
-        var response = await fixture.Client.PutAsJsonAsync($"/payrules/{created.Id}", update, TestJson.Options, TestContext.Current.CancellationToken);
+        var response = await api.PutAsJsonAsync($"/payrules/{created.Id}", update, TestJson.Options, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
@@ -94,11 +94,11 @@ public class PayRuleEndpointsTests(ApiFixture fixture)
     [Fact]
     public async Task DeletePayRule_WhileActive_Returns409Conflict()
     {
-        var clientId = await CreateClientAsync();
-        var created = await CreatePayRuleAsync(clientId);
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"PayRule Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var created = await CreatePayRuleAsync(api, clientId);
         await SetStatusAsync(created.Id, PayRuleStatus.Active);
 
-        var response = await fixture.Client.DeleteAsync($"/payrules/{created.Id}", TestContext.Current.CancellationToken);
+        var response = await api.DeleteAsync($"/payrules/{created.Id}", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
@@ -106,10 +106,10 @@ public class PayRuleEndpointsTests(ApiFixture fixture)
     [Fact]
     public async Task DeletePayRule_WhileDraft_Succeeds()
     {
-        var clientId = await CreateClientAsync();
-        var created = await CreatePayRuleAsync(clientId);
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"PayRule Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var created = await CreatePayRuleAsync(api, clientId);
 
-        var response = await fixture.Client.DeleteAsync($"/payrules/{created.Id}", TestContext.Current.CancellationToken);
+        var response = await api.DeleteAsync($"/payrules/{created.Id}", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
@@ -118,24 +118,20 @@ public class PayRuleEndpointsTests(ApiFixture fixture)
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<PayrollDbContext>();
-        var payRule = await db.PayRules.SingleAsync(r => r.Id == payRuleId);
+        // IgnoreQueryFilters: this scope has no HTTP request behind it, so ITenantContextAccessor
+        // resolves no ClientId — exactly the "reach into the DB directly, bypass the API and its
+        // tenant scoping" case the filter rework's class doc comment calls out as legitimate for
+        // test/system code, not something to work around with a fake per-request principal.
+        var payRule = await db.PayRules.IgnoreQueryFilters().SingleAsync(r => r.Id == payRuleId);
         payRule.Status = status;
         await db.SaveChangesAsync();
     }
 
-    private async Task<PayRuleResponse> CreatePayRuleAsync(int clientId)
+    private static async Task<PayRuleResponse> CreatePayRuleAsync(HttpClient api, int clientId)
     {
         var request = new CreatePayRuleRequest { ClientId = clientId, Name = $"Rule {Guid.NewGuid()}" };
-        var response = await fixture.Client.PostAsJsonAsync("/payrules", request, TestJson.Options, TestContext.Current.CancellationToken);
+        var response = await api.PostAsJsonAsync("/payrules", request, TestJson.Options, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken))!;
-    }
-
-    private async Task<int> CreateClientAsync()
-    {
-        var request = new CreateClientRequest { Name = $"PayRule Test Co {Guid.NewGuid()}", CreatedBy = "test" };
-        var response = await fixture.Client.PostAsJsonAsync("/clients", request, TestJson.Options, TestContext.Current.CancellationToken);
-        var body = await response.Content.ReadFromJsonAsync<ClientResponse>(TestJson.Options, TestContext.Current.CancellationToken);
-        return body!.Id;
     }
 }

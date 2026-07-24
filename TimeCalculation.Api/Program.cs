@@ -33,27 +33,35 @@ builder.Services.AddProblemDetails();
 // it, never a committed file. `dotnet ef` boots this same host, so migrations target whichever
 // environment is selected (see TimeCalculation.Persistence/README.md).
 //
-// `dotnet ef` boots this same composition root for migrations, so this also needs to resolve under
-// whatever environment migrations are run against. The OpenAPI doc-generation target
-// (GenerateOpenApiDocuments, see the .csproj) also boots this via HostFactoryResolver, but is no
-// longer wired into a plain `dotnet build`/`dotnet test` — it's opt-in only, specifically so this
-// check doesn't need ASPNETCORE_ENVIRONMENT set just to compile. If invoking that target manually,
-// set ASPNETCORE_ENVIRONMENT=Development first (Production has no committed connection string, by
-// design — see below).
-var connectionString = builder.Configuration.GetConnectionString("PayrollDb")
-    ?? throw new InvalidOperationException(
-        $"No 'PayrollDb' connection string found for environment '{builder.Environment.EnvironmentName}'. " +
-        "Set it in the matching appsettings file, in user-secrets, or via the " +
-        "ConnectionStrings__PayrollDb environment variable.");
-
-// Never add .EnableSensitiveDataLogging() here. EF Core already masks parameter values in its own
-// query logs by default ("Parameters=[@p0='?', ...]") — that's the one piece of PII-in-logs
-// protection this codebase gets for free, and turning that flag on for local debugging is exactly
-// the kind of thing that accidentally survives into a commit. There's also no HTTP request/response
-// body logging wired up (no UseHttpLogging()) — if that's ever added, employee/pay endpoint bodies
-// need to be excluded, not just trusted to redact themselves.
+// Read INSIDE the AddDbContext callback, not captured into a local variable beforehand — this isn't
+// stylistic. WebApplicationFactory<Program> (TimeCalculation.Api.Tests) layers a Testcontainers
+// connection string onto builder.Configuration via ConfigureAppConfiguration, but that layering
+// happens after this line of Program.cs already runs and before the callback below actually
+// executes (which happens when the DI container first resolves PayrollDbContext, not when
+// AddDbContext is called). A variable captured here would freeze in whatever appsettings.Development
+// .json says — the real local-dev Postgres — silently defeating the test suite's "isolated ephemeral
+// Postgres" guarantee in favor of local dev's, which happened undetected until TenantIsolationTests'
+// ad-hoc DbContext (built directly from the Testcontainers connection string, bypassing DI/this
+// callback entirely) exposed the mismatch: it saw an empty, unmigrated database while the DI-resolved
+// context serving every other test was quietly reading/writing local dev the whole time. Reading
+// builder.Configuration fresh inside the callback picks up whatever's current when the container
+// actually builds the context, test override included.
 builder.Services.AddDbContext<PayrollDbContext>(options =>
-    options.UseNpgsql(connectionString, npgsql => npgsql.UseNodaTime()));
+{
+    var connectionString = builder.Configuration.GetConnectionString("PayrollDb")
+        ?? throw new InvalidOperationException(
+            $"No 'PayrollDb' connection string found for environment '{builder.Environment.EnvironmentName}'. " +
+            "Set it in the matching appsettings file, in user-secrets, or via the " +
+            "ConnectionStrings__PayrollDb environment variable.");
+
+    // Never add .EnableSensitiveDataLogging() here. EF Core already masks parameter values in its
+    // own query logs by default ("Parameters=[@p0='?', ...]") — that's the one piece of PII-in-logs
+    // protection this codebase gets for free, and turning that flag on for local debugging is
+    // exactly the kind of thing that accidentally survives into a commit. There's also no HTTP
+    // request/response body logging wired up (no UseHttpLogging()) — if that's ever added,
+    // employee/pay endpoint bodies need to be excluded, not just trusted to redact themselves.
+    options.UseNpgsql(connectionString, npgsql => npgsql.UseNodaTime());
+});
 
 // Resolves PayrollDbContext's ITenantContextAccessor constructor parameter via DI — AddDbContext's
 // default factory (ActivatorUtilities) fills in any constructor parameter it can find a registered

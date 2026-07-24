@@ -9,7 +9,7 @@ namespace TimeCalculation.Api.Services;
 
 public class ClientService(PayrollDbContext db, IClock clock)
 {
-    public async Task<ServiceResult<Client>> CreateAsync(CreateClientRequest request, CancellationToken ct)
+    public async Task<ServiceResult<Client>> CreateAsync(CreateClientRequest request, string createdBy, CancellationToken ct)
     {
         var errors = ClientRequestValidator.Validate(request);
         if (errors.Count > 0)
@@ -20,7 +20,7 @@ public class ClientService(PayrollDbContext db, IClock clock)
         var client = new Client
         {
             Name = request.Name,
-            CreatedBy = request.CreatedBy,
+            CreatedBy = createdBy,
             CreatedDate = clock.GetCurrentInstant().ToDateTimeUtc(),
         };
 
@@ -30,9 +30,14 @@ public class ClientService(PayrollDbContext db, IClock clock)
         return ServiceResult<Client>.Success(client);
     }
 
+    // SystemAdmin-only (see the endpoint's RequireAuthorization policy) and the one genuinely
+    // cross-tenant read in the system — listing clients to choose one is how a SystemAdmin session
+    // ever gets a _tenantClientId in the first place, so it can't itself be tenant-filtered.
+    // IgnoreQueryFilters is the escape hatch UI_PLAN.md §5 calls out, used here at the one call site
+    // that legitimately needs it, not baked into the filter predicate itself.
     public async Task<PagedResult<Client>> ListAsync(string? search, PagingQuery paging, CancellationToken ct)
     {
-        var query = db.Clients.AsQueryable();
+        var query = db.Clients.IgnoreQueryFilters().Where(c => !c.IsDeleted);
         if (!string.IsNullOrWhiteSpace(search))
         {
             query = query.Where(c => EF.Functions.ILike(c.Name, $"%{search}%"));

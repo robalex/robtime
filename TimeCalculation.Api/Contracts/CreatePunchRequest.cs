@@ -23,8 +23,4 @@ public record CreatePunchRequest
     // Device idempotency — omit both if this punch isn't coming from a clock device.
     public string? DeviceId { get; init; }
     public string? DevicePunchId { get; init; }
-
-    /// <summary>Who/what recorded this punch. In a real deployment this comes from the
-    /// authenticated caller, not a client-supplied field — there is no auth wired up yet.</summary>
-    public required string CreatedBy { get; init; }
 }

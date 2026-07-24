@@ -8,11 +8,11 @@ public static class PositionEndpoints
 {
     public static void MapPositionEndpoints(this WebApplication app)
     {
-        app.MapPost("/positions", CreatePosition).WithName("CreatePosition");
-        app.MapGet("/positions", ListPositions).WithName("ListPositions");
-        app.MapGet("/positions/{id:int}", GetPosition).WithName("GetPosition");
-        app.MapPut("/positions/{id:int}", UpdatePosition).WithName("UpdatePosition");
-        app.MapDelete("/positions/{id:int}", DeletePosition).WithName("DeletePosition");
+        app.MapPost("/positions", CreatePosition).WithName("CreatePosition").RequireAuthorization();
+        app.MapGet("/positions", ListPositions).WithName("ListPositions").RequireAuthorization();
+        app.MapGet("/positions/{id:int}", GetPosition).WithName("GetPosition").RequireAuthorization();
+        app.MapPut("/positions/{id:int}", UpdatePosition).WithName("UpdatePosition").RequireAuthorization();
+        app.MapDelete("/positions/{id:int}", DeletePosition).WithName("DeletePosition").RequireAuthorization();
     }
 
     private static async Task<Results<Created<PositionResponse>, ValidationProblem, ProblemHttpResult>> CreatePosition(

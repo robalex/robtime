@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
+using TimeCalculation.Api.Auth;
 using TimeCalculation.Api.Contracts;
 using TimeCalculation.Api.Services;
 using TimeCalculation.Model;
@@ -9,13 +11,14 @@ public static class PunchEndpoints
 {
     public static void MapPunchEndpoints(this WebApplication app)
     {
-        app.MapPost("/punches", CreatePunch).WithName("CreatePunch");
+        app.MapPost("/punches", CreatePunch).WithName("CreatePunch").RequireAuthorization();
     }
 
     private static async Task<Results<Created<Punch>, ValidationProblem, ProblemHttpResult>> CreatePunch(
-        CreatePunchRequest request, PunchService service, CancellationToken ct)
+        CreatePunchRequest request, ClaimsPrincipal user, PunchService service, CancellationToken ct)
     {
-        var result = await service.CreateAsync(request, ct);
+        var createdBy = user.FindFirst(TenantClaimTypes.Sub)?.Value ?? string.Empty;
+        var result = await service.CreateAsync(request, createdBy, ct);
         return result.Kind switch
         {
             ServiceResultKind.Success => TypedResults.Created($"/punches/{result.Value!.Id}", result.Value),

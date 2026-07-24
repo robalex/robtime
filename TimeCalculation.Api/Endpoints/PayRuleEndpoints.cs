@@ -9,11 +9,11 @@ public static class PayRuleEndpoints
 {
     public static void MapPayRuleEndpoints(this WebApplication app)
     {
-        app.MapPost("/payrules", CreatePayRule).WithName("CreatePayRule");
-        app.MapGet("/payrules", ListPayRules).WithName("ListPayRules");
-        app.MapGet("/payrules/{id:int}", GetPayRule).WithName("GetPayRule");
-        app.MapPut("/payrules/{id:int}", UpdatePayRule).WithName("UpdatePayRule");
-        app.MapDelete("/payrules/{id:int}", DeletePayRule).WithName("DeletePayRule");
+        app.MapPost("/payrules", CreatePayRule).WithName("CreatePayRule").RequireAuthorization();
+        app.MapGet("/payrules", ListPayRules).WithName("ListPayRules").RequireAuthorization();
+        app.MapGet("/payrules/{id:int}", GetPayRule).WithName("GetPayRule").RequireAuthorization();
+        app.MapPut("/payrules/{id:int}", UpdatePayRule).WithName("UpdatePayRule").RequireAuthorization();
+        app.MapDelete("/payrules/{id:int}", DeletePayRule).WithName("DeletePayRule").RequireAuthorization();
     }
 
     private static async Task<Results<Created<PayRuleResponse>, ValidationProblem, ProblemHttpResult>> CreatePayRule(

@@ -73,7 +73,16 @@ public class PayrollDbContext : DbContext
             // orthogonal concerns and read better apart than combined into one lambda. EF ANDs
             // every named filter together automatically; verified this empirically (see
             // PersistenceModelTests) rather than assuming from the docs alone.
-            b.HasQueryFilter("Tenant", c => _tenantClientId == null || c.Id == _tenantClientId);
+            //
+            // Plain equality, no `_tenantClientId == null ||` escape hatch (UI_PLAN.md §5, Phase 1
+            // "rework the tenant filters"): that OR-branch is exactly what stops Postgres from using
+            // a sargable index scan once it switches to a generic query plan. A context built with no
+            // tenant (_tenantClientId null — DevSeeder, `dotnet ef`, an unauthenticated request) now
+            // filters every tenant-scoped query down to nothing instead of everything — a fail-closed
+            // default. The one legitimate "no tenant" case (SystemAdmin listing/creating clients) is
+            // served by IgnoreQueryFilters() at that specific call site (see ClientService.ListAsync),
+            // not by a bypass baked into the predicate.
+            b.HasQueryFilter("Tenant", c => c.Id == _tenantClientId);
             b.HasQueryFilter("SoftDelete", c => !c.IsDeleted);
         });
 
@@ -85,10 +94,7 @@ public class PayrollDbContext : DbContext
             b.HasIndex(u => u.ClientId);
             b.HasOne<Client>().WithMany().HasForeignKey(u => u.ClientId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne<Employee>().WithMany().HasForeignKey(u => u.EmployeeId).OnDelete(DeleteBehavior.Restrict);
-            // Same shape as every other tenant filter today — see the class doc comment on the null
-            // escape hatch; this is new code following the existing pattern, not yet the Phase 1
-            // rework that drops it everywhere at once (UI_PLAN.md §5).
-            b.HasQueryFilter(u => _tenantClientId == null || u.ClientId == _tenantClientId);
+            b.HasQueryFilter(u => u.ClientId == _tenantClientId);
         });
 
         model.Entity<Employee>(b =>
@@ -100,7 +106,7 @@ public class PayrollDbContext : DbContext
             // declared without one. Restrict, not Cascade: deleting a client must never silently
             // take payroll records with it.
             b.HasOne<Client>().WithMany().HasForeignKey(e => e.ClientId).OnDelete(DeleteBehavior.Restrict);
-            b.HasQueryFilter("Tenant", e => _tenantClientId == null || e.ClientId == _tenantClientId);
+            b.HasQueryFilter("Tenant", e => e.ClientId == _tenantClientId);
             b.HasQueryFilter("SoftDelete", e => !e.IsDeleted);
         });
 
@@ -110,7 +116,7 @@ public class PayrollDbContext : DbContext
             b.HasKey(p => p.Id);
             b.Property(p => p.BaseRate).HasPrecision(19, 4);
             b.HasOne<Client>().WithMany().HasForeignKey(p => p.ClientId).OnDelete(DeleteBehavior.Restrict);
-            b.HasQueryFilter("Tenant", p => _tenantClientId == null || p.ClientId == _tenantClientId);
+            b.HasQueryFilter("Tenant", p => p.ClientId == _tenantClientId);
             b.HasQueryFilter("SoftDelete", p => !p.IsDeleted);
         });
 
@@ -119,11 +125,8 @@ public class PayrollDbContext : DbContext
             b.ToTable("punches");
             b.HasKey(p => p.Id);
 
-            // Hot index for effective-dated punch lookups, client_id leading (tenancy schema prep —
-            // see PayrollDbContext's class doc comment; the tenant query filter itself is Phase 1
-            // work, added once auth resolves a real _tenantClientId. A leading == null || ... filter
-            // isn't sargable under a generic query plan, so ClientId needs to be first in the index
-            // regardless of when the filter predicate lands, or the index is useless the day it does.
+            // Hot index for effective-dated punch lookups, client_id leading — matches the plain
+            // equality tenant filter below, so this stays sargable under a generic query plan too.
             b.HasIndex(p => new { p.ClientId, p.EmployeeId, p.PunchTime });
 
             // Device idempotency: at most one punch per (employee, device, device punch id).
@@ -138,10 +141,8 @@ public class PayrollDbContext : DbContext
             b.HasOne(p => p.Employee).WithMany().HasForeignKey(p => p.EmployeeId);
             b.HasOne(p => p.Position).WithMany().HasForeignKey(p => p.PositionId);
 
-            // Soft delete: deleted punches are invisible to all queries. No tenant filter yet — see
-            // the index comment above; adding one is Phase 1, once ClientId is populated and auth
-            // can supply a real _tenantClientId.
-            b.HasQueryFilter(p => !p.IsDeleted);
+            b.HasQueryFilter("Tenant", p => p.ClientId == _tenantClientId);
+            b.HasQueryFilter("SoftDelete", p => !p.IsDeleted);
         });
 
         model.Entity<PunchAuditEntry>(b =>
@@ -150,6 +151,7 @@ public class PayrollDbContext : DbContext
             b.HasKey(a => a.Id);
             b.HasIndex(a => new { a.ClientId, a.PunchId });
             b.HasOne<Client>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasQueryFilter(a => a.ClientId == _tenantClientId);
         });
 
         model.Entity<PayRule>(b =>
@@ -171,7 +173,7 @@ public class PayrollDbContext : DbContext
             });
 
             b.HasOne<Client>().WithMany().HasForeignKey(r => r.ClientId).OnDelete(DeleteBehavior.Restrict);
-            b.HasQueryFilter("Tenant", r => _tenantClientId == null || r.ClientId == _tenantClientId);
+            b.HasQueryFilter("Tenant", r => r.ClientId == _tenantClientId);
             b.HasQueryFilter("SoftDelete", r => !r.IsDeleted);
 
             b.Property(r => r.PunchPairResetHours).HasPrecision(10, 4);
@@ -211,7 +213,7 @@ public class PayrollDbContext : DbContext
             b.ToTable("differential_rules");
             b.HasKey(d => d.Id);
             b.HasOne<Client>().WithMany().HasForeignKey(d => d.ClientId).OnDelete(DeleteBehavior.Restrict);
-            b.HasQueryFilter(d => _tenantClientId == null || d.ClientId == _tenantClientId);
+            b.HasQueryFilter(d => d.ClientId == _tenantClientId);
 
             b.Property(d => d.MinHoursInWindow).HasPrecision(10, 4);
             b.Property(d => d.MinHoursInRange).HasPrecision(10, 4);
@@ -248,7 +250,7 @@ public class PayrollDbContext : DbContext
             b.ToTable("holiday_calendars");
             b.HasKey(h => h.Id);
             b.HasOne<Client>().WithMany().HasForeignKey(h => h.ClientId).OnDelete(DeleteBehavior.Restrict);
-            b.HasQueryFilter(h => _tenantClientId == null || h.ClientId == _tenantClientId);
+            b.HasQueryFilter(h => h.ClientId == _tenantClientId);
 
             b.Property(h => h.Dates)
                 .HasConversion(
@@ -268,7 +270,7 @@ public class PayrollDbContext : DbContext
             b.ToTable("client_premium_policies");
             b.HasKey(c => c.Id);
             b.HasOne<Client>().WithMany().HasForeignKey(c => c.ClientId).OnDelete(DeleteBehavior.Restrict);
-            b.HasQueryFilter(c => _tenantClientId == null || c.ClientId == _tenantClientId);
+            b.HasQueryFilter(c => c.ClientId == _tenantClientId);
 
             // Resolution lookup: "this client's policy for this premium code, as of a given date."
             b.HasIndex(c => new { c.ClientId, c.PremiumCode, c.EffectiveFrom });
@@ -278,12 +280,12 @@ public class PayrollDbContext : DbContext
         {
             b.ToTable("pay_rule_assignments");
             b.HasKey(a => a.Id);
-            // client_id leading (tenancy schema prep — see the Punch index comment above; the
-            // filter predicate itself is Phase 1).
+            // client_id leading, matching the plain-equality tenant filter below.
             b.HasIndex(a => new { a.ClientId, a.EmployeeId, a.EffectiveFrom });
             b.HasOne(a => a.PayRule).WithMany().HasForeignKey(a => a.PayRuleId);
             b.HasOne<Client>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne<Employee>().WithMany().HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+            b.HasQueryFilter(a => a.ClientId == _tenantClientId);
         });
 
         model.Entity<EmployeePositionAssignmentEntity>(b =>
@@ -296,14 +298,12 @@ public class PayrollDbContext : DbContext
             b.HasOne<Employee>().WithMany().HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Restrict);
             b.Property(a => a.Rate).HasPrecision(19, 4);
 
-            // Position is tenant-filtered and is the REQUIRED end of this relationship, so without a
-            // matching filter an assignment could survive a query whose Position was filtered away,
-            // leaving a required navigation unsatisfiable. Filtering through the navigation keeps
-            // both ends consistent. Still keyed off Position.ClientId, not the entity's own new
-            // ClientId column, deliberately — switching the filter's predicate is Phase 1's "rework
-            // the tenant filters" pass, not this one; the column exists now so that pass has
-            // something to switch to.
-            b.HasQueryFilter(a => _tenantClientId == null || a.Position.ClientId == _tenantClientId);
+            // Filtered on this entity's own ClientId column now, not Position.ClientId via
+            // navigation — the Phase 1 switch the old comment here flagged as coming. Position stays
+            // independently tenant-filtered too, so the two can never disagree in practice (an
+            // assignment's ClientId and its Position's ClientId are set from the same client at
+            // creation time and never re-parented across tenants).
+            b.HasQueryFilter(a => a.ClientId == _tenantClientId);
         });
 
         model.Entity<StateMinimumWage>(b =>

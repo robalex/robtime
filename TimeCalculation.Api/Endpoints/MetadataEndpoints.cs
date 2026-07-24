@@ -7,7 +7,7 @@ public static class MetadataEndpoints
 {
     public static void MapMetadataEndpoints(this WebApplication app)
     {
-        app.MapGet("/metadata/premium-rules", GetPremiumRules).WithName("GetPremiumRuleMetadata");
+        app.MapGet("/metadata/premium-rules", GetPremiumRules).WithName("GetPremiumRuleMetadata").RequireAuthorization();
     }
 
     private static IResult GetPremiumRules(PremiumMetadataService service)

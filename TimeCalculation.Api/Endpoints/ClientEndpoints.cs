@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
+using TimeCalculation.Api.Auth;
 using TimeCalculation.Api.Contracts;
 using TimeCalculation.Api.Services;
 
@@ -8,17 +10,20 @@ public static class ClientEndpoints
 {
     public static void MapClientEndpoints(this WebApplication app)
     {
-        app.MapPost("/clients", CreateClient).WithName("CreateClient");
-        app.MapGet("/clients", ListClients).WithName("ListClients");
-        app.MapGet("/clients/{id:int}", GetClient).WithName("GetClient");
-        app.MapPut("/clients/{id:int}", UpdateClient).WithName("UpdateClient");
-        app.MapDelete("/clients/{id:int}", DeleteClient).WithName("DeleteClient");
+        app.MapPost("/clients", CreateClient).WithName("CreateClient")
+            .RequireAuthorization(AuthorizationPolicies.SystemAdmin);
+        app.MapGet("/clients", ListClients).WithName("ListClients")
+            .RequireAuthorization(AuthorizationPolicies.SystemAdmin);
+        app.MapGet("/clients/{id:int}", GetClient).WithName("GetClient").RequireAuthorization();
+        app.MapPut("/clients/{id:int}", UpdateClient).WithName("UpdateClient").RequireAuthorization();
+        app.MapDelete("/clients/{id:int}", DeleteClient).WithName("DeleteClient").RequireAuthorization();
     }
 
     private static async Task<Results<Created<ClientResponse>, ValidationProblem>> CreateClient(
-        CreateClientRequest request, ClientService service, CancellationToken ct)
+        CreateClientRequest request, ClaimsPrincipal user, ClientService service, CancellationToken ct)
     {
-        var result = await service.CreateAsync(request, ct);
+        var createdBy = user.FindFirst(TenantClaimTypes.Sub)?.Value ?? string.Empty;
+        var result = await service.CreateAsync(request, createdBy, ct);
         return result.Kind switch
         {
             ServiceResultKind.Success => TypedResults.Created(

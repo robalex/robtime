@@ -11,7 +11,7 @@ public class MetadataEndpointsTests(ApiFixture fixture)
     [Fact]
     public async Task GetPremiumRules_ReturnsAllSixRegisteredRules()
     {
-        var response = await fixture.Client.GetAsync("/metadata/premium-rules", TestContext.Current.CancellationToken);
+        var response = await fixture.SystemAdminClient.GetAsync("/metadata/premium-rules", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var rules = await response.Content.ReadFromJsonAsync<List<PremiumRuleMetadataResponse>>(TestJson.Options, TestContext.Current.CancellationToken);

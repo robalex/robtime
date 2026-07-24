@@ -8,11 +8,11 @@ public static class EmployeeEndpoints
 {
     public static void MapEmployeeEndpoints(this WebApplication app)
     {
-        app.MapPost("/employees", CreateEmployee).WithName("CreateEmployee");
-        app.MapGet("/employees", ListEmployees).WithName("ListEmployees");
-        app.MapGet("/employees/{id:int}", GetEmployee).WithName("GetEmployee");
-        app.MapPut("/employees/{id:int}", UpdateEmployee).WithName("UpdateEmployee");
-        app.MapDelete("/employees/{id:int}", DeleteEmployee).WithName("DeleteEmployee");
+        app.MapPost("/employees", CreateEmployee).WithName("CreateEmployee").RequireAuthorization();
+        app.MapGet("/employees", ListEmployees).WithName("ListEmployees").RequireAuthorization();
+        app.MapGet("/employees/{id:int}", GetEmployee).WithName("GetEmployee").RequireAuthorization();
+        app.MapPut("/employees/{id:int}", UpdateEmployee).WithName("UpdateEmployee").RequireAuthorization();
+        app.MapDelete("/employees/{id:int}", DeleteEmployee).WithName("DeleteEmployee").RequireAuthorization();
     }
 
     private static async Task<Results<Created<EmployeeResponse>, ValidationProblem, ProblemHttpResult>> CreateEmployee(
