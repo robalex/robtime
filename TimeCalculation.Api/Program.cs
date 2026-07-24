@@ -31,18 +31,18 @@ builder.Services.AddProblemDetails();
 // it, never a committed file. `dotnet ef` boots this same host, so migrations target whichever
 // environment is selected (see TimeCalculation.Persistence/README.md).
 //
-// This also runs during a plain `dotnet build`: the OpenApiGenerateDocumentsOnBuild target
-// (see the .csproj) boots this composition root via HostFactoryResolver to introspect routes,
-// same as `dotnet ef` does for migrations. A build with no ASPNETCORE_ENVIRONMENT set defaults to
-// Production, which has no committed connection string by design (see below) — so a *bare*
-// `dotnet build` throws here. Build with `ASPNETCORE_ENVIRONMENT=Development` (CI does this; see
-// .github/workflows/ci.yml) to pick up appsettings.Development.json's local-only connection string.
+// `dotnet ef` boots this same composition root for migrations, so this also needs to resolve under
+// whatever environment migrations are run against. The OpenAPI doc-generation target
+// (GenerateOpenApiDocuments, see the .csproj) also boots this via HostFactoryResolver, but is no
+// longer wired into a plain `dotnet build`/`dotnet test` — it's opt-in only, specifically so this
+// check doesn't need ASPNETCORE_ENVIRONMENT set just to compile. If invoking that target manually,
+// set ASPNETCORE_ENVIRONMENT=Development first (Production has no committed connection string, by
+// design — see below).
 var connectionString = builder.Configuration.GetConnectionString("PayrollDb")
     ?? throw new InvalidOperationException(
         $"No 'PayrollDb' connection string found for environment '{builder.Environment.EnvironmentName}'. " +
         "Set it in the matching appsettings file, in user-secrets, or via the " +
-        "ConnectionStrings__PayrollDb environment variable. " +
-        "If this is happening during `dotnet build` (not `dotnet run`), set ASPNETCORE_ENVIRONMENT=Development first.");
+        "ConnectionStrings__PayrollDb environment variable.");
 
 // Never add .EnableSensitiveDataLogging() here. EF Core already masks parameter values in its own
 // query logs by default ("Parameters=[@p0='?', ...]") — that's the one piece of PII-in-logs

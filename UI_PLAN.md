@@ -84,7 +84,6 @@ openapi-fetch createClient<paths> →  fully typed paths/params/bodies/responses
 the property names really had shifted since .NET 8/9 the way this section originally warned):**
 
 1. `Microsoft.Extensions.ApiDescription.Server` added to `TimeCalculation.Api.csproj`, with
-   `<OpenApiGenerateDocumentsOnBuild>true</OpenApiGenerateDocumentsOnBuild>` and
    `<OpenApiDocumentsDirectory>openapi</OpenApiDocumentsDirectory>`. `AddOpenApi()` was already
    registered in `Program.cs`.
    - **Output filename is `TimeCalculation.Api.json`, not `v1.json`.** The generator names the file
@@ -93,20 +92,24 @@ the property names really had shifted since .NET 8/9 the way this section origin
      thing served by `MapOpenApi()`). No supported flag forces a different output filename without
      fighting the vendored `.targets` file, so the plan adjusted to the real name instead — point
      `gen:api` at what's actually on disk.
-   - **A bare `dotnet build` throws.** The doc generator boots `Program.cs`'s full composition root
-     via `HostFactoryResolver` (the same mechanism `dotnet ef` uses for migrations) to introspect
-     routes — which means it also hits the eager `PayrollDb` connection-string check. With no
-     `ASPNETCORE_ENVIRONMENT` set, that defaults to `Production`, which has no committed connection
-     string by design, so the build fails with an `InvalidOperationException`. Fix:
-     `ASPNETCORE_ENVIRONMENT=Development` picks up `appsettings.Development.json`'s already-committed,
-     localhost-only connection string. Wired into `.github/workflows/ci.yml` as a job-level `env:`;
-     local devs need it too for a plain `dotnet build` (documented directly in `Program.cs` at the
-     exact line that throws, so the error message itself points here).
+   - **Generation is explicit, not build-time — flipped 2026-07-23.** Originally wired up with
+     `<OpenApiGenerateDocumentsOnBuild>true</OpenApiGenerateDocumentsOnBuild>`, but that boots
+     `Program.cs`'s full composition root via `HostFactoryResolver` (the same mechanism `dotnet ef`
+     uses for migrations) on *every* build to introspect routes, which hits the eager `PayrollDb`
+     connection-string check — a bare `dotnet build`/`dotnet test`/IDE build throws unless
+     `ASPNETCORE_ENVIRONMENT=Development` is set first. That turned out to be real friction (a
+     developer hit it blind, with no error text to go on, before realizing it was this). Since
+     nothing consumes the generated doc yet (`RobTimeUI` doesn't exist), the property is now
+     `false` and generation is a deliberate step instead:
+     `ASPNETCORE_ENVIRONMENT=Development dotnet build TimeCalculation.Api -t:GenerateOpenApiDocuments`.
+     `.github/workflows/ci.yml` no longer needs the `ASPNETCORE_ENVIRONMENT` env var at all — plain
+     `dotnet build`/`dotnet test` just work now, with or without it.
 2. UI `package.json`: `"gen:api": "openapi-typescript ../TimeCalculation.Api/openapi/TimeCalculation.Api.json -o src/api/schema.d.ts"`.
-3. **`openapi/` is gitignored — it's a build artifact, regenerated every build.** **Commit
-   `schema.d.ts` instead** (once `RobTimeUI` exists) — a CI step regenerates it and fails on diff,
-   which turns "someone changed the API and broke the UI" into a red build on the API PR, not a
-   runtime 400 next week. The intermediate JSON has no reason to live in source control.
+3. **`openapi/` is gitignored — it's a build artifact, only produced when the `GenerateOpenApiDocuments`
+   target is explicitly invoked.** **Commit `schema.d.ts` instead** (once `RobTimeUI` exists) — a CI
+   step regenerates it and fails on diff, which turns "someone changed the API and broke the UI" into
+   a red build on the API PR, not a runtime 400 next week. The intermediate JSON has no reason to
+   live in source control.
 
 **Why this over the alternatives:** NSwag/Kiota generate a client class per endpoint group — more
 code, more coupling, and a runtime dependency you maintain. `openapi-typescript` emits *only*
@@ -720,14 +723,20 @@ smoke-tested live against a running instance, not just compiled):
          the file after the project, not the document. `gen:api` and the file tree above were wrong
          until this pass; fixed.
       2. **The doc generator boots the full `Program.cs` composition root** (via `HostFactoryResolver`,
-         same mechanism `dotnet ef` uses) to introspect routes — which means a bare `dotnet build`
-         throws on the eager `PayrollDb` connection-string check, because the build-time environment
-         defaults to `Production`, which has no committed connection string by design.
-         `ASPNETCORE_ENVIRONMENT=Development` fixes it (picks up the already-committed, localhost-only
-         `appsettings.Development.json`); wired into CI as a job-level `env:`, and the exact line in
-         `Program.cs` that throws now says so directly, since that's where a future developer lands.
-      `openapi/` itself is gitignored — a build artifact, not something to commit (`schema.d.ts` is,
-      once `RobTimeUI` exists).
+         same mechanism `dotnet ef` uses) to introspect routes — which means, with
+         `OpenApiGenerateDocumentsOnBuild=true`, a bare `dotnet build` threw on the eager `PayrollDb`
+         connection-string check, because the build-time environment defaults to `Production`, which
+         has no committed connection string by design. Documented at the time as "set
+         `ASPNETCORE_ENVIRONMENT=Development` first" — but a developer hit this blind later the same
+         day with no error text to go on, which showed the workaround-and-document approach wasn't
+         good enough: it made the *default* inner-loop build fragile for a feature (`RobTimeUI`
+         codegen) that doesn't exist yet and consumes nothing. Reversed: `OpenApiGenerateDocumentsOnBuild`
+         is now `false`, generation is explicit
+         (`ASPNETCORE_ENVIRONMENT=Development dotnet build TimeCalculation.Api -t:GenerateOpenApiDocuments`),
+         and CI no longer sets `ASPNETCORE_ENVIRONMENT` at all — a plain `dotnet build`/`dotnet test`
+         just works now, everywhere, with no special incantation.
+      `openapi/` itself is gitignored — a build artifact, only produced when that target is explicitly
+      invoked, not something to commit (`schema.d.ts` is, once `RobTimeUI` exists).
 
 **Phase 0 fully closed 2026-07-23.** Everything below landed, in order, each verified live (not
 just compiled) before moving to the next: 321/321 tests passing (300 engine/persistence + 21
