@@ -37,3 +37,53 @@ jobs:
         with:
           name: test-results
           path: "**/test-results.trx"
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: RobTimeUI/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: RobTimeUI
+
+      # The contract-drift guard (UI_PLAN.md §3): regenerate the OpenAPI doc from the API, regenerate
+      # the TypeScript types from it, and fail if the committed schema.d.ts differs. This turns "an
+      # API change silently broke the UI's types" into a red build on the PR that changed the API,
+      # not a runtime 400 next week. ASPNETCORE_ENVIRONMENT=Development is what lets the doc generator
+      # boot the composition root (it reads appsettings.Development.json's local connection string;
+      # nothing connects, it only introspects routes).
+      - name: Regenerate OpenAPI doc
+        run: dotnet build TimeCalculation.Api -t:GenerateOpenApiDocuments
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+
+      - name: Check generated API types are in sync
+        run: |
+          npm run gen:api
+          git diff --exit-code src/api/schema.d.ts \
+            || (echo "::error::schema.d.ts is stale — run 'npm run gen:api' in RobTimeUI and commit." && exit 1)
+        working-directory: RobTimeUI
+
+      - name: Typecheck
+        run: npm run typecheck
+        working-directory: RobTimeUI
+
+      - name: Build
+        run: npm run build
+        working-directory: RobTimeUI
+
+      - name: Lint
+        run: npm run lint
+        working-directory: RobTimeUI
