@@ -894,7 +894,7 @@ for this well-known `WebApplicationFactory` gotcha.
   `DEPLOY_PLAN.md`'s other modules — Lite tier, custom attributes for `client_id`/`role`, no client
   secret (SPA app client). No `infra/` directory exists yet; nothing has been `terraform apply`'d.
 - Once a real pool exists: replace the `appsettings.Development.json` placeholders
-  (`Cognito:Authority`, `Cognito:UserPoolClientId`, `Cognito:UserPoolId`, `Cognito:Region`) with real
+  (`Cognito:UserPoolClientId`, `Cognito:UserPoolId`, `Cognito:Region`) with real
   values, and verify `CognitoUserProvisioner`/the JwtBearer scheme actually work end-to-end — both
   are code-complete but unverified against a live pool.
 

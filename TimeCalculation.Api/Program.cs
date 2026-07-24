@@ -72,18 +72,28 @@ builder.Services.AddDbContext<PayrollDbContext>(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ITenantContextAccessor, HttpContextTenantContextAccessor>();
 
-// Amazon Cognito issues the JWT; this only validates it. Authority/Audience come from config —
-// "Cognito:Authority"/"Cognito:UserPoolClientId" — left as placeholders in appsettings.Development
-// .json until a real User Pool exists (Terraform work is blocked on AWS credentials, see
-// DEPLOY_PLAN.md §4 and UI_PLAN.md Phase 1's sequencing note). This doesn't fail at startup with a
-// placeholder Authority — the JWKS document is only fetched lazily, on first token validation — so
-// it's safe to wire up now without repeating the OpenAPI build-time-generation mistake (an eager
-// external check breaking a plain `dotnet build`/`dotnet run`).
+// Amazon Cognito issues the JWT; this only validates it.
+//
+// The Authority is the OIDC *issuer* — https://cognito-idp.{region}.amazonaws.com/{userPoolId} —
+// which AddJwtBearer uses to discover the JWKS signing keys and to check each token's `iss` claim.
+// It's derived here rather than configured separately, precisely because it's a pure function of two
+// values already required: a standalone setting could drift out of sync with the pool id and produce
+// an issuer-validation failure that reads like a signing problem. Note this is NOT the managed login
+// domain the browser signs in against (that's a different host and doesn't affect the issuer, even
+// when customized).
+//
+// Real values come from user-secrets locally (see RobTimeUI/README.md); appsettings.Development.json
+// is committed and holds placeholders. Placeholders don't break startup — the JWKS document is only
+// fetched lazily, on first token validation — so this stays safe to wire up without repeating the
+// OpenAPI build-time-generation mistake of an eager external check breaking `dotnet build`/`run`.
+var cognitoRegion = builder.Configuration["Cognito:Region"];
+var cognitoUserPoolId = builder.Configuration["Cognito:UserPoolId"];
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.Authority = builder.Configuration["Cognito:Authority"];
+        options.Authority = $"https://cognito-idp.{cognitoRegion}.amazonaws.com/{cognitoUserPoolId}";
         options.Audience = builder.Configuration["Cognito:UserPoolClientId"];
         // Keep claim names exactly as Cognito issues them ("sub", "custom:client_id", "custom:role")
         // instead of ASP.NET Core's default inbound remapping to long-form XML schema URIs.

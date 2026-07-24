@@ -37,10 +37,12 @@ cd TimeCalculation.Api
 dotnet user-secrets set "Cognito:Region" "us-east-1"
 dotnet user-secrets set "Cognito:UserPoolId" "us-east-1_XXXXXXXXX"
 dotnet user-secrets set "Cognito:UserPoolClientId" "your-app-client-id"
-dotnet user-secrets set "Cognito:Authority" "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXXXXXXX"
 ```
 
+Three values, all from the pool's Overview page and its **Applications → App clients** tab.
 `appsettings.Development.json` is committed and holds placeholders only; user secrets override it.
+The JWT authority (OIDC issuer URL) is derived from region + pool id in `Program.cs`, so there's no
+fourth value to keep in sync.
 
 **3. Register the callback URL** on the app client, or Cognito will refuse the redirect:
 `http://localhost:5173/auth/callback`, plus sign-out URL `http://localhost:5173/`.
