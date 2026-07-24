@@ -582,7 +582,7 @@ encourage skimming past the date field, and the date field is the whole point.
 |---|---|
 | People | Employee list · Employee detail (tabs: Details / Positions & Rates / Pay Rule / Punches) · Position list + editor |
 | Setup | Setup home (cards) · Client list + editor · Pay rule list + editor + template picker · Differential list + editor · Premium selection · Holiday calendars · Users & roles |
-| Time | Punch entry (self-service) · Timecard view *(Phase 6)* |
+| Time | Self-service clock (responsive, logged-in) · Timecard view (role-gated `PayResult` render) · Supervisor pending-request queue — all *(Phase 6)* · Shared kiosk clock (tablet, ship-gated on badge auth §11) |
 
 ---
 
@@ -944,6 +944,93 @@ and premium override screens (needs the occurrence-level override table — `Sup
 `EmployeeWaiver` keyed to one shift's premium — the remaining half of Gap I not closed by Phase 0/5's
 client-wide waiver *policy*).
 
+**Punch edit approval — `PunchChangeRequest` (decided 2026-07-24).** When approval is required,
+editing a punch is not a direct mutation: an employee's proposed change (edit an existing punch,
+delete one, or add a missed one) becomes a `PunchChangeRequest` — a new tenant-scoped (`ClientId`)
+entity holding the target punch, the requested new values, the requester, a reason, `Status`
+(`Pending`/`Approved`/`Denied`), and the reviewer / `ReviewedAt` / review note once decided. A
+supervisor (or above) approves or denies it; **approval is what actually applies the change** to the
+`Punch` and writes the existing `PunchAuditEntry`. The request row is retained regardless of outcome
+— it is its own record of *who asked for what and why*, deliberately distinct from
+`PunchAuditEntry`'s record of *what was actually applied* (the two aren't redundant: a denied request
+produces a `PunchChangeRequest` but never a `PunchAuditEntry`, and a direct edit — approval off —
+produces the audit entry with no request).
+
+- **Configurable per client, default ON** (`RequirePunchEditApproval`). With it off, an authorized
+  edit applies directly — still writing a `PunchAuditEntry`, just skipping the request/approve
+  round-trip. The toggle needs a home: this is the first genuinely client-wide *operational* setting
+  (`ClientPremiumPolicy` is effective-dated and premium-scoped, a poor fit), so a small
+  `ClientSettings` row is probably the right call over a lone column on `Client` — but that's a
+  one-line decision to make when we get here, not now.
+- **Requester ≠ approver.** Employees request edits to their own punches; supervisors+ approve. A
+  supervisor's/admin's own edit already holds approval authority, so it applies directly rather than
+  filing a request against itself — leave room for a stricter "second approver even for supervisor
+  edits" mode later, but don't build it now.
+- **Only `POST /punches` exists today.** The edit / delete / submit-request / decide-request
+  endpoints are Phase 6 work and must branch on the client's `RequirePunchEditApproval` setting —
+  that branch is the whole feature on the API side; the entity, those endpoints, and a supervisor's
+  pending-request queue are the rest.
+- **Notifications are deliberately out of scope here — see §11.** A supervisor learns about pending
+  requests from a queue screen; the requester sees status on their own timecard. Push notifications
+  (supervisor on a new request, requester on approve/deny) are the obvious enhancement and just as
+  obviously a rabbit hole (Lambda + email/in-app), so they are a tracked future item, not a Phase 6
+  blocker — the synchronous flow is complete without them.
+
+**Time clock UI — two distinct surfaces (planned 2026-07-24).** "Time clock" is really two different
+screens with different audiences, auth, and ship-gates. The plan covers the *authentication* for both
+(§5); this is about the actual *screens*, which weren't spelled out.
+
+- **Self-service clock (Phase 6, responsive down to phone).** A logged-in employee (Cognito) clocks
+  in/out from their own phone or browser. It's small: a prominent Clock In / Clock Out button that
+  reflects current state ("Clocked in since 8:02 AM" vs. "Clocked out"), an optional position picker
+  when the employee holds more than one, and a confirmation. Lives on the employee's own timecard/home
+  route. This is the "responsive for phones" case, and it needs no new auth — it's just an
+  authenticated `POST /punches` from the employee's own session.
+- **Shared kiosk clock (designed now, ship-gated on badge/device auth — §11).** A wall-mounted or
+  counter tablet (iPad-class) that *many* employees use without logging in. Full-screen, large touch
+  targets, high-contrast, glanceable from arm's length: enter or swipe a badge number → confirm the
+  resolved name → Clock In / Clock Out → timed confirmation that auto-returns to the badge prompt for
+  the next person. It runs on a **registered `Device`** and authenticates with the device credential
+  + `(ClientId, BadgeNumber)` lookup — never Cognito, never a per-employee login (§5). Because that
+  device/badge scheme is itself a deferred item (§11 "Timeclock devices + badge numbers"), the kiosk
+  clock *ships* behind it — but the UI can be designed and even built against a stub auth now; it's
+  the auth, not the screen, that's the blocker. This is the "responsive for iPads/tablets" case, and
+  it is deliberately a *different* build from the self-service clock, not a breakpoint of it: shared
+  vs. personal, no-login vs. logged-in, kiosk-locked vs. general navigation.
+
+**Timecard — what it is and what it shows (decided 2026-07-24).** A timecard here is a **per-employee,
+per-pay-period, role-gated rendering of the engine's `PayResult`** — not a new data shape. This is the
+key decision: the engine already emits exactly the drillable structure a timecard wants
+(`PayResult` → `WorkweekPay` → `ShiftPay` → `PayLineItem`, week → shift → line item, see `CLAUDE.md`),
+so the timecard is a *display* concern over `PayCalculator`'s output, not a modelling one. Timecards
+"come in many forms"; we land deliberately in the middle — richer than a raw punch log, lighter than a
+post-run pay stub (a stub is money-first and post-payroll; a timecard is time-first and *pre*-payroll,
+the thing a supervisor signs off before the run — see §11 "Timecard approval").
+
+It shows, top to bottom:
+- **Header / totals** — employee, pay-period range, the `PayRule` in effect, and period totals
+  (regular / OT / doubletime hours, premium $, gross). Role-gated per decision 16: an employee sees
+  their own hours and pay; how much of the *itemized FLSA regular-rate math* to expose to the employee
+  vs. reserve for Supervisor+ is a small open question to settle when this is built.
+- **Grouped body** — week → day → shift → punch pair. Each pair shows in/out (raw and rounded when
+  they differ), inferred subtype (Break/Lunch), position + rate, and hours. This is the `ShiftPay`/
+  shift-and-pair structure rendered directly.
+- **Line-item drill-down** — the `PayLineItem` breakdown that explains *why* each pair was paid what it
+  was (regular, OT premium attribution, differentials, meal/rest premiums). The engine already
+  itemizes this; the timecard is where a human finally reads it.
+- **Exceptions / flags** — incomplete pairs (orphan in/out), suspected missing punches, and any
+  pending `PunchChangeRequest` or recent edit, surfaced inline so the approver sees what needs
+  attention before sign-off.
+- **Edit affordance** — per-punch edit routes into the `PunchChangeRequest` flow above (or a direct
+  edit when approval is off).
+
+**One architectural consequence:** the timecard needs an endpoint that runs `PayCalculator` for one
+employee over a date range (e.g. `GET /employees/{id}/timecard?from=…&to=…`) and returns the
+`PayResult`. That's a **third** sanctioned use of the engine from the API, beyond the two the
+`TimeCalculation.Api.csproj` guard comment already names (the `/metadata` read and the Phase 4
+single-employee what-if) — add it to that comment when the endpoint lands, so "this project does CRUD,
+not calculation" stays honestly qualified rather than quietly violated.
+
 ### Phase 7 — Full impact preview
 Worker queue (open decision #6) · client-wide impact jobs · per-employee/per-shift diff drill-down ·
 "what changed and why" explanation trail.
@@ -994,6 +1081,11 @@ Settled — say the word and I'll rework any of them.
     permission on this role.
 16. **`Supervisor` sees wage rates and pay amounts.** A restricted supervisor tier is anticipated but
     not built now (§11) — `lib/permissions.ts` is the seam for it when it's needed.
+17. **Punch edits require supervisor approval, configurable per client, default ON.** A
+    `PunchChangeRequest` carries the proposed change through `Pending` → `Approved`/`Denied`;
+    approval is what applies the change and writes the `PunchAuditEntry`. Off = direct edit, still
+    audited. Notifications on request/decision are a deferred enhancement (§11), not part of the core
+    synchronous flow (Phase 6).
 
 ## 10. Follow-on questions
 
@@ -1012,8 +1104,9 @@ Deliberately deferred. Recorded here so the design doesn't accidentally preclude
 
 | Item | Notes | Design constraint it implies today |
 |---|---|---|
-| **Timeclock devices + badge numbers** | Registered device + `Employee.BadgeNumber`, clock-only credential. `Punch.DeviceId`/`DevicePunchId` and the unique idempotency index already exist. | Auth must be multi-scheme-ready: authorize on policies/claims, never on cookie presence (§5). |
+| **Timeclock devices + badge numbers** | Registered device + `Employee.BadgeNumber`, clock-only credential. `Punch.DeviceId`/`DevicePunchId` and the unique idempotency index already exist. The **shared kiosk clock UI is designed in Phase 6** and ship-gated on exactly this — the screen can be built against a stub, but it can't go live until device/badge auth does. | Auth must be multi-scheme-ready: authorize on policies/claims, never on cookie presence (§5). |
 | **Pay rule change approval workflow** | Submit → review → activate, with the impact preview attached to the review. `PLAN.md` §9 item 14 flags the same for timecard approval. | `PayRule.Status` already has `Draft`; leave room for `PendingApproval` between `Draft` and `Active`. |
+| **Punch-change-request notifications** | Supervisor notified on a new pending `PunchChangeRequest`; requester notified on approve/deny. Event-driven via Lambda (request-create / decision events → SES email first, in-app later). The synchronous Phase 6 flow works without it — a supervisor's pending-request queue is the fallback; notifications only remove the need to poll it. | Emit a domain event (or write an outbox row) on request create/decision so a Lambda can hang off it later — the request/approve write path must not inline an email send into its own transaction (same two-system-write caution as `UserProvisioningService`). |
 | **Enterprise SSO (SAML/OIDC)** | Table stakes for larger SaaS customers. | Per-client auth configuration; `AppUser` must tolerate having no local password. |
 | **Public / partner API** | Payroll exports, HRIS sync. | Bearer tokens + API keys as an additional scheme. |
 | **Postgres RLS** | Defense-in-depth under the EF filters, not instead of them (`PLAN.md` open decision #5). | Denormalized `ClientId` on every tenant-scoped table (Phase 0) is the prerequisite either way. |
