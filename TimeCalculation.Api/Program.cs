@@ -1,8 +1,10 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using NodaTime.Serialization.SystemTextJson;
 using TimeCalculation.Api;
+using TimeCalculation.Api.Auth;
 using TimeCalculation.Api.Endpoints;
 using TimeCalculation.Api.Services;
 using TimeCalculation.Persistence;
@@ -53,6 +55,32 @@ var connectionString = builder.Configuration.GetConnectionString("PayrollDb")
 builder.Services.AddDbContext<PayrollDbContext>(options =>
     options.UseNpgsql(connectionString, npgsql => npgsql.UseNodaTime()));
 
+// Resolves PayrollDbContext's ITenantContextAccessor constructor parameter via DI — AddDbContext's
+// default factory (ActivatorUtilities) fills in any constructor parameter it can find a registered
+// service for, so this needs no extra wiring beyond being registered Scoped, matching the context's
+// own per-request lifetime (UI_PLAN.md §5).
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ITenantContextAccessor, HttpContextTenantContextAccessor>();
+
+// Amazon Cognito issues the JWT; this only validates it. Authority/Audience come from config —
+// "Cognito:Authority"/"Cognito:UserPoolClientId" — left as placeholders in appsettings.Development
+// .json until a real User Pool exists (Terraform work is blocked on AWS credentials, see
+// DEPLOY_PLAN.md §4 and UI_PLAN.md Phase 1's sequencing note). This doesn't fail at startup with a
+// placeholder Authority — the JWKS document is only fetched lazily, on first token validation — so
+// it's safe to wire up now without repeating the OpenAPI build-time-generation mistake (an eager
+// external check breaking a plain `dotnet build`/`dotnet run`).
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = builder.Configuration["Cognito:Authority"];
+        options.Audience = builder.Configuration["Cognito:UserPoolClientId"];
+        // Keep claim names exactly as Cognito issues them ("sub", "custom:client_id", "custom:role")
+        // instead of ASP.NET Core's default inbound remapping to long-form XML schema URIs.
+        options.MapInboundClaims = false;
+    });
+builder.Services.AddAuthorizationBuilder().AddRolePolicies();
+
 // Endpoints depend on these, never on PayrollDbContext directly (see CLAUDE.md's Code Style rules —
 // no business logic or DB access in endpoints). Scoped to match PayrollDbContext's own lifetime.
 builder.Services.AddScoped<ClientService>();
@@ -68,10 +96,11 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
 // Vite's default dev server port. RobTimeUI doesn't exist yet, so there's no real deployed origin
-// to allow — cookie auth (UI_PLAN.md §5) means production serves the SPA same-origin behind
-// CloudFront, which needs no CORS policy at all. This is dev-only scaffolding for local `npm run
-// dev` against a local API, not a policy to widen later; delete it once same-origin proxying is
-// set up, don't just add more origins to it.
+// to allow — production serves the SPA same-origin behind CloudFront, which needs no CORS policy at
+// all. This is dev-only scaffolding for local `npm run dev` against a local API, not a policy to
+// widen later; delete it once same-origin proxying is set up, don't just add more origins to it.
+// AllowCredentials isn't load-bearing for the Cognito bearer-token flow (UI_PLAN.md §5) the way it
+// was for the original cookie-auth design, but costs nothing to leave in place for now.
 const string ViteDevCorsPolicy = "ViteDev";
 builder.Services.AddCors(options =>
 {
@@ -79,7 +108,7 @@ builder.Services.AddCors(options =>
         .WithOrigins("http://localhost:5173")
         .AllowAnyHeader()
         .AllowAnyMethod()
-        .AllowCredentials());   // cookie auth needs credentialed CORS requests
+        .AllowCredentials());
 });
 
 var app = builder.Build();
@@ -107,6 +136,13 @@ else
     // application/problem+json via the IProblemDetailsService registered above, not a bare 500.
     app.UseExceptionHandler();
 }
+
+// Unconditional (not just Development) — Production needs authenticated requests validated too.
+// Not yet applied to any endpoint via .RequireAuthorization(): UI_PLAN.md Phase 1's sequencing note
+// calls out that flipping enforcement on has to land together with retrofitting the existing
+// integration tests to authenticate, not as a partial step that leaves them broken.
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapClientEndpoints();
 app.MapEmployeeEndpoints();

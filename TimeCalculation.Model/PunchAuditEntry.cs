@@ -8,7 +8,10 @@ public record PunchAuditEntry
     public int Id { get; init; }
     public int ClientId { get; init; }
     public int PunchId { get; init; }
-    public int ActorUserId { get; init; }
+    /// <summary>Cognito `sub` claim of the authenticated principal who made the change — a plain
+    /// string, not a foreign key lookup, since the JWT already carries it (see AppUser.CognitoSub in
+    /// TimeCalculation.Persistence and UI_PLAN.md §5's "claims carry client_id/role" design).</summary>
+    public string ActorUserId { get; init; } = string.Empty;
     public Instant OccurredAt { get; init; }
 
     /// <summary>"Created", "Edited", or "Deleted".</summary>

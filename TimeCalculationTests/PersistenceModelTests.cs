@@ -17,7 +17,7 @@ public class PersistenceModelTests
         var options = new DbContextOptionsBuilder<PayrollDbContext>()
             .UseNpgsql("Host=localhost;Database=payroll;Username=x;Password=y", o => o.UseNodaTime())
             .Options;
-        return new PayrollDbContext(options, tenant);
+        return new PayrollDbContext(options, new FixedTenantContextAccessor(tenant));
     }
 
     [Fact]

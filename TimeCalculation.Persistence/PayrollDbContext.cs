@@ -25,10 +25,17 @@ public class PayrollDbContext : DbContext
 {
     private readonly int? _tenantClientId;
 
-    public PayrollDbContext(DbContextOptions<PayrollDbContext> options, int? tenantClientId = null)
-        : base(options) => _tenantClientId = tenantClientId;
+    /// <summary>
+    /// <paramref name="tenantContextAccessor"/> is resolved via DI in the API host — see
+    /// <c>HttpContextTenantContextAccessor</c> — and reads `client_id` off the validated Cognito JWT
+    /// (UI_PLAN.md §5). Optional so `dotnet ef` design-time tooling and migrations, which describe a
+    /// tenant-agnostic schema, can keep constructing a context with no accessor at all.
+    /// </summary>
+    public PayrollDbContext(DbContextOptions<PayrollDbContext> options, ITenantContextAccessor? tenantContextAccessor = null)
+        : base(options) => _tenantClientId = tenantContextAccessor?.ClientId;
 
     public DbSet<Client> Clients => Set<Client>();
+    public DbSet<AppUser> AppUsers => Set<AppUser>();
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Position> Positions => Set<Position>();
     public DbSet<Punch> Punches => Set<Punch>();
@@ -68,6 +75,20 @@ public class PayrollDbContext : DbContext
             // PersistenceModelTests) rather than assuming from the docs alone.
             b.HasQueryFilter("Tenant", c => _tenantClientId == null || c.Id == _tenantClientId);
             b.HasQueryFilter("SoftDelete", c => !c.IsDeleted);
+        });
+
+        model.Entity<AppUser>(b =>
+        {
+            b.ToTable("app_users");
+            b.HasKey(u => u.CognitoSub);
+            b.Property(u => u.CognitoSub).HasMaxLength(64);   // Cognito sub is a UUID
+            b.HasIndex(u => u.ClientId);
+            b.HasOne<Client>().WithMany().HasForeignKey(u => u.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Employee>().WithMany().HasForeignKey(u => u.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+            // Same shape as every other tenant filter today — see the class doc comment on the null
+            // escape hatch; this is new code following the existing pattern, not yet the Phase 1
+            // rework that drops it everywhere at once (UI_PLAN.md §5).
+            b.HasQueryFilter(u => _tenantClientId == null || u.ClientId == _tenantClientId);
         });
 
         model.Entity<Employee>(b =>

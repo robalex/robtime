@@ -182,14 +182,27 @@ that project deliberately depends only on `TimeCalculation.Model`, and dragging
 `Microsoft.AspNetCore.Identity.EntityFrameworkCore` into it would break the layering discipline
 `CLAUDE.md` and the Persistence README both go out of their way to establish.
 
+**Superseded 2026-07-23 — see "Auth mechanism" below.** Credentials now live in Amazon Cognito, not
+a local `TimeCalculation.Identity` project. `AppUser` becomes a thin profile/authorization row —
+no `IdentityUser<int>` base, no password hash, no separate DbContext — keyed by the Cognito `sub`
+(stable across the user's lifetime, including if SSO federation is added later) instead of an
+identity-owned int:
+
 ```csharp
-class AppUser : IdentityUser<int>
+class AppUser
 {
-    public int? ClientId { get; set; }     // null only for SystemAdmin
-    public int? EmployeeId { get; set; }   // set when this user IS an employee
-    public string DisplayName { get; set; }
+    public required string CognitoSub { get; init; }  // Cognito's `sub` claim — the PK
+    public int? ClientId { get; set; }                // null only for SystemAdmin
+    public int? EmployeeId { get; set; }               // set when this user IS an employee
+    public required string DisplayName { get; set; }
+    public required AppRole Role { get; set; }
 }
 ```
+
+Lives directly in `TimeCalculation.Persistence` (a `DbSet` on `PayrollDbContext`) — the reason for a
+separate project was isolating `Microsoft.AspNetCore.Identity.EntityFrameworkCore` from
+`PayrollDbContext`; with no local Identity package, that reason is gone. One fewer project, one
+fewer `DbContext`, one fewer migrations history table.
 
 ### Roles
 
@@ -220,10 +233,15 @@ pay) — see §11. Don't build that tier speculatively now; when it's needed, it
 plus a `lib/permissions.ts` branch, not a redesign, because permissions are already centralized
 there rather than scattered through components.
 
-### Login: email + password
+### Login: email + password — via Cognito (decided 2026-07-23)
 
-Everyone — employees included — signs in with email and password for now.
-`MapIdentityApi<AppUser>()` gives login/logout/refresh/password-reset/2FA endpoints out of the box.
+Everyone who needs web access — employees included — signs in with email and password for now,
+handled by an **Amazon Cognito User Pool** rather than `MapIdentityApi<AppUser>()`/local ASP.NET
+Core Identity. See "Auth mechanism" below for the full rationale and what this changes in Phase 1.
+
+**Not every `Employee` needs an `AppUser`/Cognito account.** `AppUser.EmployeeId` is nullable
+specifically because badge-only shop-floor workers (below) never log into the web app at all — an
+`AppUser` only gets provisioned for someone who needs self-service access.
 
 > **TODO — timeclock authentication.** Employees on a shop floor will not log in with email and
 > password on a shared wall-mounted clock. Later we want a **timeclock concept**: a registered
@@ -233,30 +251,64 @@ Everyone — employees included — signs in with email and password for now.
 > `Punch.DeviceId` / `Punch.DevicePunchId` exist with a unique index for idempotent ingest
 > (`PLAN.md` §9 item 9). What's missing is a `Device` registration table, `Employee.BadgeNumber`
 > (unique per client), and a separate auth scheme for device endpoints. See §11.
-
-### Auth mechanism: cookies for now
-
-Cookie auth: `HttpOnly`, `SameSite=Strict`, `Secure`. Same-origin in production (API serves the
-built SPA), Vite proxy in dev so it's same-origin there too.
-
-Rationale: bearer tokens in `localStorage` are readable by any XSS; an HttpOnly cookie is not.
-
-> **Why we will likely outgrow this.** Cookies are right for a same-origin browser admin UI and
-> wrong for almost everything else, and three things on the roadmap are "everything else":
 >
-> 1. **Timeclock devices** (the TODO above). A wall clock or native app cannot participate in
->    `SameSite` cookie flows. It needs a bearer token or mTLS.
-> 2. **Enterprise SSO.** A true SaaS product sells to companies that require SAML/OIDC sign-in.
->    That flow terminates in tokens.
-> 3. **A public/partner API.** Payroll exports and HRIS integrations authenticate with API keys or
->    bearer tokens, not session cookies.
->
-> The mitigation is cheap and should be honoured from day one: **ASP.NET Core supports multiple
-> authentication schemes side by side.** Adding a JWT bearer scheme for `/api/device/*` or
-> `/api/public/*` later is purely additive as long as authorization is written against *policies and
-> claims*, never against "is there a cookie." Concretely — no endpoint should ever read the cookie
-> directly, and `lib/permissions.ts` on the frontend should key off the user object returned by
-> `/me`, not off cookie presence.
+> **Clarified 2026-07-23 — this never touches Cognito.** Badge punching and Cognito login are two
+> unrelated identities, and the design must not conflate them:
+> - **The device authenticates, not the employee.** A registered `Device` holds its own credential
+>   (an API key or client-credentials grant, issued at registration, scoped to one client tenant).
+>   That's the actual security boundary — only a trusted, registered device can submit punches.
+> - **The badge number is a lookup key, not an identity assertion.** Once the device is
+>   authenticated, it sends `BadgeNumber` + punch data; the API resolves `EmployeeId` via
+>   `(ClientId, BadgeNumber)` — a plain query against `Employee`, never a JWT claim or a Cognito
+>   user lookup. The badge-punching employee may have no `AppUser`/Cognito account at all.
+> - **Audit trail implication:** `PunchAuditEntry.ActorUserId` assumes an authenticated principal;
+>   a badge punch doesn't have one (it has a device + a badge-resolved employee instead). The audit
+>   row needs to record *how* the punch was authenticated (device+badge vs. self-service login), not
+>   just squeeze the badge-resolved employee into `ActorUserId` — a payroll auditor will care about
+>   that distinction. Deferred to the Phase 6 device work; noted here so it isn't lost.
+
+### Auth mechanism: Amazon Cognito + JWT bearer (decided 2026-07-23, supersedes cookie auth)
+
+**Cognito User Pool replaces local ASP.NET Core Identity entirely.** No `TimeCalculation.Identity`
+project, no `AppIdentityDbContext`, no local password storage — Cognito owns credentials, MFA,
+password reset, and (later) SAML/OIDC federation for enterprise SSO. This was a direct pivot from
+the original cookie-auth decision below, prompted by pricing Cognito for the SSO question this
+project will face as real SaaS customers show up: Cognito's **Lite tier is free for the first
+10,000 MAU/month** and supports SAML/OIDC federation at every tier, so there's no early-stage cost
+argument for building local auth first and migrating later — migrating identity providers *after*
+real customer passwords exist is the expensive path, not the cheap one.
+
+**This means JWT bearer auth from Phase 1, not cookies deferred to later.** Cognito issues JWTs, not
+cookies — the SPA holds the access token in memory (never `localStorage`, which is readable by any
+XSS) and refreshes via Cognito's refresh-token flow. The API validates tokens via
+`AddJwtBearer`/`AddAuthentication` against Cognito's JWKS endpoint
+(`https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/jwks.json`). The three reasons
+cookies were originally expected to be outgrown — timeclock devices, enterprise SSO, a future
+public/partner API — are exactly why adopting Cognito now means building the bearer-token path once,
+rather than building cookie auth first and doing this migration a second time.
+
+**Claims carry `client_id`/`role`, not a DB round trip per request.** `AppUser`'s `ClientId`/`Role`
+are set as Cognito custom attributes (`custom:client_id`, `custom:role`) at provisioning time and
+mapped into ID/access token claims — `_tenantClientId` is resolved straight from the validated JWT
+when constructing `PayrollDbContext`, same as the cookie design intended, just sourced from a claim
+instead of a cookie-backed identity ticket. A change to a user's role takes effect on their next
+token refresh, not instantly — acceptable for now; revisit with a Pre Token Generation Lambda
+(computing claims live from the `AppUser` row at issuance) only if that staleness actually bites.
+
+**`ASP.NET Core supports multiple authentication schemes side by side` still holds and still
+matters** — the device/badge scheme from the TODO above is a second, independent scheme alongside
+Cognito JWT bearer, not a variant of it. Authorization stays written against policies and claims,
+never against "which scheme authenticated this request," so a `/api/device/*` scheme is additive
+whenever Phase 6 needs it.
+
+**Two new mechanics this introduces, without a Testcontainers-style equivalent for Cognito:**
+1. **User provisioning is a two-system write.** `POST /users` (ClientAdmin-only) must call Cognito's
+   `AdminCreateUser` *and* insert the local `AppUser` row, in that order, with a defined
+   compensating action if the second write fails after the first succeeds.
+2. **Integration tests can't spin up a real Cognito pool per run.** `TimeCalculation.Api.Tests`
+   needs a fake JWT-bearer test-authentication handler that mints trusted test tokens/claims,
+   bypassing real Cognito token validation in the test environment — the same role `ApiFixture`
+   plays for Postgres via Testcontainers, just without a real backing service to spin up.
 
 ### Multi-tenant isolation (SaaS)
 
@@ -781,19 +833,41 @@ that turn's smoke test only exercised `/clients`. Both are exactly the class of 
 verification habit exists to catch before it reaches a commit, and both were caught by one.
 
 ### Phase 1 — Users, auth, tenancy *(backend only)*
-- `TimeCalculation.Identity` project, `AppUser`, four roles, seed a `SystemAdmin`.
-- Email + password login via `MapIdentityApi`; cookie scheme; authorization written against
-  **policies and claims** so a bearer scheme can be added later without rework (§5).
-- Resolve `_tenantClientId` from the principal — **activates the dormant filters (J)**.
+
+**Revised 2026-07-23 for Cognito** (see §5 "Auth mechanism") — no local `TimeCalculation.Identity`
+project; `AppUser` is a thin profile/authorization row, not a credential store.
+
+- **Terraform: Cognito User Pool + App Client** (per environment), added to `infra/` alongside
+  `DEPLOY_PLAN.md`'s other modules — **blocked on the same AWS-credential bootstrapping
+  `DEPLOY_PLAN.md` §4 already flagged** (no `infra/` directory exists yet; nothing has been
+  `terraform apply`'d). Lite tier, custom attributes for `client_id`/`role`, no client secret (SPA
+  app client). This step needs the user's AWS credentials, same as every other Terraform apply.
+- `AppUser` entity (`CognitoSub` PK, `ClientId`, `EmployeeId`, `Role`) as a `DbSet` on
+  `PayrollDbContext`, seed a `SystemAdmin`. No EF Identity package, no separate `DbContext`.
+- `Microsoft.AspNetCore.Authentication.JwtBearer` wired against Cognito's JWKS endpoint;
+  authorization written against **policies and claims** (`client_id`, `role`), never against "is
+  there a cookie" — the device/badge scheme from §5's TODO can be added later purely additively.
+- Resolve `_tenantClientId` from the validated JWT's `client_id` claim — **activates the dormant
+  filters (J)**.
 - **Rework the tenant filters**: drop the `_tenantClientId == null ||` escape hatch, make the tenant
   id required, add filters to `punches` / `punch_audits` / assignment tables (§5).
-- Drop `CreatedBy` from request contracts; source it from the authenticated user, and populate
-  `PunchAuditEntry.ActorUserId`.
+- Drop `CreatedBy` from request contracts; source it from the authenticated user's claims, and
+  populate `PunchAuditEntry.ActorUserId`.
+- **`POST /users` provisioning endpoint** — `AdminCreateUser` against Cognito, then insert the local
+  `AppUser` row; defined compensating action if the local write fails after Cognito succeeds (§5).
+- **Fake JWT-bearer test-authentication handler** for `TimeCalculation.Api.Tests` — mints trusted
+  test claims without a real Cognito pool, the auth equivalent of what Testcontainers does for
+  Postgres (§5).
 - **Isolation test suite** — for every tenant-scoped entity, prove a `ClientAdmin` for client A
   cannot read, update, or delete client B's row. Table-driven over the entity list, so a new entity
   without a filter fails the build rather than shipping a leak.
 - Capture the generated SQL for the top read paths in a test and assert `client_id` appears as a
   plain equality predicate — this is what stops the sargability regression from creeping back.
+
+**Practical sequencing note:** everything except the first bullet can be built and fully tested
+(via the fake JWT handler) without a live Cognito pool — so implementation starts there, with real
+Cognito Terraform following once AWS credentials are available, matching how `DEPLOY_PLAN.md`
+already sequenced the RDS/App Runner bootstrapping problem.
 
 ### Phase 2 — Frontend foundation
 Scaffold, codegen pipeline, app shell + nav, login/logout, route guards, and **Clients CRUD
@@ -855,7 +929,10 @@ Settled — say the word and I'll rework any of them.
 
 1. **Monorepo** — `RobTimeUI/` inside the RobTime repo, not a separate repo.
 2. **`openapi-typescript` + `openapi-fetch`** over NSwag/Kiota/hey-api. Types generated, client hand-written and thin.
-3. **Separate `TimeCalculation.Identity` project** rather than putting Identity in `TimeCalculation.Persistence`.
+3. ~~Separate `TimeCalculation.Identity` project rather than putting Identity in
+   `TimeCalculation.Persistence`.~~ **Superseded 2026-07-23** — Cognito owns credentials now, so
+   there's no local Identity package to isolate from; `AppUser` is a thin row directly on
+   `PayrollDbContext` (§5).
 4. **`@js-joda/core`** for dates rather than `date-fns`/`dayjs`/`Temporal`.
 5. **Four roles** — SystemAdmin / ClientAdmin / Supervisor / Employee.
 6. **Pay rule versioning is Phase 0, not Phase 7**, even though the feature that needs it ships last.
@@ -865,9 +942,12 @@ Settled — say the word and I'll rework any of them.
 
 **Yours (answered):**
 
-9. **Cookie auth**, with a documented exit path to bearer tokens (§5). Implies same-origin deployment for now.
-10. **Email + password for everyone**, including employees. Timeclock + badge number is a later
-    addition, tracked in §5 and §11.
+9. ~~Cookie auth, with a documented exit path to bearer tokens.~~ **Superseded 2026-07-23 — Amazon
+    Cognito + JWT bearer from Phase 1**, after pricing out Cognito for the SSO question and finding
+    the free tier (10k MAU/month) removes the cost argument for deferring it (§5).
+10. **Email + password for everyone** who needs web access, including employees, via Cognito.
+    Timeclock + badge number is a later addition and deliberately never touches Cognito — the badge
+    is a lookup key against `Employee`, not an identity assertion — tracked in §5 and §11.
 11. **Template is a mandatory starting point; every field editable afterwards.** Requires template
     lineage tracking so "customised" stays visible (§6, Rule 3).
 12. **True SaaS multi-tenant** — isolation is a correctness requirement, and Phase 1 ships a test

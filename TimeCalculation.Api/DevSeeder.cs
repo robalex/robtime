@@ -24,6 +24,18 @@ public static class DevSeeder
     {
         var today = clock.GetCurrentInstant().InUtc().Date;
 
+        // Placeholder sub -- no Cognito User Pool exists yet (UI_PLAN.md Phase 1's sequencing note).
+        // Once one does, either update this row's CognitoSub to the real SystemAdmin's `sub`, or
+        // reprovision through the POST /users flow instead of this seed.
+        db.AppUsers.Add(new AppUser
+        {
+            CognitoSub = "dev-seed-system-admin",
+            ClientId = null,
+            DisplayName = "Dev Seed Admin",
+            Role = AppRole.SystemAdmin,
+        });
+        await db.SaveChangesAsync(ct);
+
         var client = new Client
         {
             Name = "Acme Diner Co.",
