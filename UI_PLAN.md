@@ -837,37 +837,66 @@ verification habit exists to catch before it reaches a commit, and both were cau
 **Revised 2026-07-23 for Cognito** (see §5 "Auth mechanism") — no local `TimeCalculation.Identity`
 project; `AppUser` is a thin profile/authorization row, not a credential store.
 
-- **Terraform: Cognito User Pool + App Client** (per environment), added to `infra/` alongside
-  `DEPLOY_PLAN.md`'s other modules — **blocked on the same AWS-credential bootstrapping
-  `DEPLOY_PLAN.md` §4 already flagged** (no `infra/` directory exists yet; nothing has been
-  `terraform apply`'d). Lite tier, custom attributes for `client_id`/`role`, no client secret (SPA
-  app client). This step needs the user's AWS credentials, same as every other Terraform apply.
-- `AppUser` entity (`CognitoSub` PK, `ClientId`, `EmployeeId`, `Role`) as a `DbSet` on
-  `PayrollDbContext`, seed a `SystemAdmin`. No EF Identity package, no separate `DbContext`.
-- `Microsoft.AspNetCore.Authentication.JwtBearer` wired against Cognito's JWKS endpoint;
-  authorization written against **policies and claims** (`client_id`, `role`), never against "is
-  there a cookie" — the device/badge scheme from §5's TODO can be added later purely additively.
-- Resolve `_tenantClientId` from the validated JWT's `client_id` claim — **activates the dormant
-  filters (J)**.
-- **Rework the tenant filters**: drop the `_tenantClientId == null ||` escape hatch, make the tenant
-  id required, add filters to `punches` / `punch_audits` / assignment tables (§5).
-- Drop `CreatedBy` from request contracts; source it from the authenticated user's claims, and
-  populate `PunchAuditEntry.ActorUserId`.
-- **`POST /users` provisioning endpoint** — `AdminCreateUser` against Cognito, then insert the local
-  `AppUser` row; defined compensating action if the local write fails after Cognito succeeds (§5).
-- **Fake JWT-bearer test-authentication handler** for `TimeCalculation.Api.Tests` — mints trusted
-  test claims without a real Cognito pool, the auth equivalent of what Testcontainers does for
-  Postgres (§5).
-- **Isolation test suite** — for every tenant-scoped entity, prove a `ClientAdmin` for client A
-  cannot read, update, or delete client B's row. Table-driven over the entity list, so a new entity
-  without a filter fails the build rather than shipping a leak.
-- Capture the generated SQL for the top read paths in a test and assert `client_id` appears as a
-  plain equality predicate — this is what stops the sargability regression from creeping back.
+**Application-code portion closed 2026-07-24** — everything that doesn't require a live Cognito
+pool, built and verified against the fake JWT-bearer test handler exactly as the sequencing note
+below anticipated:
 
-**Practical sequencing note:** everything except the first bullet can be built and fully tested
-(via the fake JWT handler) without a live Cognito pool — so implementation starts there, with real
-Cognito Terraform following once AWS credentials are available, matching how `DEPLOY_PLAN.md`
-already sequenced the RDS/App Runner bootstrapping problem.
+- [x] `AppUser` entity (`CognitoSub` PK, `ClientId`, `EmployeeId`, `Role`) as a `DbSet` on
+      `PayrollDbContext`, seeded a placeholder `SystemAdmin`. No EF Identity package, no separate
+      `DbContext`.
+- [x] `Microsoft.AspNetCore.Authentication.JwtBearer` wired against Cognito's JWKS endpoint (config
+      is a placeholder — see below); authorization written against **policies and claims**
+      (`client_id`, `role`) via `AuthorizationPolicies`, never against "is there a cookie."
+      `RequireAuthorization()` applied to every endpoint; Client list/create is SystemAdmin-only
+      through a dedicated policy + `IgnoreQueryFilters()` at that one legitimately cross-tenant call
+      site (§5's SystemAdmin-scoping decision).
+- [x] `_tenantClientId` resolved from the validated JWT's `client_id` claim via
+      `ITenantContextAccessor`/`HttpContextTenantContextAccessor` — **activates the dormant filters (J)**.
+- [x] **Tenant filters reworked**: the `_tenantClientId == null ||` escape hatch is gone everywhere
+      (Client/Employee/Position/PayRule/DifferentialRule/HolidayCalendar/ClientPremiumPolicy/AppUser);
+      filters added to `punches`/`punch_audits`/`pay_rule_assignments` (previously missing
+      entirely); `employee_position_assignments` switched from filtering via the `Position`
+      navigation to its own `ClientId` column. An unfiltered context now sees nothing, not
+      everything — fail closed.
+- [x] `CreatedBy` dropped from `CreateClientRequest`/`CreatePunchRequest` — sourced from the
+      authenticated principal's `sub` claim instead.
+- [x] **`POST /users` provisioning endpoint** — `UserProvisioningService` calls
+      `ICognitoUserProvisioner.CreateUserAsync` (real implementation: `AdminCreateUser` via
+      `AWSSDK.CognitoIdentityProvider`) then inserts the local `AppUser` row; on a `DbUpdateException`
+      from the local write, best-effort compensates with `AdminDeleteUser` before rethrowing — no
+      saga/outbox, so a compensation failure leaves an orphaned Cognito user needing manual cleanup,
+      flagged in the code rather than silently assumed away. `ClientAdmin` can only target their own
+      `ClientId`; `SystemAdmin` can target any (bootstrapping a new client's first `ClientAdmin` is
+      the same cross-tenant exception Client creation gets).
+- [x] **Fake JWT-bearer test-authentication handler** (`TestAuthHandler`) — mints trusted test claims
+      from request headers, no real Cognito pool needed. `FakeCognitoUserProvisioner` does the same
+      for the user-provisioning endpoint. All 22 pre-existing integration tests retrofitted to
+      authenticate via `ApiFixture.CreateAuthenticatedClient`/`CreateClientAndScopedClientAsync`.
+- [x] **Isolation test suite** (`TenantIsolationTests.cs`) — table-driven proof that all 12
+      tenant-scoped entities are invisible cross-tenant, run directly against `PayrollDbContext`
+      (not just through HTTP) so it also covers entities with no CRUD endpoint yet.
+- [x] Generated-SQL sargability check on `punches`/`employees` — asserts `client_id` appears as a
+      plain equality predicate, no `OR`.
+
+**Found and fixed a real bug along the way, not just a test-infra wrinkle:** `Program.cs` was
+capturing the `PayrollDb` connection string into a local variable *before* calling `AddDbContext`,
+which silently defeated `WebApplicationFactory`'s Testcontainers override in
+`TimeCalculation.Api.Tests` — every integration test in the project had been running against local
+dev Postgres, not the isolated ephemeral instance `ApiFixture`'s own doc comment promised. The new,
+more rigorous isolation tests were the first thing sensitive enough to expose it (they build a
+`DbContext` directly from the Testcontainers connection string, bypassing DI, and saw an empty
+database while the DI-resolved context serving every other test was quietly talking to local dev).
+Fixed by reading the connection string lazily inside the `AddDbContext` callback — the standard fix
+for this well-known `WebApplicationFactory` gotcha.
+
+**Still open, blocked on the user's AWS credentials (same as `DEPLOY_PLAN.md` §4):**
+- Terraform: Cognito User Pool + App Client (per environment), added to `infra/` alongside
+  `DEPLOY_PLAN.md`'s other modules — Lite tier, custom attributes for `client_id`/`role`, no client
+  secret (SPA app client). No `infra/` directory exists yet; nothing has been `terraform apply`'d.
+- Once a real pool exists: replace the `appsettings.Development.json` placeholders
+  (`Cognito:Authority`, `Cognito:UserPoolClientId`, `Cognito:UserPoolId`, `Cognito:Region`) with real
+  values, and verify `CognitoUserProvisioner`/the JwtBearer scheme actually work end-to-end — both
+  are code-complete but unverified against a live pool.
 
 ### Phase 2 — Frontend foundation
 Scaffold, codegen pipeline, app shell + nav, login/logout, route guards, and **Clients CRUD

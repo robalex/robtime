@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using Amazon;
+using Amazon.CognitoIdentityProvider;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -89,6 +91,20 @@ builder.Services
     });
 builder.Services.AddAuthorizationBuilder().AddRolePolicies();
 
+// AWS SDK clients are thread-safe and meant to be long-lived, so Singleton. The region is read here
+// (not left to the SDK's own fallback chain) specifically so construction never throws for a missing
+// region at startup — the exact class of eager-external-check failure the OpenAPI build-time doc
+// generation mistake already taught this project to avoid. Credential resolution stays lazy (the AWS
+// default credential chain, resolved per call), so this is still safe to construct with no real AWS
+// credentials in this environment; it just means no call through it will succeed yet.
+builder.Services.AddSingleton<IAmazonCognitoIdentityProvider>(sp =>
+{
+    var region = sp.GetRequiredService<IConfiguration>()["Cognito:Region"] ?? "us-east-1";
+    return new AmazonCognitoIdentityProviderClient(RegionEndpoint.GetBySystemName(region));
+});
+builder.Services.AddScoped<ICognitoUserProvisioner, CognitoUserProvisioner>();
+builder.Services.AddScoped<UserProvisioningService>();
+
 // Endpoints depend on these, never on PayrollDbContext directly (see CLAUDE.md's Code Style rules —
 // no business logic or DB access in endpoints). Scoped to match PayrollDbContext's own lifetime.
 builder.Services.AddScoped<ClientService>();
@@ -146,9 +162,6 @@ else
 }
 
 // Unconditional (not just Development) — Production needs authenticated requests validated too.
-// Not yet applied to any endpoint via .RequireAuthorization(): UI_PLAN.md Phase 1's sequencing note
-// calls out that flipping enforcement on has to land together with retrofitting the existing
-// integration tests to authenticate, not as a partial step that leaves them broken.
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -158,6 +171,7 @@ app.MapPositionEndpoints();
 app.MapPayRuleEndpoints();
 app.MapPunchEndpoints();
 app.MapMetadataEndpoints();
+app.MapUserEndpoints();
 
 app.Run();
 

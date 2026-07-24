@@ -56,6 +56,10 @@ infra/
     api/                       # App Runner service, VPC connector, ECR repo, IAM roles
     frontend/                  # S3 bucket (private, OAC), CloudFront distribution + path routing
     dns/                       # Route53 + ACM — created but unused until §1's domain work starts
+    identity/                  # Cognito User Pool + App Client (UI_PLAN.md §5/Phase 1) — application
+                                # code (JwtBearer, CognitoUserProvisioner) is already written against
+                                # this module's eventual outputs; not created yet, same AWS-credential
+                                # bootstrapping problem as everything else in this file (§4)
 ```
 
 ---

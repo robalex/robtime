@@ -6,6 +6,7 @@ public enum ServiceResultKind
     ValidationFailed,
     NotFound,
     Conflict,
+    Forbidden,
 }
 
 /// <summary>
@@ -36,4 +37,7 @@ public sealed record ServiceResult<T>
 
     public static ServiceResult<T> Conflict(string detail) =>
         new() { Kind = ServiceResultKind.Conflict, Detail = detail };
+
+    public static ServiceResult<T> Forbidden(string detail) =>
+        new() { Kind = ServiceResultKind.Forbidden, Detail = detail };
 }

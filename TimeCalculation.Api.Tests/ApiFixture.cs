@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
+using TimeCalculation.Api.Auth;
 using TimeCalculation.Api.Contracts;
 using TimeCalculation.Model;
 using TimeCalculation.Persistence;
@@ -72,6 +73,10 @@ public sealed class ApiFixture : IAsyncLifetime
                 // there's no Testcontainers-equivalent to spin up a real Cognito pool instead.
                 services.AddAuthentication(TestAuthHandler.SchemeName)
                     .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
+
+                // Replaces the real CognitoUserProvisioner (which needs an actual AWS User Pool) for
+                // the whole test host — see FakeCognitoUserProvisioner's own doc comment.
+                services.AddScoped<ICognitoUserProvisioner, FakeCognitoUserProvisioner>();
             });
         });
 
