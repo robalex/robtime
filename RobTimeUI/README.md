@@ -14,6 +14,43 @@ The dev server proxies `/api/*` to the local API at `http://localhost:53534` (st
 prefix), so the SPA and API are same-origin in dev — see `vite.config.ts`. Run the API separately
 (`dotnet run` in `../TimeCalculation.Api`, which listens on that port per its `launchSettings.json`).
 
+## Local configuration (fill these in yourself)
+
+Real Cognito identifiers are deliberately **not** in the repo. Both files below are gitignored, so
+values you put in them stay on your machine.
+
+**1. Frontend — `RobTimeUI/.env.local`**
+
+```bash
+cp .env.example .env.local     # then edit
+```
+
+| Variable | Where to find it in the AWS console |
+|---|---|
+| `VITE_COGNITO_DOMAIN` | Cognito → your pool → **Applications → Domain**. Host only: `your-prefix.auth.us-east-1.amazoncognito.com` (no `https://`, no trailing slash). |
+| `VITE_COGNITO_CLIENT_ID` | **Applications → App clients → Client ID** |
+
+**2. API — .NET user secrets** (stored in your user profile, not the repo):
+
+```bash
+cd TimeCalculation.Api
+dotnet user-secrets set "Cognito:Region" "us-east-1"
+dotnet user-secrets set "Cognito:UserPoolId" "us-east-1_XXXXXXXXX"
+dotnet user-secrets set "Cognito:UserPoolClientId" "your-app-client-id"
+dotnet user-secrets set "Cognito:Authority" "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXXXXXXX"
+```
+
+`appsettings.Development.json` is committed and holds placeholders only; user secrets override it.
+
+**3. Register the callback URL** on the app client, or Cognito will refuse the redirect:
+`http://localhost:5173/auth/callback`, plus sign-out URL `http://localhost:5173/`.
+
+**4. Create your first user.** Since self-registration is disabled, add one in the Cognito console
+(**Users → Create user**) and set its custom attributes — `custom:role` = `SystemAdmin`. That account
+can then provision everyone else through `POST /users`. On first sign-in it will show "Account not
+set up" until an `AppUser` row exists for its `sub`; that's expected and reported deliberately rather
+than failing silently.
+
 ## The API contract (.NET → TypeScript)
 
 Types are generated from the API's OpenAPI document; the client is a thin typed `openapi-fetch`

@@ -4,6 +4,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Real Cognito identifiers (pool id, app client id) are supplied via `dotnet user-secrets`,
+         which stores them in the user profile rather than the repo — appsettings.Development.json is
+         committed, so it keeps placeholders only. See TimeCalculation.Persistence/README.md and the
+         Cognito block in appsettings.Development.json. -->
+    <UserSecretsId>robtime-api-dev</UserSecretsId>
     <!-- Emits openapi/v1.json (distinct from the runtime /openapi/v1.json endpoint MapOpenApi()
          already serves) — this is the file RobTimeUI's TypeScript codegen pipeline will read from
          (see UI_PLAN.md §3). Deliberately NOT generated on every build: doing so boots Program.cs's

@@ -18,10 +18,12 @@ public static class UserEndpoints
     private static async Task<Results<Created<UserResponse>, ValidationProblem, ProblemHttpResult>> CreateUser(
         CreateUserRequest request, ClaimsPrincipal user, UserProvisioningService service, CancellationToken ct)
     {
-        var callerRole = Enum.Parse<AppRole>(user.FindFirst(TenantClaimTypes.Role)!.Value);
-        var callerClientId = user.FindFirst(TenantClaimTypes.ClientId) is { } claim ? int.Parse(claim.Value) : (int?)null;
-
-        var result = await service.CreateAsync(request, callerRole, callerClientId, ct);
+        // The ClientAdmin policy on this route guarantees a parseable custom:role claim, so the
+        // null-coalesce below is unreachable in practice — but CallerIdentity models the claim as
+        // optional (see its doc comment) rather than asserting it, so this states the fallback
+        // explicitly instead of relying on a null-forgiving `!`.
+        var caller = CallerIdentity.FromPrincipal(user);
+        var result = await service.CreateAsync(request, caller.Role ?? AppRole.Employee, caller.ClientId, ct);
         return result.Kind switch
         {
             ServiceResultKind.Success => TypedResults.Created(

@@ -12,4 +12,7 @@ public static class TenantClaimTypes
     public const string ClientId = "custom:client_id";
     public const string Role = "custom:role";
     public const string Sub = "sub";
+
+    /// <summary>Standard OIDC claim, present because email is the pool's sign-in identifier.</summary>
+    public const string Email = "email";
 }
