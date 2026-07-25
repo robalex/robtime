@@ -3,6 +3,7 @@ using Amazon;
 using Amazon.CognitoIdentityProvider;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
 using NodaTime;
 using NodaTime.Serialization.SystemTextJson;
 using TimeCalculation.Api;
@@ -128,7 +129,43 @@ builder.Services.AddScoped<CurrentUserService>();
 builder.Services.AddSingleton<PremiumMetadataService>();
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    // .NET's schema generator documents every number as `"type": ["integer"|"number", "string"]`
+    // with a numeric pattern — permissive enough to cover a JSON number OR a numeric string. This
+    // API does neither: System.Text.Json here uses default number handling (no
+    // AllowReadingFromString), so it only accepts real JSON numbers and only ever emits them. Left
+    // alone, the union propagates into the generated TypeScript as `number | string` on EVERY
+    // numeric field — including every wage, rate, and hours quantity in the payroll model — forcing
+    // a coercion at each read site in the UI forever. Narrowing it here makes the document match
+    // actual behaviour and keeps the generated client honest.
+    //
+    // Deliberately scoped to the numeric+string union: a schema that is genuinely just "string"
+    // (or a real union we meant) is untouched. Query-string parameters keep their own union, which
+    // is correct — those really do arrive as text.
+    options.AddSchemaTransformer((schema, _, _) =>
+    {
+        if (schema.Type is { } type && type.HasFlag(JsonSchemaType.String))
+        {
+            if (type.HasFlag(JsonSchemaType.Integer))
+            {
+                schema.Type = type.HasFlag(JsonSchemaType.Null)
+                    ? JsonSchemaType.Integer | JsonSchemaType.Null
+                    : JsonSchemaType.Integer;
+                schema.Pattern = null;
+            }
+            else if (type.HasFlag(JsonSchemaType.Number))
+            {
+                schema.Type = type.HasFlag(JsonSchemaType.Null)
+                    ? JsonSchemaType.Number | JsonSchemaType.Null
+                    : JsonSchemaType.Number;
+                schema.Pattern = null;
+            }
+        }
+
+        return Task.CompletedTask;
+    });
+});
 
 // Vite's default dev server port. RobTimeUI doesn't exist yet, so there's no real deployed origin
 // to allow — production serves the SPA same-origin behind CloudFront, which needs no CORS policy at

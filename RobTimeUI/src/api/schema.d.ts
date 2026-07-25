@@ -206,7 +206,7 @@ export interface components {
         BonusKind: "Discretionary" | "NonDiscretionary" | null;
         ClientResponse: {
             /** Format: int32 */
-            id: number | string;
+            id: number;
             name: string;
             createdBy: string;
             /** Format: date-time */
@@ -217,74 +217,74 @@ export interface components {
         };
         CreateEmployeeRequest: {
             /** Format: int32 */
-            clientId: number | string;
+            clientId: number;
             firstName: string;
             middleName?: null | string;
             lastName: string;
             salutation?: null | string;
             postNominalLetters?: null | string;
             /** Format: double */
-            minimumWage: number | string;
+            minimumWage: number;
             homeTimeZoneId?: null | string;
             state?: null | string;
         };
         CreatePayRuleRequest: {
             /** Format: int32 */
-            clientId: number | string;
+            clientId: number;
             name: string;
             description?: null | string;
             templateCode?: null | string;
             /** Format: int32 */
-            templateVersion?: null | number | string;
+            templateVersion?: null | number;
             /** Format: double */
-            punchPairResetHours?: null | number | string;
+            punchPairResetHours?: null | number;
             /** Format: double */
-            maxShiftLengthHours?: null | number | string;
+            maxShiftLengthHours?: null | number;
             /** Format: double */
-            distanceBetweenShiftsHours?: null | number | string;
+            distanceBetweenShiftsHours?: null | number;
             /** Format: int32 */
-            expectedBreakLengthMinutes?: null | number | string;
+            expectedBreakLengthMinutes?: null | number;
             /** Format: int32 */
-            expectedLunchLengthMinutes?: null | number | string;
+            expectedLunchLengthMinutes?: null | number;
             roundingStrategy?: null | components["schemas"]["RoundingStrategy"];
             /** Format: int32 */
-            roundingIntervalMinutes?: null | number | string;
+            roundingIntervalMinutes?: null | number;
             /** Format: int32 */
-            roundingGraceMinutes?: null | number | string;
+            roundingGraceMinutes?: null | number;
             shiftDateStrategy?: null | components["schemas"]["ShiftDateStrategy"];
             workweekStartDay?: null | components["schemas"]["IsoDayOfWeek"];
             activePremiumCodes?: null | string[];
             activeDifferentialCodes?: null | string[];
             /** Format: double */
-            weeklyOvertimeThresholdHours?: null | number | string;
+            weeklyOvertimeThresholdHours?: null | number;
             hasDailyOvertime?: null | boolean;
             /** Format: double */
-            dailyOvertimeThresholdHours?: null | number | string;
+            dailyOvertimeThresholdHours?: null | number;
             /** Format: double */
-            dailyDoubletimeThresholdHours?: null | number | string;
+            dailyDoubletimeThresholdHours?: null | number;
             hasSeventhDayRule?: null | boolean;
         };
         CreatePositionRequest: {
             /** Format: int32 */
-            clientId: number | string;
+            clientId: number;
             code: string;
             name: string;
             /** Format: double */
-            baseRate: number | string;
+            baseRate: number;
         };
         CreatePunchRequest: {
             /** Format: int32 */
-            employeeId: number | string;
+            employeeId: number;
             punchTime: components["schemas"]["Instant"];
             punchTimeZoneId?: null | string;
             kind: components["schemas"]["PunchKind"];
             subtype?: null | components["schemas"]["PunchSubtype"];
             /** Format: int32 */
-            positionId?: null | number | string;
+            positionId?: null | number;
             /** Format: double */
-            amount?: null | number | string;
+            amount?: null | number;
             /** Format: double */
-            hours?: null | number | string;
+            hours?: null | number;
             bonusKind?: null | components["schemas"]["BonusKind"];
             countsTowardRegularRate?: boolean;
             deviceId?: null | string;
@@ -293,40 +293,40 @@ export interface components {
         CreateUserRequest: {
             email: string;
             /** Format: int32 */
-            clientId?: null | number | string;
+            clientId?: null | number;
             /** Format: int32 */
-            employeeId?: null | number | string;
+            employeeId?: null | number;
             displayName: string;
             role: components["schemas"]["AppRole"];
         };
         Employee: {
             /** Format: int32 */
-            id?: number | string;
+            id?: number;
             /** Format: int32 */
-            clientId?: number | string;
+            clientId?: number;
             firstName?: string;
             middleName?: string;
             lastName?: string;
             salutation?: string;
             postNominalLetters?: string;
             /** Format: double */
-            minimumWage?: number | string;
+            minimumWage?: number;
             homeTimeZoneId?: string;
             state?: string;
             isDeleted?: boolean;
         };
         EmployeeResponse: {
             /** Format: int32 */
-            id: number | string;
+            id: number;
             /** Format: int32 */
-            clientId: number | string;
+            clientId: number;
             firstName: string;
             middleName: string;
             lastName: string;
             salutation: string;
             postNominalLetters: string;
             /** Format: double */
-            minimumWage: number | string;
+            minimumWage: number;
             homeTimeZoneId: string;
             state: string;
         };
@@ -334,7 +334,7 @@ export interface components {
             type?: null | string;
             title?: null | string;
             /** Format: int32 */
-            status?: null | number | string;
+            status?: null | number;
             detail?: null | string;
             instance?: null | string;
             errors?: {
@@ -349,135 +349,135 @@ export interface components {
             cognitoSub: string;
             email?: null | string;
             /** Format: int32 */
-            clientId?: null | number | string;
+            clientId?: null | number;
             role?: null | components["schemas"]["AppRole"];
             /** Format: int32 */
-            employeeId?: null | number | string;
+            employeeId?: null | number;
             displayName?: null | string;
             isProvisioned: boolean;
         };
         PagedResultOfClientResponse: {
             items: components["schemas"]["ClientResponse"][];
             /** Format: int32 */
-            totalCount: number | string;
+            totalCount: number;
             /** Format: int32 */
-            page: number | string;
+            page: number;
             /** Format: int32 */
-            pageSize: number | string;
+            pageSize: number;
         };
         PagedResultOfEmployeeResponse: {
             items: components["schemas"]["EmployeeResponse"][];
             /** Format: int32 */
-            totalCount: number | string;
+            totalCount: number;
             /** Format: int32 */
-            page: number | string;
+            page: number;
             /** Format: int32 */
-            pageSize: number | string;
+            pageSize: number;
         };
         PagedResultOfPayRuleResponse: {
             items: components["schemas"]["PayRuleResponse"][];
             /** Format: int32 */
-            totalCount: number | string;
+            totalCount: number;
             /** Format: int32 */
-            page: number | string;
+            page: number;
             /** Format: int32 */
-            pageSize: number | string;
+            pageSize: number;
         };
         PagedResultOfPositionResponse: {
             items: components["schemas"]["PositionResponse"][];
             /** Format: int32 */
-            totalCount: number | string;
+            totalCount: number;
             /** Format: int32 */
-            page: number | string;
+            page: number;
             /** Format: int32 */
-            pageSize: number | string;
+            pageSize: number;
         };
         PayRuleResponse: {
             /** Format: int32 */
-            id: number | string;
+            id: number;
             /** Format: int32 */
-            clientId: number | string;
+            clientId: number;
             name: string;
             description?: null | string;
             templateCode?: null | string;
             /** Format: int32 */
-            templateVersion?: null | number | string;
+            templateVersion?: null | number;
             /** Format: int32 */
-            ruleFamilyId: number | string;
+            ruleFamilyId: number;
             /** Format: int32 */
-            version: number | string;
+            version: number;
             status: components["schemas"]["PayRuleStatus"];
             effectiveFrom?: null | components["schemas"]["LocalDate"];
             effectiveTo?: null | components["schemas"]["LocalDate"];
             /** Format: double */
-            punchPairResetHours: number | string;
+            punchPairResetHours: number;
             /** Format: double */
-            maxShiftLengthHours: number | string;
+            maxShiftLengthHours: number;
             /** Format: double */
-            distanceBetweenShiftsHours: number | string;
+            distanceBetweenShiftsHours: number;
             /** Format: int32 */
-            expectedBreakLengthMinutes: number | string;
+            expectedBreakLengthMinutes: number;
             /** Format: int32 */
-            expectedLunchLengthMinutes: number | string;
+            expectedLunchLengthMinutes: number;
             roundingStrategy: components["schemas"]["RoundingStrategy"];
             /** Format: int32 */
-            roundingIntervalMinutes: number | string;
+            roundingIntervalMinutes: number;
             /** Format: int32 */
-            roundingGraceMinutes: number | string;
+            roundingGraceMinutes: number;
             shiftDateStrategy: components["schemas"]["ShiftDateStrategy"];
             workweekStartDay: components["schemas"]["IsoDayOfWeek"];
             activePremiumCodes: string[];
             activeDifferentialCodes: string[];
             /** Format: double */
-            weeklyOvertimeThresholdHours: number | string;
+            weeklyOvertimeThresholdHours: number;
             hasDailyOvertime: boolean;
             /** Format: double */
-            dailyOvertimeThresholdHours: number | string;
+            dailyOvertimeThresholdHours: number;
             /** Format: double */
-            dailyDoubletimeThresholdHours: number | string;
+            dailyDoubletimeThresholdHours: number;
             hasSeventhDayRule: boolean;
         };
         /** @enum {unknown} */
         PayRuleStatus: "Draft" | "Active" | "Superseded";
         Position: {
             /** Format: int32 */
-            id?: number | string;
+            id?: number;
             /** Format: int32 */
-            clientId?: number | string;
+            clientId?: number;
             code?: string;
             name?: string;
             /** Format: double */
-            baseRate?: number | string;
+            baseRate?: number;
             isDeleted?: boolean;
         };
         PositionResponse: {
             /** Format: int32 */
-            id: number | string;
+            id: number;
             /** Format: int32 */
-            clientId: number | string;
+            clientId: number;
             code: string;
             name: string;
             /** Format: double */
-            baseRate: number | string;
+            baseRate: number;
         };
         Punch: {
             /** Format: int32 */
-            id?: number | string;
+            id?: number;
             /** Format: int32 */
-            clientId?: number | string;
+            clientId?: number;
             /** Format: int32 */
-            employeeId?: number | string;
+            employeeId?: number;
             punchTime?: components["schemas"]["Instant"];
             roundedPunchTime?: null | components["schemas"]["Instant"];
             punchTimeZoneId?: string;
             kind?: components["schemas"]["PunchKind"];
             subtype?: null | components["schemas"]["PunchSubtype"];
             /** Format: int32 */
-            positionId?: null | number | string;
+            positionId?: null | number;
             /** Format: double */
-            amount?: null | number | string;
+            amount?: null | number;
             /** Format: double */
-            hours?: null | number | string;
+            hours?: null | number;
             bonusKind?: null | components["schemas"]["BonusKind"];
             countsTowardRegularRate?: boolean;
             createdAt?: components["schemas"]["Instant"];
@@ -509,7 +509,7 @@ export interface components {
             salutation?: null | string;
             postNominalLetters?: null | string;
             /** Format: double */
-            minimumWage: number | string;
+            minimumWage: number;
             homeTimeZoneId?: null | string;
             state?: null | string;
         };
@@ -518,47 +518,47 @@ export interface components {
             description?: null | string;
             templateCode?: null | string;
             /** Format: int32 */
-            templateVersion?: null | number | string;
+            templateVersion?: null | number;
             /** Format: double */
-            punchPairResetHours?: null | number | string;
+            punchPairResetHours?: null | number;
             /** Format: double */
-            maxShiftLengthHours?: null | number | string;
+            maxShiftLengthHours?: null | number;
             /** Format: double */
-            distanceBetweenShiftsHours?: null | number | string;
+            distanceBetweenShiftsHours?: null | number;
             /** Format: int32 */
-            expectedBreakLengthMinutes?: null | number | string;
+            expectedBreakLengthMinutes?: null | number;
             /** Format: int32 */
-            expectedLunchLengthMinutes?: null | number | string;
+            expectedLunchLengthMinutes?: null | number;
             roundingStrategy?: null | components["schemas"]["RoundingStrategy"];
             /** Format: int32 */
-            roundingIntervalMinutes?: null | number | string;
+            roundingIntervalMinutes?: null | number;
             /** Format: int32 */
-            roundingGraceMinutes?: null | number | string;
+            roundingGraceMinutes?: null | number;
             shiftDateStrategy?: null | components["schemas"]["ShiftDateStrategy"];
             workweekStartDay?: null | components["schemas"]["IsoDayOfWeek"];
             activePremiumCodes?: null | string[];
             activeDifferentialCodes?: null | string[];
             /** Format: double */
-            weeklyOvertimeThresholdHours?: null | number | string;
+            weeklyOvertimeThresholdHours?: null | number;
             hasDailyOvertime?: null | boolean;
             /** Format: double */
-            dailyOvertimeThresholdHours?: null | number | string;
+            dailyOvertimeThresholdHours?: null | number;
             /** Format: double */
-            dailyDoubletimeThresholdHours?: null | number | string;
+            dailyDoubletimeThresholdHours?: null | number;
             hasSeventhDayRule?: null | boolean;
         };
         UpdatePositionRequest: {
             code: string;
             name: string;
             /** Format: double */
-            baseRate: number | string;
+            baseRate: number;
         };
         UserResponse: {
             cognitoSub: string;
             /** Format: int32 */
-            clientId?: null | number | string;
+            clientId?: null | number;
             /** Format: int32 */
-            employeeId?: null | number | string;
+            employeeId?: null | number;
             displayName: string;
             role: components["schemas"]["AppRole"];
         };
@@ -575,8 +575,8 @@ export interface operations {
         parameters: {
             query?: {
                 search?: string;
-                Page?: number | string;
-                PageSize?: number | string;
+                Page?: number;
+                PageSize?: number;
             };
             header?: never;
             path?: never;
@@ -708,10 +708,10 @@ export interface operations {
     ListEmployees: {
         parameters: {
             query: {
-                clientId: number | string;
+                clientId: number;
                 search?: string;
-                Page?: number | string;
-                PageSize?: number | string;
+                Page?: number;
+                PageSize?: number;
             };
             header?: never;
             path?: never;
@@ -843,10 +843,10 @@ export interface operations {
     ListPositions: {
         parameters: {
             query: {
-                clientId: number | string;
+                clientId: number;
                 search?: string;
-                Page?: number | string;
-                PageSize?: number | string;
+                Page?: number;
+                PageSize?: number;
             };
             header?: never;
             path?: never;
@@ -978,10 +978,10 @@ export interface operations {
     ListPayRules: {
         parameters: {
             query: {
-                clientId: number | string;
+                clientId: number;
                 status?: components["schemas"]["PayRuleStatus"];
-                Page?: number | string;
-                PageSize?: number | string;
+                Page?: number;
+                PageSize?: number;
             };
             header?: never;
             path?: never;
