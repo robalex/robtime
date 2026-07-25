@@ -1,14 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
 
+// Layout only — People lands on the employee list (people.index.tsx), the most-visited screen in any
+// time-and-attendance system (§6 Rule 1).
 export const Route = createFileRoute('/people')({
-  component: People,
+  component: () => <Outlet />,
 })
-
-function People() {
-  return (
-    <div className="space-y-2">
-      <h1 className="text-2xl font-semibold tracking-tight">People</h1>
-      <p className="text-muted-foreground">Employee and position management lands in Phase 3.</p>
-    </div>
-  )
-}
