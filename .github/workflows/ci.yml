@@ -87,3 +87,10 @@ jobs:
       - name: Lint
         run: npm run lint
         working-directory: RobTimeUI
+
+      # Deliberately no Playwright job here. Those tests drive a real Cognito login rather than a
+      # mocked one (the alternative would ship an auth bypass in the app), so they need real
+      # credentials and a reachable user pool. Running them means adding E2E_EMAIL/E2E_PASSWORD as
+      # repository secrets plus a browser-install step — worth doing once there's a dedicated test
+      # account and a staging pool, but a job that silently skips when secrets are absent would
+      # report green while testing nothing. See RobTimeUI/README.md "End-to-end tests".

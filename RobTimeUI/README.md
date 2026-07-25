@@ -84,6 +84,36 @@ npm run gen:api
 breaks the UI's types is a red build on the API's own PR, not a runtime surprise. The intermediate
 `openapi/*.json` is a build artifact and gitignored.
 
+## End-to-end tests
+
+Playwright drives the **real** stack — real API, real Postgres, real Cognito login. Nothing is
+stubbed.
+
+```bash
+cp .env.e2e.example .env.e2e     # then fill in a test account's credentials
+npm run e2e                       # or: npm run e2e:ui  for the interactive runner
+```
+
+`playwright.config.ts` starts both the API and the Vite dev server, reusing them if they're already
+running, so this works alongside a normal dev session.
+
+**Why real auth instead of a mock.** The alternative is a test-only auth bypass in the app, and a
+bypass that exists in the binary is exactly the sort of thing that eventually gets enabled somewhere
+it shouldn't. The cost is that these tests need credentials and a reachable pool, so **they are not
+part of the default CI job** — they're a local gate for now. To run them in CI later, supply
+`E2E_EMAIL`/`E2E_PASSWORD` as repository secrets and add a job that installs Playwright browsers.
+
+Two consequences worth knowing:
+
+- **Playwright's usual `storageState` login-once trick doesn't apply here.** Tokens live in memory
+  only (`UI_PLAN.md` §5), so there's nothing in storage to save and replay — each test signs in.
+  Cognito's own session cookie keeps repeat logins within a run cheap.
+- **Tests write to whatever database the API points at.** They create and delete real client records,
+  so use a dedicated test account and don't point them at anything precious.
+
+Missing credentials fail loudly rather than skipping — a skipped auth test reports green while
+testing nothing.
+
 ## Scripts
 
 | Script | What |
@@ -94,3 +124,5 @@ breaks the UI's types is a red build on the API's own PR, not a runtime surprise
 | `lint` | oxlint |
 | `gen:api` | regenerate `src/api/schema.d.ts` from the OpenAPI doc |
 | `gen:routes` | regenerate `src/routeTree.gen.ts` (gitignored; also auto-run by build/dev) |
+| `e2e` | Playwright end-to-end tests (needs `.env.e2e` — see above) |
+| `e2e:ui` | the same tests in Playwright's interactive UI mode |
