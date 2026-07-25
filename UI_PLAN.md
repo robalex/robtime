@@ -227,6 +227,61 @@ Cross-client aggregate dashboards/reports are wanted eventually but are a distin
 — see §11 — not a `SystemAdmin` permission. When they land, build them as an explicit reporting path
 (`IgnoreQueryFilters` behind its own audited endpoint), not as a loosening of the per-request filter.
 
+#### How the selection actually travels (planned 2026-07-25, not yet built)
+
+The decision above says a `SystemAdmin` session "carries whatever `ClientId` they've currently
+selected" — this is the missing mechanism. Surfaced concretely when the Clients UI landed: because
+the `Client` tenant filter is `c.Id == _tenantClientId` and a `SystemAdmin` carries no
+`custom:client_id` claim, every by-id read 404'd for them (fixed by an explicit `VisibleTo` bypass in
+`ClientService`, but that only papers over `Client` itself — the same hole reopens for *every* entity
+the moment a `SystemAdmin` needs to manage one, which is Phase 3).
+
+**The selection is a request header, not a claim.** `X-RobTime-Client-Id`, attached by the same
+openapi-fetch middleware that attaches the bearer token. `HttpContextTenantContextAccessor` resolves
+`_tenantClientId` as: *if the role claim is `SystemAdmin`, read the header; otherwise read
+`custom:client_id`, always.*
+
+**The security property, stated so it can be tested:** a non-`SystemAdmin`'s header is ignored
+outright — never merged with the claim, never a fallback when the claim is absent. Without that rule
+this is a one-header cross-tenant read for any authenticated user, so it needs a test that a
+`ClientAdmin` sending another client's id still sees nothing. A `SystemAdmin` with no selection
+resolves to null and sees nothing — fail closed, same as today.
+
+Rejected alternatives, and why:
+- **Update the `custom:client_id` claim on switch.** Needs an `AdminUpdateUserAttributes` call plus a
+  token refresh per switch, and conflates identity (whose client am I?) with transient session state
+  (which client am I looking at?). `AppUser.ClientId` stays null for a `SystemAdmin` for the same
+  reason — selection is not identity.
+- **Server-side "current selection" per user.** A write on every switch, a read on every request, and
+  it makes the selection follow you across devices — the opposite of useful.
+- **A `/c/:clientId/...` URL segment.** Genuinely the strongest option on the merits: explicit,
+  linkable, back-button-correct, and the client id lands in the query key so cache separation is
+  automatic. Rejected because it restructures the entire route tree and puts a redundant id in front
+  of `ClientAdmin`s, who are the overwhelming majority of users. Worth revisiting if deep-linking
+  across tenants ever becomes a real workflow.
+
+**Consequences to handle when building it:**
+- **Switching clients must clear the query cache** (`queryClient.clear()`). Every cached list is
+  tenant-scoped; keeping the cache across a switch renders one client's data while scoped to another
+  — a cross-tenant leak in the UI even though the API behaved correctly.
+- **Selection lives in `sessionStorage`**, per tab, so two tabs can be scoped to different clients
+  (genuinely useful for a `SystemAdmin` comparing configurations) — and so it can't outlive the tab.
+- **`GET /me` should return the effective client** (id + name). The UI needs it to show current scope,
+  and it's the only way to distinguish "nothing here yet" from "your selection points at a client
+  that was deleted" — otherwise a stale selection silently renders empty screens everywhere.
+- **`ClientService.VisibleTo`'s bypass narrows to List and Create.** Those are inherently
+  pre-selection (listing clients is *how* you choose one). With a selection in hand,
+  `GET /clients/{id}` works through the ordinary filter, so the special case shrinks rather than
+  spreading.
+- **Creating a client auto-selects it**, which is what the current create-then-navigate flow already
+  assumes.
+- **`TestAuthHandler` needs header support** so the isolation suite can cover both the permitted and
+  the spoofed case.
+
+**Sequencing: build this before Phase 3.** Phase 3 is where a `SystemAdmin` first needs to manage
+employees inside a client, and every entity screen written before the selector exists would need
+revisiting after it.
+
 **Supervisor wage visibility (decided 2026-07-22):** `Supervisor` sees wage rates and pay amounts.
 Anticipate a second, more restricted tier later (a `Supervisor` who approves punches without seeing
 pay) — see §11. Don't build that tier speculatively now; when it's needed, it's a fifth role name
@@ -902,6 +957,17 @@ for this well-known `WebApplicationFactory` gotcha.
 Scaffold, codegen pipeline, app shell + nav, login/logout, route guards, and **Clients CRUD
 end-to-end as the reference pattern** — list, detail, form, validation, optimistic update, error
 handling. Every later feature copies this. Playwright smoke: log in, create a client, edit it, log out.
+
+### Phase 2.5 — `SystemAdmin` client selector *(prerequisite for Phase 3)*
+The mechanism §5 assumes but never specified: how a `SystemAdmin` session carries a selected
+`ClientId`. Header-based (`X-RobTime-Client-Id`), resolved in `HttpContextTenantContextAccessor`,
+with the header ignored outright for every non-`SystemAdmin` role. Client switcher in the app shell,
+selection in `sessionStorage`, query cache cleared on switch, `GET /me` returning the effective
+client. Full design, rejected alternatives, and the consequences to handle are in §5.
+
+**Why it gates Phase 3:** a `SystemAdmin` can't manage a client's employees without first being
+scoped into that client, and every entity screen built before the selector exists would need
+revisiting afterwards. The Clients UI already hit the narrow version of this bug (see §5).
 
 ### Phase 3 — People
 Employee list (server-side paged/filtered) · employee detail tabs · position CRUD ·
