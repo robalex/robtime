@@ -44,14 +44,29 @@ Three values, all from the pool's Overview page and its **Applications → App c
 The JWT authority (OIDC issuer URL) is derived from region + pool id in `Program.cs`, so there's no
 fourth value to keep in sync.
 
-**3. Register the callback URL** on the app client, or Cognito will refuse the redirect:
-`http://localhost:5173/auth/callback`, plus sign-out URL `http://localhost:5173/`.
+**3. On the app client's Login pages screen**, register the callback URL
+(`http://localhost:5173/auth/callback`) and sign-out URL (`http://localhost:5173/`), and make sure
+**OpenID Connect scopes** has `openid`, `email`, and `profile` all enabled — Cognito's default
+selection often isn't all three, and the authorize request fails outright (`invalid_scope`) if even
+one requested scope isn't permitted.
 
-**4. Create your first user.** Since self-registration is disabled, add one in the Cognito console
-(**Users → Create user**) and set its custom attributes — `custom:role` = `SystemAdmin`. That account
-can then provision everyone else through `POST /users`. On first sign-in it will show "Account not
-set up" until an `AppUser` row exists for its `sub`; that's expected and reported deliberately rather
-than failing silently.
+**4. Create your first user** in the Cognito console (**Users → Create user**) with self-registration
+disabled. Signing in will show "Account not set up" until an `AppUser` row exists for its `sub` —
+expected, reported deliberately rather than failing silently. Fix it with:
+
+```bash
+cd TimeCalculation.Api
+ASPNETCORE_ENVIRONMENT=Development dotnet run -- --bootstrap-admin you@example.com
+```
+
+This solves the actual chicken-and-egg problem: `POST /users` needs an already-authorized caller,
+but the first admin in a new environment has none yet. The command looks the user up in Cognito by
+email, sets `custom:role=SystemAdmin` if it isn't already, and creates the matching `AppUser` row —
+see `AdminBootstrapper.cs`. It needs AWS credentials that can call `cognito-idp:AdminGetUser` and
+`AdminUpdateUserAttributes` on your pool (`aws configure`, an IAM user scoped to those actions —
+**not root**, which the .NET SDK's credential chain can't consume even via `aws login`'s browser
+session). If the role attribute was already correct when you created the user, no fresh sign-in is
+needed — otherwise sign out and back in, since an already-issued token won't pick up the change.
 
 ## The API contract (.NET → TypeScript)
 

@@ -159,6 +159,30 @@ if (args.Contains("--seed"))
     return;
 }
 
+// `dotnet run -- --bootstrap-admin you@example.com` links a Cognito user (already created in the
+// console — no self-registration, see UI_PLAN.md §5) to a SystemAdmin AppUser row, breaking the
+// chicken-and-egg problem where POST /users itself requires an already-authorized caller. See
+// AdminBootstrapper's own doc comment.
+var bootstrapAdminFlagIndex = Array.IndexOf(args, "--bootstrap-admin");
+if (bootstrapAdminFlagIndex >= 0)
+{
+    var bootstrapEmail = args.ElementAtOrDefault(bootstrapAdminFlagIndex + 1);
+    if (string.IsNullOrWhiteSpace(bootstrapEmail))
+    {
+        Console.WriteLine("Usage: dotnet run -- --bootstrap-admin <email>");
+        return;
+    }
+
+    var bootstrapUserPoolId = builder.Configuration["Cognito:UserPoolId"]
+        ?? throw new InvalidOperationException("Cognito:UserPoolId is not configured.");
+
+    using var bootstrapScope = app.Services.CreateScope();
+    var bootstrapCognito = bootstrapScope.ServiceProvider.GetRequiredService<IAmazonCognitoIdentityProvider>();
+    var bootstrapDb = bootstrapScope.ServiceProvider.GetRequiredService<PayrollDbContext>();
+    await AdminBootstrapper.RunAsync(bootstrapCognito, bootstrapDb, bootstrapUserPoolId, bootstrapEmail, CancellationToken.None);
+    return;
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
