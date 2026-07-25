@@ -42,9 +42,16 @@ function EmployeeList({ clientId }: { clientId: number }) {
             {data ? `${data.totalCount} employee${data.totalCount === 1 ? '' : 's'}` : 'Employees at this client.'}
           </p>
         </div>
-        <Link to="/people/new" className={buttonVariants()}>
-          New employee
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* Positions live under People per §6's screen inventory — they're about *who does what*,
+              not client configuration, so they belong beside the employee list rather than in Setup. */}
+          <Link to="/people/positions" className={buttonVariants({ variant: 'outline' })}>
+            Positions
+          </Link>
+          <Link to="/people/new" className={buttonVariants()}>
+            New employee
+          </Link>
+        </div>
       </div>
 
       <Input
