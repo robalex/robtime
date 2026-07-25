@@ -12,8 +12,18 @@ public record MeResponse
     public required string CognitoSub { get; init; }
     public string? Email { get; init; }
 
-    /// <summary>Null for SystemAdmin, which scopes into one client at a time rather than owning one.</summary>
+    /// <summary>
+    /// The client this request was actually scoped to — a ClientAdmin's own client, or whichever
+    /// client a SystemAdmin currently has selected. Null for a SystemAdmin who hasn't selected one.
+    /// </summary>
     public int? ClientId { get; init; }
+
+    /// <summary>
+    /// Name of <see cref="ClientId"/>, or null when there's no selection *or* the selected client no
+    /// longer exists. The UI needs that distinction: without it, a selection pointing at a deleted
+    /// client renders empty screens everywhere and looks identical to "you have no data yet".
+    /// </summary>
+    public string? ClientName { get; init; }
 
     /// <summary>Null only for a Cognito user with no <c>custom:role</c> — see <see cref="IsProvisioned"/>.</summary>
     public AppRole? Role { get; init; }

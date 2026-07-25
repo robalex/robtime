@@ -350,6 +350,7 @@ export interface components {
             email?: null | string;
             /** Format: int32 */
             clientId?: null | number;
+            clientName?: null | string;
             role?: null | components["schemas"]["AppRole"];
             /** Format: int32 */
             employeeId?: null | number;

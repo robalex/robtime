@@ -3,6 +3,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { useAuth } from '@/auth/AuthProvider'
 import { useMe } from '@/auth/useMe'
+import { ClientSwitcher } from '@/features/clients/ClientSwitcher'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -93,6 +94,11 @@ function AuthenticatedLayout() {
     )
   }
 
+  // A selection pointing at a client that no longer exists (deleted, or a stale sessionStorage value
+  // from a previous environment). Without calling this out, every screen would render empty and be
+  // indistinguishable from "no data yet" — which is precisely why /me returns the resolved name.
+  const staleSelection = me?.clientId != null && me.clientName == null
+
   return (
     <div className="min-h-svh">
       <header className="border-b">
@@ -115,6 +121,9 @@ function AuthenticatedLayout() {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-3">
+            {/* Only SystemAdmin can be scoped into different clients; every other role has exactly
+                one, so a switcher would be a control with nothing to choose. */}
+            {me && me.role === 'SystemAdmin' && <ClientSwitcher me={me} />}
             <span className="text-sm text-muted-foreground">
               {me?.displayName ?? me?.email}
               {me?.role && <span className="ml-2 text-xs">({me.role})</span>}
@@ -125,6 +134,13 @@ function AuthenticatedLayout() {
           </div>
         </div>
       </header>
+      {staleSelection && (
+        <div className="border-b bg-destructive/10">
+          <p className="mx-auto max-w-6xl px-4 py-2 text-sm text-destructive">
+            The selected client no longer exists. Pick another from the Client menu above.
+          </p>
+        </div>
+      )}
       <main className="mx-auto max-w-6xl px-4 py-8">
         <Outlet />
       </main>

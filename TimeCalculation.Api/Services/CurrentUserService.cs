@@ -5,7 +5,7 @@ using TimeCalculation.Persistence;
 
 namespace TimeCalculation.Api.Services;
 
-public class CurrentUserService(PayrollDbContext db)
+public class CurrentUserService(PayrollDbContext db, ITenantContextAccessor tenant)
 {
     /// <summary>
     /// Claims are the authority for identity and authorization (they're what the tenant filters and
@@ -22,11 +22,24 @@ public class CurrentUserService(PayrollDbContext db)
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.CognitoSub == caller.CognitoSub, ct);
 
+        // The effective tenant, which for a SystemAdmin is their header selection rather than a
+        // claim — read through the same accessor the query filters use, so /me can never disagree
+        // with what the rest of the request is actually scoped to.
+        var effectiveClientId = tenant.ClientId;
+        var clientName = effectiveClientId is { } clientId
+            ? await db.Clients
+                .IgnoreQueryFilters()
+                .Where(c => c.Id == clientId && !c.IsDeleted)
+                .Select(c => c.Name)
+                .FirstOrDefaultAsync(ct)
+            : null;
+
         return new MeResponse
         {
             CognitoSub = caller.CognitoSub,
             Email = caller.Email,
-            ClientId = caller.ClientId,
+            ClientId = effectiveClientId,
+            ClientName = clientName,
             Role = caller.Role,
             EmployeeId = appUser?.EmployeeId,
             DisplayName = appUser?.DisplayName,

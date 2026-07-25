@@ -90,8 +90,13 @@ public sealed class ApiFixture : IAsyncLifetime
 
     /// <summary>A new HttpClient (same in-memory TestServer, its own header set — safe to mutate
     /// without racing other tests, unlike adding headers to a shared client) authenticated as the
-    /// given identity via TestAuthHandler.</summary>
-    public HttpClient CreateAuthenticatedClient(AppRole role, int? clientId, string sub)
+    /// given identity via TestAuthHandler.
+    ///
+    /// <paramref name="clientId"/> becomes the <c>custom:client_id</c> CLAIM. <paramref name="selectedClientId"/>
+    /// is different in kind: it's the real <c>X-RobTime-Client-Id</c> selection header a SystemAdmin's
+    /// browser would send, honoured only for that role. Keeping them separate is what lets a test
+    /// send a selection header as the wrong role and prove it's ignored.</summary>
+    public HttpClient CreateAuthenticatedClient(AppRole role, int? clientId, string sub, int? selectedClientId = null)
     {
         var client = _factory!.CreateClient();
         client.DefaultRequestHeaders.Add(TestAuthHandler.SubHeader, sub);
@@ -99,6 +104,11 @@ public sealed class ApiFixture : IAsyncLifetime
         if (clientId is not null)
         {
             client.DefaultRequestHeaders.Add(TestAuthHandler.ClientIdHeader, clientId.Value.ToString());
+        }
+
+        if (selectedClientId is not null)
+        {
+            client.DefaultRequestHeaders.Add(TenantSelection.HeaderName, selectedClientId.Value.ToString());
         }
 
         return client;

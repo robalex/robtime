@@ -73,6 +73,14 @@ public class ClientService(PayrollDbContext db, IClock clock)
     /// IgnoreQueryFilters drops the soft-delete filter along with the tenant one, so <c>!IsDeleted</c>
     /// is re-applied explicitly — dropping it would resurrect deleted clients for SystemAdmins only,
     /// which is exactly the kind of asymmetry that hides for months.
+    ///
+    /// Kept for ALL Client reads, not narrowed to List/Create once the client selector landed (§5
+    /// planned the narrower version; implementing it showed why that's wrong). Managing client
+    /// *records* is itself the cross-tenant admin surface — that's why List and Create are
+    /// SystemAdmin-only — whereas a selection scopes who you're managing the *contents* of. Narrowing
+    /// would 404 a SystemAdmin viewing client 5's record while scoped into client 3, and break
+    /// bookmarked client URLs, for no security gain: this bypass is already role-gated, applies only
+    /// to Client, and exposes nothing a SystemAdmin can't already read from the list.
     /// </summary>
     private IQueryable<Client> VisibleTo(AppRole? callerRole) =>
         callerRole == AppRole.SystemAdmin

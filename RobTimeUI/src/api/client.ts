@@ -1,5 +1,6 @@
 import createClient, { type Middleware } from 'openapi-fetch'
 import { tokenHolder } from '@/auth/AuthProvider'
+import { selectedClientHolder } from '@/auth/clientSelection'
 import type { paths } from './schema'
 
 // The generated `paths` are at root (/clients, /employees, …); baseUrl prefixes every request with
@@ -22,6 +23,15 @@ const authMiddleware: Middleware = {
     if (token) {
       request.headers.set('Authorization', `Bearer ${token}`)
     }
+
+    // A SystemAdmin's selected client (UI_PLAN.md §5). Sent unconditionally when set — the API
+    // honours it only for SystemAdmin and ignores it for every other role, so there's no need (and
+    // no way) for the client to police that itself.
+    const selectedClientId = selectedClientHolder.current
+    if (selectedClientId !== null) {
+      request.headers.set('X-RobTime-Client-Id', String(selectedClientId))
+    }
+
     return request
   },
 }
