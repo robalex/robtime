@@ -85,6 +85,50 @@ public class ClientEndpointsTests(ApiFixture fixture)
     }
 
     [Fact]
+    public async Task SystemAdmin_CanGetUpdateAndDeleteAnExistingClient()
+    {
+        // Regression test for a bug that reached the UI: the Client tenant filter is
+        // `c.Id == _tenantClientId`, and a SystemAdmin carries no custom:client_id claim by design,
+        // so every by-id read matched nothing and returned 404 — for the one role whose whole job is
+        // managing clients. The existing coverage missed it entirely because the lifecycle test runs
+        // as a ClientAdmin scoped to that exact client, and the only SystemAdmin case asserted 404
+        // for a NONEXISTENT id, which passed no matter what. Asserting against a client that really
+        // exists is the check that has teeth.
+        var name = $"SysAdmin Visible Co {Guid.NewGuid()}";
+        var created = await CreateAsync(name);
+
+        var getResponse = await fixture.SystemAdminClient.GetAsync($"/clients/{created.Id}", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        var fetched = await getResponse.Content.ReadFromJsonAsync<ClientResponse>(TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Equal(name, fetched!.Name);
+
+        var putResponse = await fixture.SystemAdminClient.PutAsJsonAsync(
+            $"/clients/{created.Id}", new UpdateClientRequest { Name = $"{name} Renamed" }, TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+
+        var deleteResponse = await fixture.SystemAdminClient.DeleteAsync($"/clients/{created.Id}", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        // Soft-deleted rows stay invisible even to SystemAdmin — IgnoreQueryFilters drops the
+        // soft-delete filter along with the tenant one, so this proves !IsDeleted was re-applied.
+        var afterDelete = await fixture.SystemAdminClient.GetAsync($"/clients/{created.Id}", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.NotFound, afterDelete.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetClient_AsClientAdminOfAnotherClient_Returns404()
+    {
+        // The other half: widening visibility for SystemAdmin must not widen it for anyone else.
+        var target = await CreateAsync($"Isolation Target Co {Guid.NewGuid()}");
+        var (_, otherApi) = await fixture.CreateClientAndScopedClientAsync(
+            $"Other Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+
+        var response = await otherApi.GetAsync($"/clients/{target.Id}", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GetClient_NonExistentId_Returns404Problem()
     {
         var response = await fixture.SystemAdminClient.GetAsync("/clients/999999999", TestContext.Current.CancellationToken);
@@ -99,5 +143,13 @@ public class ClientEndpointsTests(ApiFixture fixture)
         var response = await fixture.SystemAdminClient.DeleteAsync("/clients/999999999", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    private async Task<ClientResponse> CreateAsync(string name)
+    {
+        var response = await fixture.SystemAdminClient.PostAsJsonAsync(
+            "/clients", new CreateClientRequest { Name = name }, TestJson.Options, TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<ClientResponse>(TestJson.Options, TestContext.Current.CancellationToken))!;
     }
 }

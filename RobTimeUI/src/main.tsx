@@ -14,6 +14,18 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 30_000,
       refetchOnWindowFocus: false,
+
+      // Never retry a 4xx. The default (3 retries with backoff) is right for a flaky network but
+      // actively wrong for a client error: a 404 or 403 will say the same thing every time, so
+      // retrying only delays the message by several seconds and makes "not found" feel like a hang.
+      // 5xx and genuine network failures still get retried.
+      retry: (failureCount, error) => {
+        const status = (error as { status?: number } | undefined)?.status
+        if (typeof status === 'number' && status >= 400 && status < 500) {
+          return false
+        }
+        return failureCount < 3
+      },
     },
   },
 })

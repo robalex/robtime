@@ -35,9 +35,10 @@ public static class ClientEndpoints
     }
 
     private static async Task<Ok<PagedResult<ClientResponse>>> ListClients(
-        string? search, [AsParameters] PagingQuery paging, ClientService service, CancellationToken ct)
+        string? search, [AsParameters] PagingQuery paging, ClaimsPrincipal user,
+        ClientService service, CancellationToken ct)
     {
-        var clients = await service.ListAsync(search, paging, ct);
+        var clients = await service.ListAsync(search, paging, CallerIdentity.FromPrincipal(user).Role, ct);
         return TypedResults.Ok(new PagedResult<ClientResponse>
         {
             Items = clients.Items.Select(ClientResponse.FromEntity).ToList(),
@@ -48,9 +49,9 @@ public static class ClientEndpoints
     }
 
     private static async Task<Results<Ok<ClientResponse>, ProblemHttpResult>> GetClient(
-        int id, ClientService service, CancellationToken ct)
+        int id, ClaimsPrincipal user, ClientService service, CancellationToken ct)
     {
-        var result = await service.GetAsync(id, ct);
+        var result = await service.GetAsync(id, CallerIdentity.FromPrincipal(user).Role, ct);
         return result.Kind switch
         {
             ServiceResultKind.Success => TypedResults.Ok(ClientResponse.FromEntity(result.Value!)),
@@ -62,9 +63,9 @@ public static class ClientEndpoints
     }
 
     private static async Task<Results<Ok<ClientResponse>, ValidationProblem, ProblemHttpResult>> UpdateClient(
-        int id, UpdateClientRequest request, ClientService service, CancellationToken ct)
+        int id, UpdateClientRequest request, ClaimsPrincipal user, ClientService service, CancellationToken ct)
     {
-        var result = await service.UpdateAsync(id, request, ct);
+        var result = await service.UpdateAsync(id, request, CallerIdentity.FromPrincipal(user).Role, ct);
         return result.Kind switch
         {
             ServiceResultKind.Success => TypedResults.Ok(ClientResponse.FromEntity(result.Value!)),
@@ -77,9 +78,9 @@ public static class ClientEndpoints
     }
 
     private static async Task<Results<NoContent, ProblemHttpResult>> DeleteClient(
-        int id, ClientService service, CancellationToken ct)
+        int id, ClaimsPrincipal user, ClientService service, CancellationToken ct)
     {
-        var result = await service.DeleteAsync(id, ct);
+        var result = await service.DeleteAsync(id, CallerIdentity.FromPrincipal(user).Role, ct);
         return result.Kind switch
         {
             ServiceResultKind.Success => TypedResults.NoContent(),
