@@ -5,6 +5,7 @@ import type { components } from '@/api/schema'
 export type PayRule = components['schemas']['PayRuleResponse']
 export type CreatePayRule = components['schemas']['CreatePayRuleRequest']
 export type UpdatePayRule = components['schemas']['UpdatePayRuleRequest']
+export type ActivatePayRule = components['schemas']['ActivatePayRuleRequest']
 export type PayRuleTemplate = components['schemas']['PayRuleTemplateResponse']
 
 export interface PayRuleListParams {
@@ -115,6 +116,38 @@ export function useDeletePayRule() {
       if (error) {
         throw error
       }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payRuleKeys.all }),
+  })
+}
+
+// Promotes a Draft to Active, superseding the family's previous Active version if one exists
+// (Gap F's versioning workflow).
+export function useActivatePayRule(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: ActivatePayRule) => {
+      const { data, error } = await api.POST('/payrules/{id}/activate', { params: { path: { id } }, body })
+      if (error) {
+        throw error
+      }
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payRuleKeys.all }),
+  })
+}
+
+// Forks a new Draft from an Active/Superseded rule — the "create a new version instead of editing"
+// workflow for a rule that's already been published.
+export function useCreateNewPayRuleVersion(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await api.POST('/payrules/{id}/versions', { params: { path: { id } } })
+      if (error) {
+        throw error
+      }
+      return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: payRuleKeys.all }),
   })

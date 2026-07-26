@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using NodaTime;
 using TimeCalculation.Api.Contracts;
 using TimeCalculation.Model;
 using TimeCalculation.Persistence;
@@ -133,5 +134,140 @@ public class PayRuleEndpointsTests(ApiFixture fixture)
         var response = await api.PostAsJsonAsync("/payrules", request, TestJson.Options, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken))!;
+    }
+
+    [Fact]
+    public async Task ActivatePayRule_WhileDraft_BecomesActive()
+    {
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"Activate Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var created = await CreatePayRuleAsync(api, clientId);
+
+        var response = await api.PostAsJsonAsync(
+            $"/payrules/{created.Id}/activate",
+            new ActivatePayRuleRequest { EffectiveFrom = LocalDate.FromDateOnly(DateOnly.Parse("2026-01-01")) },
+            TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Equal(PayRuleStatus.Active, body!.Status);
+        Assert.Equal(LocalDate.FromDateOnly(DateOnly.Parse("2026-01-01")), body.EffectiveFrom);
+        Assert.Null(body.EffectiveTo);
+    }
+
+    [Fact]
+    public async Task ActivatePayRule_WhileAlreadyActive_Returns409Conflict()
+    {
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"Activate Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var created = await CreatePayRuleAsync(api, clientId);
+        await SetStatusAsync(created.Id, PayRuleStatus.Active);
+
+        var response = await api.PostAsJsonAsync(
+            $"/payrules/{created.Id}/activate",
+            new ActivatePayRuleRequest { EffectiveFrom = LocalDate.FromDateOnly(DateOnly.Parse("2026-01-01")) },
+            TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ActivatePayRule_SupersedesThePreviousActiveVersionInTheFamily()
+    {
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"Activate Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var v1 = await CreatePayRuleAsync(api, clientId);
+        await api.PostAsJsonAsync(
+            $"/payrules/{v1.Id}/activate",
+            new ActivatePayRuleRequest { EffectiveFrom = LocalDate.FromDateOnly(DateOnly.Parse("2026-01-01")) },
+            TestJson.Options, TestContext.Current.CancellationToken);
+
+        var forked = await api.PostAsync($"/payrules/{v1.Id}/versions", null, TestContext.Current.CancellationToken);
+        var v2 = (await forked.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken))!;
+
+        var activateV2 = await api.PostAsJsonAsync(
+            $"/payrules/{v2.Id}/activate",
+            new ActivatePayRuleRequest { EffectiveFrom = LocalDate.FromDateOnly(DateOnly.Parse("2026-06-01")) },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, activateV2.StatusCode);
+
+        var v1AfterSupersede = await api.GetFromJsonAsync<PayRuleResponse>(
+            $"/payrules/{v1.Id}", TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Equal(PayRuleStatus.Superseded, v1AfterSupersede!.Status);
+        // Adjacent, non-overlapping windows — v1 ends the day before v2 begins.
+        Assert.Equal(LocalDate.FromDateOnly(DateOnly.Parse("2026-05-31")), v1AfterSupersede.EffectiveTo);
+    }
+
+    [Fact]
+    public async Task ActivatePayRule_BeforeCurrentActivesEffectiveDate_Returns400()
+    {
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"Activate Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var v1 = await CreatePayRuleAsync(api, clientId);
+        await api.PostAsJsonAsync(
+            $"/payrules/{v1.Id}/activate",
+            new ActivatePayRuleRequest { EffectiveFrom = LocalDate.FromDateOnly(DateOnly.Parse("2026-06-01")) },
+            TestJson.Options, TestContext.Current.CancellationToken);
+
+        var forked = await api.PostAsync($"/payrules/{v1.Id}/versions", null, TestContext.Current.CancellationToken);
+        var v2 = (await forked.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken))!;
+
+        var activateV2 = await api.PostAsJsonAsync(
+            $"/payrules/{v2.Id}/activate",
+            new ActivatePayRuleRequest { EffectiveFrom = LocalDate.FromDateOnly(DateOnly.Parse("2026-01-01")) },
+            TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, activateV2.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateNewVersion_FromActive_ProducesADraftWithIncrementedVersion()
+    {
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"Fork Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var created = await CreatePayRuleAsync(api, clientId);
+        await SetStatusAsync(created.Id, PayRuleStatus.Active);
+
+        var response = await api.PostAsync($"/payrules/{created.Id}/versions", null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Equal(PayRuleStatus.Draft, body!.Status);
+        Assert.Equal(created.RuleFamilyId, body.RuleFamilyId);
+        Assert.Equal(created.Version + 1, body.Version);
+        Assert.NotEqual(created.Id, body.Id);
+    }
+
+    [Fact]
+    public async Task CreateNewVersion_FromDraft_Returns409Conflict()
+    {
+        // Editing a Draft directly is the answer here, not forking another Draft from it.
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"Fork Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var created = await CreatePayRuleAsync(api, clientId);
+
+        var response = await api.PostAsync($"/payrules/{created.Id}/versions", null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateNewVersion_ForkedFromAnOldSupersededRow_StillGetsTheFamilysNextVersion()
+    {
+        // Forking from an out-of-date row (not the family's current max) must not produce a version
+        // number collision with a newer version that already exists.
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"Fork Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var v1 = await CreatePayRuleAsync(api, clientId);
+        await api.PostAsJsonAsync(
+            $"/payrules/{v1.Id}/activate",
+            new ActivatePayRuleRequest { EffectiveFrom = LocalDate.FromDateOnly(DateOnly.Parse("2026-01-01")) },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        var v2Response = await api.PostAsync($"/payrules/{v1.Id}/versions", null, TestContext.Current.CancellationToken);
+        var v2 = (await v2Response.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken))!;
+        await api.PostAsJsonAsync(
+            $"/payrules/{v2.Id}/activate",
+            new ActivatePayRuleRequest { EffectiveFrom = LocalDate.FromDateOnly(DateOnly.Parse("2026-06-01")) },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        // v1 is now Superseded, v2 is Active.
+
+        var v3Response = await api.PostAsync($"/payrules/{v1.Id}/versions", null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, v3Response.StatusCode);
+        var v3 = await v3Response.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Equal(3, v3!.Version);
     }
 }

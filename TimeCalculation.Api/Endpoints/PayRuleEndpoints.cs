@@ -14,6 +14,8 @@ public static class PayRuleEndpoints
         app.MapGet("/payrules/{id:int}", GetPayRule).WithName("GetPayRule").RequireAuthorization();
         app.MapPut("/payrules/{id:int}", UpdatePayRule).WithName("UpdatePayRule").RequireAuthorization();
         app.MapDelete("/payrules/{id:int}", DeletePayRule).WithName("DeletePayRule").RequireAuthorization();
+        app.MapPost("/payrules/{id:int}/activate", ActivatePayRule).WithName("ActivatePayRule").RequireAuthorization();
+        app.MapPost("/payrules/{id:int}/versions", CreateNewPayRuleVersion).WithName("CreateNewPayRuleVersion").RequireAuthorization();
     }
 
     private static async Task<Results<Created<PayRuleResponse>, ValidationProblem, ProblemHttpResult>> CreatePayRule(
@@ -90,6 +92,40 @@ public static class PayRuleEndpoints
                 detail: result.Detail, statusCode: StatusCodes.Status409Conflict),
             _ => throw new InvalidOperationException(
                 $"Unexpected {nameof(ServiceResultKind)} '{result.Kind}' for pay rule deletion."),
+        };
+    }
+
+    private static async Task<Results<Ok<PayRuleResponse>, ValidationProblem, ProblemHttpResult>> ActivatePayRule(
+        int id, ActivatePayRuleRequest request, PayRuleService service, CancellationToken ct)
+    {
+        var result = await service.ActivateAsync(id, request, ct);
+        return result.Kind switch
+        {
+            ServiceResultKind.Success => TypedResults.Ok(PayRuleResponse.FromEntity(result.Value!)),
+            ServiceResultKind.ValidationFailed => TypedResults.ValidationProblem(result.ValidationErrors!),
+            ServiceResultKind.NotFound => TypedResults.Problem(
+                detail: result.Detail, statusCode: StatusCodes.Status404NotFound),
+            ServiceResultKind.Conflict => TypedResults.Problem(
+                detail: result.Detail, statusCode: StatusCodes.Status409Conflict),
+            _ => throw new InvalidOperationException(
+                $"Unexpected {nameof(ServiceResultKind)} '{result.Kind}' for pay rule activation."),
+        };
+    }
+
+    private static async Task<Results<Created<PayRuleResponse>, ProblemHttpResult>> CreateNewPayRuleVersion(
+        int id, PayRuleService service, CancellationToken ct)
+    {
+        var result = await service.CreateNewVersionAsync(id, ct);
+        return result.Kind switch
+        {
+            ServiceResultKind.Success => TypedResults.Created(
+                $"/payrules/{result.Value!.Id}", PayRuleResponse.FromEntity(result.Value)),
+            ServiceResultKind.NotFound => TypedResults.Problem(
+                detail: result.Detail, statusCode: StatusCodes.Status404NotFound),
+            ServiceResultKind.Conflict => TypedResults.Problem(
+                detail: result.Detail, statusCode: StatusCodes.Status409Conflict),
+            _ => throw new InvalidOperationException(
+                $"Unexpected {nameof(ServiceResultKind)} '{result.Kind}' forking a new pay rule version."),
         };
     }
 }

@@ -42,9 +42,17 @@ public static class PayRuleRequestValidator
     /// <summary>
     /// Whether a rule can still be edited or deleted in place. Only Draft — the whole point of Gap
     /// F's versioning design is that an Active or Superseded rule is never mutated (PayRuleAssignments
-    /// and PayCalculationSnapshots may already reference it by its current (Id, Version)). The real
-    /// "create a new version instead of editing" workflow is Phase 4 UI work; until it exists, the
-    /// safe default is to simply refuse the edit rather than allow a retroactive rewrite.
+    /// and PayCalculationSnapshots may already reference it by its current (Id, Version)). The
+    /// "create a new version instead of editing" workflow (<see cref="CanForkNewVersion"/>) is how
+    /// you change an Active/Superseded rule instead.
     /// </summary>
     public static bool IsMutable(PayRule payRule) => payRule.Status == PayRuleStatus.Draft;
+
+    /// <summary>Only a Draft can be promoted — Active/Superseded are already past this transition,
+    /// and there's no path back from either.</summary>
+    public static bool CanActivate(PayRule payRule) => payRule.Status == PayRuleStatus.Draft;
+
+    /// <summary>Forking a new version only makes sense from a rule that's already been published —
+    /// a Draft is edited directly (<see cref="IsMutable"/>), not forked from.</summary>
+    public static bool CanForkNewVersion(PayRule payRule) => payRule.Status != PayRuleStatus.Draft;
 }
