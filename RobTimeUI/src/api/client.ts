@@ -1,5 +1,5 @@
 import createClient, { type Middleware } from 'openapi-fetch'
-import { tokenHolder } from '@/auth/AuthProvider'
+import { sessionExpiredHandler, tokenHolder } from '@/auth/AuthProvider'
 import { selectedClientHolder } from '@/auth/clientSelection'
 import type { paths } from './schema'
 
@@ -33,6 +33,16 @@ const authMiddleware: Middleware = {
     }
 
     return request
+  },
+
+  // A 401 here means the server rejected a token we actually sent — requests only carry one when a
+  // session exists — so it's an expired or revoked token, not a missing login. Clearing it lets the
+  // root guard redirect to sign-in instead of every screen showing its own "could not load" error.
+  onResponse({ response }) {
+    if (response.status === 401 && tokenHolder.current !== null) {
+      sessionExpiredHandler.current?.()
+    }
+    return response
   },
 }
 

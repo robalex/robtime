@@ -5,14 +5,19 @@ shadcn/ui. See `../UI_PLAN.md` for the phased build plan and the decisions behin
 
 ## Develop
 
+**Both servers are needed.** In two terminals:
+
 ```bash
-npm install
+npm run dev:api        # the .NET API on http://localhost:53534
 npm run dev            # Vite dev server on http://localhost:5173
 ```
 
-The dev server proxies `/api/*` to the local API at `http://localhost:53534` (stripping the `/api`
-prefix), so the SPA and API are same-origin in dev — see `vite.config.ts`. Run the API separately
-(`dotnet run` in `../TimeCalculation.Api`, which listens on that port per its `launchSettings.json`).
+Open `http://localhost:5173`. The Vite server proxies `/api/*` to the API (stripping the `/api`
+prefix), so the SPA and API are same-origin in dev — see `vite.config.ts`.
+
+If the app shows **"Could not load your account"** after signing in, the API isn't running — that
+message covers any failed `/me` call, including a plain connection refusal. `npm run dev:api` is the
+fix.
 
 ## Local configuration (fill these in yourself)
 

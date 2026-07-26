@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:api": "dotnet run --project ../TimeCalculation.Api",
     "gen:routes": "tsr generate",
     "build": "tsr generate && tsc -b && vite build",
     "lint": "oxlint",

@@ -30,6 +30,16 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 /** Current ID token, for the openapi-fetch middleware — see the assignment in AuthProvider. */
 export const tokenHolder: { current: string | null } = { current: null }
 
+/**
+ * Called by the API middleware when the server rejects our token (401). Cognito ID tokens expire
+ * after an hour and this app deliberately holds no refresh token, so expiry is a normal end-of-life
+ * event rather than an error — without this it surfaces as a generic "could not load" on whichever
+ * screen the user happened to be on, which reads like a broken app rather than a finished session.
+ *
+ * A module-level holder for the same reason as tokenHolder: middleware runs outside React.
+ */
+export const sessionExpiredHandler: { current: (() => void) | null } = { current: null }
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [idToken, setIdToken] = useState<string | null>(null)
 
@@ -37,6 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // mirrored into a module-level holder. Assigning during render is safe here: it's idempotent and
   // derived purely from state, so a re-render can only ever write the same value again.
   tokenHolder.current = idToken
+
+  // Dropping the token flips isAuthenticated, and the root guard redirects to /login from there —
+  // so an expired session lands on the sign-in screen rather than an error page.
+  sessionExpiredHandler.current = () => setIdToken(null)
 
   const signIn = useCallback(async (returnTo = window.location.pathname) => {
     const config = getCognitoConfig()
