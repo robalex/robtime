@@ -14,6 +14,7 @@ public class DifferentialRule
     public int Id { get; set; }
     public int ClientId { get; set; }
     public string Code { get; set; } = string.Empty;
+    public bool IsDeleted { get; set; }
 
     // ── Day schedule: exactly one mode selects the active days; the others' fields are ignored. ──
     public DayScheduleMode DayScheduleMode { get; set; } = DayScheduleMode.EveryDay;

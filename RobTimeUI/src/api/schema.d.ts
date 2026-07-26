@@ -228,6 +228,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/differentialrules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListDifferentialRules"];
+        put?: never;
+        post: operations["CreateDifferentialRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/differentialrules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetDifferentialRule"];
+        put: operations["UpdateDifferentialRule"];
+        post?: never;
+        delete: operations["DeleteDifferentialRule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/punches": {
         parameters: {
             query?: never;
@@ -330,6 +362,26 @@ export interface components {
         CreateClientRequest: {
             name: string;
         };
+        CreateDifferentialRuleRequest: {
+            /** Format: int32 */
+            clientId: number;
+            code: string;
+            dayScheduleMode: components["schemas"]["DayScheduleMode"];
+            daysOfWeek?: null | components["schemas"]["IsoDayOfWeek"][];
+            dayOfWeekRangeStart?: components["schemas"]["IsoDayOfWeek"];
+            dayOfWeekRangeEnd?: components["schemas"]["IsoDayOfWeek"];
+            specificDates?: null | unknown[];
+            windowStart?: components["schemas"]["LocalTime"];
+            windowEnd?: components["schemas"]["LocalTime"];
+            adjustmentType: components["schemas"]["DifferentialAdjustmentType"];
+            /** Format: double */
+            adjustmentValue: number;
+            /** Format: double */
+            minHoursInWindow?: number;
+            /** Format: double */
+            minHoursInRange?: number;
+            exclusivityGroup?: null | string;
+        };
         CreateEmployeeRequest: {
             /** Format: int32 */
             clientId: number;
@@ -428,6 +480,33 @@ export interface components {
             displayName: string;
             role: components["schemas"]["AppRole"];
         };
+        /** @enum {unknown} */
+        DayScheduleMode: "EveryDay" | "DaysOfWeek" | "ConsecutiveDayRange" | "SpecificDates" | "Holidays";
+        /** @enum {unknown} */
+        DifferentialAdjustmentType: "FlatPerHour" | "Multiplier" | "FixedBonus";
+        DifferentialRuleResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            clientId: number;
+            code: string;
+            dayScheduleMode: components["schemas"]["DayScheduleMode"];
+            daysOfWeek: components["schemas"]["IsoDayOfWeek"][];
+            dayOfWeekRangeStart: components["schemas"]["IsoDayOfWeek"];
+            dayOfWeekRangeEnd: components["schemas"]["IsoDayOfWeek"];
+            specificDates: unknown[];
+            windowStart: components["schemas"]["LocalTime"];
+            windowEnd: components["schemas"]["LocalTime"];
+            isAllDay: boolean;
+            adjustmentType: components["schemas"]["DifferentialAdjustmentType"];
+            /** Format: double */
+            adjustmentValue: number;
+            /** Format: double */
+            minHoursInWindow: number;
+            /** Format: double */
+            minHoursInRange: number;
+            exclusivityGroup?: null | string;
+        };
         Employee: {
             /** Format: int32 */
             id?: number;
@@ -478,6 +557,8 @@ export interface components {
         Jurisdiction: "Federal" | "California" | "Colorado" | "PuertoRico" | "Oregon" | "Washington";
         /** Format: date */
         LocalDate: string;
+        /** Format: time */
+        LocalTime: string;
         MeResponse: {
             cognitoSub: string;
             email?: null | string;
@@ -492,6 +573,15 @@ export interface components {
         };
         PagedResultOfClientResponse: {
             items: components["schemas"]["ClientResponse"][];
+            /** Format: int32 */
+            totalCount: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+        };
+        PagedResultOfDifferentialRuleResponse: {
+            items: components["schemas"]["DifferentialRuleResponse"][];
             /** Format: int32 */
             totalCount: number;
             /** Format: int32 */
@@ -686,6 +776,24 @@ export interface components {
         ShiftDateStrategy: "FirstPunchLocalDate" | "LastPunchLocalDate" | "MajorityHoursLocalDate" | "SplitAtMidnight";
         UpdateClientRequest: {
             name: string;
+        };
+        UpdateDifferentialRuleRequest: {
+            code: string;
+            dayScheduleMode: components["schemas"]["DayScheduleMode"];
+            daysOfWeek?: null | components["schemas"]["IsoDayOfWeek"][];
+            dayOfWeekRangeStart?: components["schemas"]["IsoDayOfWeek"];
+            dayOfWeekRangeEnd?: components["schemas"]["IsoDayOfWeek"];
+            specificDates?: null | unknown[];
+            windowStart?: components["schemas"]["LocalTime"];
+            windowEnd?: components["schemas"]["LocalTime"];
+            adjustmentType: components["schemas"]["DifferentialAdjustmentType"];
+            /** Format: double */
+            adjustmentValue: number;
+            /** Format: double */
+            minHoursInWindow?: number;
+            /** Format: double */
+            minHoursInRange?: number;
+            exclusivityGroup?: null | string;
         };
         UpdateEmployeeRequest: {
             firstName: string;
@@ -1593,6 +1701,141 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PayRuleResponse"];
                 };
+            };
+        };
+    };
+    ListDifferentialRules: {
+        parameters: {
+            query: {
+                clientId: number;
+                search?: string;
+                Page?: number;
+                PageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultOfDifferentialRuleResponse"];
+                };
+            };
+        };
+    };
+    CreateDifferentialRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDifferentialRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DifferentialRuleResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetDifferentialRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DifferentialRuleResponse"];
+                };
+            };
+        };
+    };
+    UpdateDifferentialRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDifferentialRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DifferentialRuleResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteDifferentialRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

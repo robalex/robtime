@@ -213,7 +213,8 @@ public class PayrollDbContext : DbContext
             b.ToTable("differential_rules");
             b.HasKey(d => d.Id);
             b.HasOne<Client>().WithMany().HasForeignKey(d => d.ClientId).OnDelete(DeleteBehavior.Restrict);
-            b.HasQueryFilter(d => d.ClientId == _tenantClientId);
+            b.HasQueryFilter("Tenant", d => d.ClientId == _tenantClientId);
+            b.HasQueryFilter("SoftDelete", d => !d.IsDeleted);
 
             b.Property(d => d.MinHoursInWindow).HasPrecision(10, 4);
             b.Property(d => d.MinHoursInRange).HasPrecision(10, 4);
