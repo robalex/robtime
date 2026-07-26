@@ -370,7 +370,7 @@ export interface components {
             daysOfWeek?: null | components["schemas"]["IsoDayOfWeek"][];
             dayOfWeekRangeStart?: components["schemas"]["IsoDayOfWeek"];
             dayOfWeekRangeEnd?: components["schemas"]["IsoDayOfWeek"];
-            specificDates?: null | unknown[];
+            specificDates?: null | string[];
             windowStart?: components["schemas"]["LocalTime"];
             windowEnd?: components["schemas"]["LocalTime"];
             adjustmentType: components["schemas"]["DifferentialAdjustmentType"];
@@ -494,7 +494,7 @@ export interface components {
             daysOfWeek: components["schemas"]["IsoDayOfWeek"][];
             dayOfWeekRangeStart: components["schemas"]["IsoDayOfWeek"];
             dayOfWeekRangeEnd: components["schemas"]["IsoDayOfWeek"];
-            specificDates: unknown[];
+            specificDates: string[];
             windowStart: components["schemas"]["LocalTime"];
             windowEnd: components["schemas"]["LocalTime"];
             isAllDay: boolean;
@@ -783,7 +783,7 @@ export interface components {
             daysOfWeek?: null | components["schemas"]["IsoDayOfWeek"][];
             dayOfWeekRangeStart?: components["schemas"]["IsoDayOfWeek"];
             dayOfWeekRangeEnd?: components["schemas"]["IsoDayOfWeek"];
-            specificDates?: null | unknown[];
+            specificDates?: null | string[];
             windowStart?: components["schemas"]["LocalTime"];
             windowEnd?: components["schemas"]["LocalTime"];
             adjustmentType: components["schemas"]["DifferentialAdjustmentType"];

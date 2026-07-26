@@ -23,6 +23,12 @@ const AREAS = [
     description: 'Overtime, rounding, and state premium configuration, built from jurisdiction templates.',
     visible: can.managePayRules,
   },
+  {
+    to: '/setup/differentialrules',
+    title: 'Differential rules',
+    description: 'Time-based pay differentials — night shift, weekend, holiday.',
+    visible: can.manageDifferentialRules,
+  },
 ] as const
 
 function SetupHome() {

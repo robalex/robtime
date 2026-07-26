@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Amazon;
 using Amazon.CognitoIdentityProvider;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -177,21 +178,38 @@ builder.Services.AddOpenApi(options =>
     // explicitly here keeps the generated document truthful to the wire format.
     options.AddSchemaTransformer((schema, context, _) =>
     {
+        // A HashSet<LocalDate>/HashSet<LocalTime> property (e.g. DifferentialRule.SpecificDates,
+        // HolidayCalendar.Dates) reaches this transformer with JsonTypeInfo.Type as the collection
+        // itself, not the element — describe schema.Items instead of schema in that case, so the
+        // generated array element type is still truthful rather than falling through to `unknown[]`.
+        // The base generator leaves Items null for these (LocalDate's custom JsonConverter makes it
+        // opaque to reflection-based item-schema generation), so it's created here rather than just
+        // patched.
+        var targetSchema = schema;
         var type = Nullable.GetUnderlyingType(context.JsonTypeInfo.Type) ?? context.JsonTypeInfo.Type;
+        if (context.JsonTypeInfo.Kind == JsonTypeInfoKind.Enumerable
+            && context.JsonTypeInfo.ElementType is { } elementType)
+        {
+            var items = schema.Items as OpenApiSchema ?? new OpenApiSchema();
+            schema.Items = items;
+            targetSchema = items;
+            type = Nullable.GetUnderlyingType(elementType) ?? elementType;
+        }
+
         if (type == typeof(LocalDate))
         {
-            schema.Type = JsonSchemaType.String;
-            schema.Format = "date";
+            targetSchema.Type = JsonSchemaType.String;
+            targetSchema.Format = "date";
         }
         else if (type == typeof(LocalTime))
         {
-            schema.Type = JsonSchemaType.String;
-            schema.Format = "time";
+            targetSchema.Type = JsonSchemaType.String;
+            targetSchema.Format = "time";
         }
         else if (type == typeof(Instant))
         {
-            schema.Type = JsonSchemaType.String;
-            schema.Format = "date-time";
+            targetSchema.Type = JsonSchemaType.String;
+            targetSchema.Format = "date-time";
         }
 
         return Task.CompletedTask;

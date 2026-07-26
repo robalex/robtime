@@ -33,6 +33,7 @@ export const can = {
   manageEmployees: (me: Me | undefined) => atLeast(me, 'ClientAdmin'),
   manageUsers: (me: Me | undefined) => atLeast(me, 'ClientAdmin'),
   managePayRules: (me: Me | undefined) => atLeast(me, 'ClientAdmin'),
+  manageDifferentialRules: (me: Me | undefined) => atLeast(me, 'ClientAdmin'),
   /** Supervisor sees wage rates and pay amounts (§9 decision 16). */
   viewPay: (me: Me | undefined) => atLeast(me, 'Supervisor'),
   approvePunchChanges: (me: Me | undefined) => atLeast(me, 'Supervisor'),
