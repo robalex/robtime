@@ -166,6 +166,33 @@ builder.Services.AddOpenApi(options =>
 
         return Task.CompletedTask;
     });
+
+    // NodaTime types (`ConfigureForNodaTime` above) serialize as plain ISO strings at runtime, but
+    // the schema generator has no built-in knowledge of them and emits an empty `{}` schema —
+    // openapi-typescript then has nothing to go on and generates `unknown` for every LocalDate/
+    // Instant field, defeating the typed-client whole point (UI_PLAN.md §4). Describing them
+    // explicitly here keeps the generated document truthful to the wire format.
+    options.AddSchemaTransformer((schema, context, _) =>
+    {
+        var type = Nullable.GetUnderlyingType(context.JsonTypeInfo.Type) ?? context.JsonTypeInfo.Type;
+        if (type == typeof(LocalDate))
+        {
+            schema.Type = JsonSchemaType.String;
+            schema.Format = "date";
+        }
+        else if (type == typeof(LocalTime))
+        {
+            schema.Type = JsonSchemaType.String;
+            schema.Format = "time";
+        }
+        else if (type == typeof(Instant))
+        {
+            schema.Type = JsonSchemaType.String;
+            schema.Format = "date-time";
+        }
+
+        return Task.CompletedTask;
+    });
 });
 
 // Vite's default dev server port. RobTimeUI doesn't exist yet, so there's no real deployed origin

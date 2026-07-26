@@ -100,6 +100,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/employees/{employeeId}/positions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListPositionAssignments"];
+        put?: never;
+        post: operations["CreatePositionAssignment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/employees/{employeeId}/positions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["UpdatePositionAssignment"];
+        post?: never;
+        delete: operations["DeletePositionAssignment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/payrules": {
         parameters: {
             query?: never;
@@ -264,6 +296,14 @@ export interface components {
             dailyDoubletimeThresholdHours?: null | number;
             hasSeventhDayRule?: null | boolean;
         };
+        CreatePositionAssignmentRequest: {
+            /** Format: int32 */
+            positionId: number;
+            effectiveFrom: components["schemas"]["LocalDate"];
+            effectiveTo?: null | components["schemas"]["LocalDate"];
+            /** Format: double */
+            rate?: null | number;
+        };
         CreatePositionRequest: {
             /** Format: int32 */
             clientId: number;
@@ -341,10 +381,12 @@ export interface components {
                 [key: string]: string[];
             };
         };
-        Instant: unknown;
+        /** Format: date-time */
+        Instant: string;
         /** @enum {unknown} */
         IsoDayOfWeek: "None" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
-        LocalDate: unknown;
+        /** Format: date */
+        LocalDate: string;
         MeResponse: {
             cognitoSub: string;
             email?: null | string;
@@ -451,6 +493,22 @@ export interface components {
             baseRate?: number;
             isDeleted?: boolean;
         };
+        PositionAssignmentResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            employeeId: number;
+            /** Format: int32 */
+            positionId: number;
+            positionCode: string;
+            positionName: string;
+            effectiveFrom: components["schemas"]["LocalDate"];
+            effectiveTo?: null | components["schemas"]["LocalDate"];
+            /** Format: double */
+            rate?: null | number;
+            /** Format: double */
+            positionBaseRate: number;
+        };
         PositionResponse: {
             /** Format: int32 */
             id: number;
@@ -547,6 +605,14 @@ export interface components {
             /** Format: double */
             dailyDoubletimeThresholdHours?: null | number;
             hasSeventhDayRule?: null | boolean;
+        };
+        UpdatePositionAssignmentRequest: {
+            /** Format: int32 */
+            positionId: number;
+            effectiveFrom: components["schemas"]["LocalDate"];
+            effectiveTo?: null | components["schemas"]["LocalDate"];
+            /** Format: double */
+            rate?: null | number;
         };
         UpdatePositionRequest: {
             code: string;
@@ -961,6 +1027,120 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListPositionAssignments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employeeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PositionAssignmentResponse"][];
+                };
+            };
+        };
+    };
+    CreatePositionAssignment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employeeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePositionAssignmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PositionAssignmentResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdatePositionAssignment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employeeId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePositionAssignmentRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PositionAssignmentResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    DeletePositionAssignment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employeeId: number;
                 id: number;
             };
             cookie?: never;
