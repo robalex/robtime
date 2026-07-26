@@ -228,6 +228,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/metadata/pay-rule-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetPayRuleTemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -423,6 +439,8 @@ export interface components {
         Instant: string;
         /** @enum {unknown} */
         IsoDayOfWeek: "None" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+        /** @enum {unknown} */
+        Jurisdiction: "Federal" | "California" | "Colorado" | "PuertoRico" | "Oregon" | "Washington";
         /** Format: date */
         LocalDate: string;
         MeResponse: {
@@ -532,6 +550,22 @@ export interface components {
         };
         /** @enum {unknown} */
         PayRuleStatus: "Draft" | "Active" | "Superseded";
+        PayRuleTemplateResponse: {
+            code: string;
+            name: string;
+            description: string;
+            /** Format: int32 */
+            version: number;
+            activePremiumCodes: string[];
+            hasDailyOvertime: boolean;
+            /** Format: double */
+            dailyOvertimeThresholdHours: number;
+            /** Format: double */
+            dailyDoubletimeThresholdHours: number;
+            hasSeventhDayRule: boolean;
+            /** Format: double */
+            weeklyOvertimeThresholdHours: number;
+        };
         Position: {
             /** Format: int32 */
             id?: number;
@@ -568,6 +602,13 @@ export interface components {
             name: string;
             /** Format: double */
             baseRate: number;
+        };
+        PremiumRuleMetadataResponse: {
+            code: string;
+            name: string;
+            description: string;
+            jurisdiction: components["schemas"]["Jurisdiction"];
+            waiverPolicy: components["schemas"]["WaiverPolicy"];
         };
         Punch: {
             /** Format: int32 */
@@ -685,6 +726,8 @@ export interface components {
             displayName: string;
             role: components["schemas"]["AppRole"];
         };
+        /** @enum {unknown} */
+        WaiverPolicy: "NotWaivable" | "SupervisorOnly" | "EmployeeOnly" | "BothRequired";
     };
     responses: never;
     parameters: never;
@@ -1508,7 +1551,29 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PremiumRuleMetadataResponse"][];
+                };
+            };
+        };
+    };
+    GetPayRuleTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayRuleTemplateResponse"][];
+                };
             };
         };
     };

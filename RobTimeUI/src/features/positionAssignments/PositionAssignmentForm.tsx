@@ -5,7 +5,7 @@ import { toApiProblem } from '@/lib/problem'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { Select } from '@/components/ui/select'
 import type { Position } from '@/features/positions/queries'
 
 // Mirrors PositionAssignmentValidator.ValidateShape; the server stays authoritative (including the
@@ -74,16 +74,10 @@ export function PositionAssignmentForm({
     <form onSubmit={submit} className="max-w-md space-y-6">
       <div className="space-y-2">
         <Label htmlFor="assignment-positionId">Position</Label>
-        <select
+        <Select
           id="assignment-positionId"
           autoFocus
           aria-invalid={errors.positionId !== undefined}
-          className={cn(
-            'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            'disabled:cursor-not-allowed disabled:opacity-50',
-            'aria-invalid:border-destructive aria-invalid:focus-visible:ring-destructive',
-          )}
           {...form.register('positionId')}
         >
           <option value="">Choose a position…</option>
@@ -92,7 +86,7 @@ export function PositionAssignmentForm({
               {position.code} — {position.name}
             </option>
           ))}
-        </select>
+        </Select>
         {errors.positionId && <p className="text-sm text-destructive">{errors.positionId.message}</p>}
       </div>
 

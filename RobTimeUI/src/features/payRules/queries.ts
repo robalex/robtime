@@ -1,8 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import type { components } from '@/api/schema'
 
 export type PayRule = components['schemas']['PayRuleResponse']
+export type CreatePayRule = components['schemas']['CreatePayRuleRequest']
+export type UpdatePayRule = components['schemas']['UpdatePayRuleRequest']
+export type PayRuleTemplate = components['schemas']['PayRuleTemplateResponse']
 
 export interface PayRuleListParams {
   clientId: number
@@ -11,12 +14,13 @@ export interface PayRuleListParams {
   pageSize: number
 }
 
-// The full pay rule editor (three-tier taxonomy, template picker, version history — UI_PLAN.md
-// Phase 4) hasn't landed yet; this is only what the assignment picker needs to list existing rules.
 export const payRuleKeys = {
   all: ['payRules'] as const,
   lists: () => [...payRuleKeys.all, 'list'] as const,
   list: (params: PayRuleListParams) => [...payRuleKeys.lists(), params] as const,
+  details: () => [...payRuleKeys.all, 'detail'] as const,
+  detail: (id: number) => [...payRuleKeys.details(), id] as const,
+  templates: ['payRuleTemplates'] as const,
 }
 
 export function usePayRules(params: PayRuleListParams | null) {
@@ -40,5 +44,78 @@ export function usePayRules(params: PayRuleListParams | null) {
       return data
     },
     placeholderData: (previous) => previous,
+  })
+}
+
+export function usePayRule(id: number) {
+  return useQuery({
+    queryKey: payRuleKeys.detail(id),
+    queryFn: async () => {
+      const { data, error } = await api.GET('/payrules/{id}', { params: { path: { id } } })
+      if (error) {
+        throw error
+      }
+      return data
+    },
+  })
+}
+
+// Static registry data (UI_PLAN.md §6 Rule 3) — fetched once and cached indefinitely; it only
+// changes when the API itself is redeployed with new template presets.
+export function usePayRuleTemplates() {
+  return useQuery({
+    queryKey: payRuleKeys.templates,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/metadata/pay-rule-templates')
+      if (error) {
+        throw error
+      }
+      return data
+    },
+    staleTime: Infinity,
+  })
+}
+
+export function useCreatePayRule() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: CreatePayRule) => {
+      const { data, error } = await api.POST('/payrules', { body })
+      if (error) {
+        throw error
+      }
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payRuleKeys.lists() }),
+  })
+}
+
+export function useUpdatePayRule(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: UpdatePayRule) => {
+      const { data, error } = await api.PUT('/payrules/{id}', { params: { path: { id } }, body })
+      if (error) {
+        throw error
+      }
+      return data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: payRuleKeys.detail(id) })
+      void queryClient.invalidateQueries({ queryKey: payRuleKeys.lists() })
+    },
+  })
+}
+
+export function useDeletePayRule() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await api.DELETE('/payrules/{id}', { params: { path: { id } } })
+      if (error) {
+        throw error
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payRuleKeys.all }),
   })
 }

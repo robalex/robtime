@@ -17,6 +17,12 @@ const AREAS = [
     description: 'Organisations using RobTime. Creating one is the first step for a new customer.',
     visible: can.manageClients,
   },
+  {
+    to: '/setup/payrules',
+    title: 'Pay rules',
+    description: 'Overtime, rounding, and state premium configuration, built from jurisdiction templates.',
+    visible: can.managePayRules,
+  },
 ] as const
 
 function SetupHome() {

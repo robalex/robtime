@@ -129,6 +129,7 @@ builder.Services.AddScoped<CurrentUserService>();
 // No DB dependency (reads a static in-engine registry), so Singleton — no PayrollDbContext lifetime
 // to match, and there's nothing about it that needs a fresh instance per request.
 builder.Services.AddSingleton<PremiumMetadataService>();
+builder.Services.AddSingleton<PayRuleTemplateMetadataService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi(options =>

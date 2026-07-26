@@ -5,7 +5,7 @@ import { toApiProblem } from '@/lib/problem'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { Select } from '@/components/ui/select'
 import type { PayRule } from '@/features/payRules/queries'
 
 // Mirrors PayRuleAssignmentValidator.ValidateShape; the server stays authoritative (including the
@@ -69,16 +69,10 @@ export function PayRuleAssignmentForm({
     <form onSubmit={submit} className="max-w-md space-y-6">
       <div className="space-y-2">
         <Label htmlFor="assignment-payRuleId">Pay rule</Label>
-        <select
+        <Select
           id="assignment-payRuleId"
           autoFocus
           aria-invalid={errors.payRuleId !== undefined}
-          className={cn(
-            'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            'disabled:cursor-not-allowed disabled:opacity-50',
-            'aria-invalid:border-destructive aria-invalid:focus-visible:ring-destructive',
-          )}
           {...form.register('payRuleId')}
         >
           <option value="">Choose a pay rule…</option>
@@ -87,7 +81,7 @@ export function PayRuleAssignmentForm({
               {payRule.name} ({payRule.status})
             </option>
           ))}
-        </select>
+        </Select>
         {errors.payRuleId && <p className="text-sm text-destructive">{errors.payRuleId.message}</p>}
       </div>
 
