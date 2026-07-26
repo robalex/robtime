@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useDeleteEmployee, useEmployee, useUpdateEmployee } from '@/features/employees/queries'
 import { usePositionAssignments } from '@/features/positionAssignments/queries'
+import { usePayRuleAssignments } from '@/features/payRuleAssignments/queries'
 import { EmployeeForm } from '@/features/employees/EmployeeForm'
 import { EffectiveDatedTimeline, type TimelinePeriod } from '@/components/EffectiveDatedTimeline'
 import { toApiProblem } from '@/lib/problem'
@@ -169,9 +170,7 @@ function EmployeeDetail() {
       )}
 
       {activeTab === 'positions' && <PositionsTab employeeId={id} employeeIdParam={employeeId} />}
-      {activeTab === 'payrule' && (
-        <p className="text-sm text-muted-foreground">Pay rule assignment lands in Phase 4.</p>
-      )}
+      {activeTab === 'payrule' && <PayRuleTab employeeId={id} employeeIdParam={employeeId} />}
       {activeTab === 'punches' && (
         <p className="text-sm text-muted-foreground">Punches and timecards land in Phase 6.</p>
       )}
@@ -221,6 +220,55 @@ function PositionsTab({ employeeId, employeeIdParam }: { employeeId: number; emp
       renderPeriodAction={(period) => (
         <Link
           to="/people/$employeeId/positions/$assignmentId"
+          params={{ employeeId: employeeIdParam, assignmentId: String(period.id) }}
+          className="text-sm underline-offset-4 hover:underline"
+        >
+          Change
+        </Link>
+      )}
+    />
+  )
+}
+
+function PayRuleTab({ employeeId, employeeIdParam }: { employeeId: number; employeeIdParam: string }) {
+  const { data: assignments, isPending, isError, error } = usePayRuleAssignments(employeeId)
+
+  if (isPending) {
+    return <p className="text-sm text-muted-foreground">Loading…</p>
+  }
+
+  if (isError) {
+    return (
+      <p className="text-sm text-destructive">
+        {toApiProblem(error, 'Could not load pay rule assignments.').message}
+      </p>
+    )
+  }
+
+  const periods: TimelinePeriod[] = assignments.map((assignment) => ({
+    id: assignment.id,
+    from: parseLocalDate(assignment.effectiveFrom),
+    to: assignment.effectiveTo ? parseLocalDate(assignment.effectiveTo) : null,
+    label: assignment.payRuleName,
+    sublabel: assignment.payRuleStatus,
+  }))
+
+  return (
+    <EffectiveDatedTimeline
+      periods={periods}
+      emptyMessage="No pay rule assigned yet. Assign one to determine how this employee's pay is calculated."
+      changeEffectiveAction={
+        <Link
+          to="/people/$employeeId/payrules/new"
+          params={{ employeeId: employeeIdParam }}
+          className={buttonVariants({ size: 'sm' })}
+        >
+          Change effective…
+        </Link>
+      }
+      renderPeriodAction={(period) => (
+        <Link
+          to="/people/$employeeId/payrules/$assignmentId"
           params={{ employeeId: employeeIdParam, assignmentId: String(period.id) }}
           className="text-sm underline-offset-4 hover:underline"
         >

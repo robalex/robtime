@@ -132,6 +132,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/employees/{employeeId}/payrules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListPayRuleAssignments"];
+        put?: never;
+        post: operations["CreatePayRuleAssignment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/employees/{employeeId}/payrules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["UpdatePayRuleAssignment"];
+        post?: never;
+        delete: operations["DeletePayRuleAssignment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/payrules": {
         parameters: {
             query?: never;
@@ -259,6 +291,12 @@ export interface components {
             minimumWage: number;
             homeTimeZoneId?: null | string;
             state?: null | string;
+        };
+        CreatePayRuleAssignmentRequest: {
+            /** Format: int32 */
+            payRuleId: number;
+            effectiveFrom: components["schemas"]["LocalDate"];
+            effectiveTo?: null | components["schemas"]["LocalDate"];
         };
         CreatePayRuleRequest: {
             /** Format: int32 */
@@ -435,6 +473,18 @@ export interface components {
             /** Format: int32 */
             pageSize: number;
         };
+        PayRuleAssignmentResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            employeeId: number;
+            /** Format: int32 */
+            payRuleId: number;
+            payRuleName: string;
+            payRuleStatus: components["schemas"]["PayRuleStatus"];
+            effectiveFrom: components["schemas"]["LocalDate"];
+            effectiveTo?: null | components["schemas"]["LocalDate"];
+        };
         PayRuleResponse: {
             /** Format: int32 */
             id: number;
@@ -571,6 +621,12 @@ export interface components {
             minimumWage: number;
             homeTimeZoneId?: null | string;
             state?: null | string;
+        };
+        UpdatePayRuleAssignmentRequest: {
+            /** Format: int32 */
+            payRuleId: number;
+            effectiveFrom: components["schemas"]["LocalDate"];
+            effectiveTo?: null | components["schemas"]["LocalDate"];
         };
         UpdatePayRuleRequest: {
             name?: null | string;
@@ -1136,6 +1192,120 @@ export interface operations {
         };
     };
     DeletePositionAssignment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employeeId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListPayRuleAssignments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employeeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayRuleAssignmentResponse"][];
+                };
+            };
+        };
+    };
+    CreatePayRuleAssignment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employeeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePayRuleAssignmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayRuleAssignmentResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdatePayRuleAssignment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employeeId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePayRuleAssignmentRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayRuleAssignmentResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    DeletePayRuleAssignment: {
         parameters: {
             query?: never;
             header?: never;
