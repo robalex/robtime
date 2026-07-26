@@ -228,6 +228,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/payrules/{id}/what-if": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RunPayRuleWhatIf"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/differentialrules": {
         parameters: {
             query?: never;
@@ -616,6 +632,8 @@ export interface components {
             /** Format: int32 */
             pageSize: number;
         };
+        /** @enum {unknown} */
+        PayLineType: "Regular" | "OvertimePremium" | "Differential" | "Bonus" | "FixedHours" | "Premium";
         PayRuleAssignmentResponse: {
             /** Format: int32 */
             id: number;
@@ -871,6 +889,65 @@ export interface components {
         };
         /** @enum {unknown} */
         WaiverPolicy: "NotWaivable" | "SupervisorOnly" | "EmployeeOnly" | "BothRequired";
+        WhatIfLineItemResponse: {
+            type: components["schemas"]["PayLineType"];
+            code: string;
+            description: string;
+            /** Format: double */
+            hours: number;
+            /** Format: double */
+            amount: number;
+            /** Format: double */
+            baseRate?: null | number;
+            /** Format: double */
+            multiplier?: null | number;
+        };
+        WhatIfRequest: {
+            /** Format: int32 */
+            employeeId: number;
+            periodStart: components["schemas"]["LocalDate"];
+            periodEnd: components["schemas"]["LocalDate"];
+        };
+        WhatIfResponse: {
+            /** Format: int32 */
+            employeeId: number;
+            periodStart: components["schemas"]["LocalDate"];
+            periodEnd: components["schemas"]["LocalDate"];
+            current: components["schemas"]["WhatIfSummaryResponse"];
+            draft: components["schemas"]["WhatIfSummaryResponse"];
+            shiftDiffs: components["schemas"]["WhatIfShiftDiffResponse"][];
+        };
+        WhatIfShiftDiffResponse: {
+            shiftDate: components["schemas"]["LocalDate"];
+            /** Format: int32 */
+            anchorPunchId: number;
+            status: components["schemas"]["WhatIfShiftDiffStatus"];
+            currentLineItems: components["schemas"]["WhatIfLineItemResponse"][];
+            draftLineItems: components["schemas"]["WhatIfLineItemResponse"][];
+            /** Format: double */
+            currentGross: number;
+            /** Format: double */
+            draftGross: number;
+            /** Format: double */
+            delta: number;
+        };
+        /** @enum {unknown} */
+        WhatIfShiftDiffStatus: "Unchanged" | "Changed" | "OnlyInCurrent" | "OnlyInDraft";
+        WhatIfSummaryResponse: {
+            /** Format: int32 */
+            payRuleId: number;
+            payRuleName: string;
+            /** Format: int32 */
+            payRuleVersion: number;
+            /** Format: double */
+            regularHours: number;
+            /** Format: double */
+            overtimeHours: number;
+            /** Format: double */
+            doubletimeHours: number;
+            /** Format: double */
+            grossPay: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -1700,6 +1777,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayRuleResponse"];
+                };
+            };
+        };
+    };
+    RunPayRuleWhatIf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WhatIfRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhatIfResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
             };
         };

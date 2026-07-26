@@ -16,6 +16,7 @@ public static class PayRuleEndpoints
         app.MapDelete("/payrules/{id:int}", DeletePayRule).WithName("DeletePayRule").RequireAuthorization();
         app.MapPost("/payrules/{id:int}/activate", ActivatePayRule).WithName("ActivatePayRule").RequireAuthorization();
         app.MapPost("/payrules/{id:int}/versions", CreateNewPayRuleVersion).WithName("CreateNewPayRuleVersion").RequireAuthorization();
+        app.MapPost("/payrules/{id:int}/what-if", RunWhatIf).WithName("RunPayRuleWhatIf").RequireAuthorization();
     }
 
     private static async Task<Results<Created<PayRuleResponse>, ValidationProblem, ProblemHttpResult>> CreatePayRule(
@@ -126,6 +127,23 @@ public static class PayRuleEndpoints
                 detail: result.Detail, statusCode: StatusCodes.Status409Conflict),
             _ => throw new InvalidOperationException(
                 $"Unexpected {nameof(ServiceResultKind)} '{result.Kind}' forking a new pay rule version."),
+        };
+    }
+
+    private static async Task<Results<Ok<WhatIfResponse>, ValidationProblem, ProblemHttpResult>> RunWhatIf(
+        int id, WhatIfRequest request, PayRuleWhatIfService service, CancellationToken ct)
+    {
+        var result = await service.RunAsync(id, request, ct);
+        return result.Kind switch
+        {
+            ServiceResultKind.Success => TypedResults.Ok(result.Value!),
+            ServiceResultKind.ValidationFailed => TypedResults.ValidationProblem(result.ValidationErrors!),
+            ServiceResultKind.NotFound => TypedResults.Problem(
+                detail: result.Detail, statusCode: StatusCodes.Status404NotFound),
+            ServiceResultKind.Conflict => TypedResults.Problem(
+                detail: result.Detail, statusCode: StatusCodes.Status409Conflict),
+            _ => throw new InvalidOperationException(
+                $"Unexpected {nameof(ServiceResultKind)} '{result.Kind}' running a pay rule what-if."),
         };
     }
 }

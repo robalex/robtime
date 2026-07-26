@@ -47,10 +47,20 @@ public static class DifferentialApplier
             return shift;
         }
 
+        // Same gating PremiumApplier does for ActivePremiumCodes: ctx.DifferentialRules is the
+        // client's full set, but only the codes the PayRule *in effect on this shift* opts into
+        // (PayRule.ActiveDifferentialCodes) actually apply. Resolved once per shift, not per rule,
+        // since every rule in the loop below checks against the same shift.
+        var activeCodes = ctx.GetRuleAt(FirstInstant(shift)).ActiveDifferentialCodes;
         var candidates = new List<DifferentialCandidate>();
 
         foreach (var rule in ctx.DifferentialRules)
         {
+            if (!activeCodes.Contains(rule.Code))
+            {
+                continue;
+            }
+
             decimal qualifyingHours = 0;
             decimal perHourAmount = 0;
 
@@ -123,4 +133,13 @@ public static class DifferentialApplier
         => rule.DayScheduleMode == DayScheduleMode.ConsecutiveDayRange
             ? ContinuousRangeQualifyingHoursCalculator.Calculate(rule, pair, ctx)
             : PerDayQualifyingHoursCalculator.Calculate(rule, pair, ctx);
+
+    // Mirrors PremiumApplier.FirstInstant — the shift's earliest In punch, used to resolve which
+    // PayRule (and therefore ActiveDifferentialCodes) is in effect for the shift as a whole.
+    private static Instant FirstInstant(Shift shift) =>
+        shift.PunchPairs
+            .Where(p => p.HasInPunch)
+            .Select(p => p.InPunch!.EffectiveTime)
+            .DefaultIfEmpty(shift.ShiftDate.AtMidnight().InUtc().ToInstant())
+            .Min();
 }

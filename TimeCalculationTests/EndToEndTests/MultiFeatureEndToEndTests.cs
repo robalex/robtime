@@ -28,8 +28,9 @@ public class MultiFeatureEndToEndTests : EndToEndTests
             AdjustmentValue = 2m,
             // WindowStart == WindowEnd (both left default) => IsAllDay: applies to every hour worked.
         };
+        var payRule = new PayRule { ActiveDifferentialCodes = new HashSet<string> { "HAZARD" } };
         var ctx = new PipelineContext(emp,
-            [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], [], [hazard]);
+            [new PayRuleAssignment(payRule, new LocalDate(2000, 1, 1))], [], [hazard]);
 
         var punches = new List<Punch>();
         for (int d = 2; d <= 6; d++) { punches.Add(In(emp, At(d, 8))); punches.Add(Out(emp, At(d, 17))); }

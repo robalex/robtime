@@ -9,6 +9,7 @@ import {
 } from '@/features/payRules/queries'
 import { usePremiumRules } from '@/features/premiumRules/queries'
 import { PayRuleForm, type PayRuleFormValues } from '@/features/payRules/PayRuleForm'
+import { WhatIfPanel } from '@/features/payRules/WhatIfPanel'
 import { toApiProblem } from '@/lib/problem'
 import { Button, buttonVariants } from '@/components/ui/button'
 
@@ -204,6 +205,8 @@ function EditPayRule() {
           })
         }
       />
+
+      <WhatIfPanel payRuleId={id} clientId={rule.clientId} />
 
       <div className="max-w-2xl space-y-3 border-t pt-6">
         <div className="space-y-1">

@@ -7,6 +7,8 @@ export type CreatePayRule = components['schemas']['CreatePayRuleRequest']
 export type UpdatePayRule = components['schemas']['UpdatePayRuleRequest']
 export type ActivatePayRule = components['schemas']['ActivatePayRuleRequest']
 export type PayRuleTemplate = components['schemas']['PayRuleTemplateResponse']
+export type WhatIfRequest = components['schemas']['WhatIfRequest']
+export type WhatIfResponse = components['schemas']['WhatIfResponse']
 
 export interface PayRuleListParams {
   clientId: number
@@ -150,5 +152,20 @@ export function useCreateNewPayRuleVersion(id: number) {
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: payRuleKeys.all }),
+  })
+}
+
+// Phase 4 §7's single-employee what-if — runs PayCalculator twice server-side (current assignment
+// vs. this pay rule forced over the period) and returns a per-shift line-item diff. A mutation, not
+// a query: it's a preview action the user triggers, not cacheable data keyed by fixed params.
+export function useRunPayRuleWhatIf(id: number) {
+  return useMutation({
+    mutationFn: async (body: WhatIfRequest) => {
+      const { data, error } = await api.POST('/payrules/{id}/what-if', { params: { path: { id } }, body })
+      if (error) {
+        throw error
+      }
+      return data
+    },
   })
 }

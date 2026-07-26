@@ -25,8 +25,16 @@ public class DifferentialApplierTests
         };
     }
 
+    // ActiveDifferentialCodes must list the rule's own code — DifferentialApplier only applies a
+    // ctx.DifferentialRules entry when the PayRule in effect for the shift opts into it (mirrors
+    // PremiumApplier/ActivePremiumCodes).
     private static PipelineContext Ctx(Employee emp, DifferentialRule rule, HolidayCalendar? holidays = null)
-        => new(emp, [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], [], [rule], holidays);
+        => new(
+            emp,
+            [new PayRuleAssignment(new PayRule { ActiveDifferentialCodes = new HashSet<string> { rule.Code } }, new LocalDate(2000, 1, 1))],
+            [],
+            [rule],
+            holidays);
 
     [Fact]
     public void NoRules_ReturnsShiftsUnchanged()
@@ -34,6 +42,29 @@ public class DifferentialApplierTests
         var ctx = TestEntityCreator.CreateContext(employee: _emp);
         var shift = ShiftUtc(9, 17);
         var result = DifferentialApplier.ApplyDifferentials([shift], ctx);
+        Assert.Empty(result[0].Differentials);
+    }
+
+    [Fact]
+    public void RuleNotInPayRulesActiveDifferentialCodes_DoesNotApply()
+    {
+        // A rule present in ctx.DifferentialRules (the client's full set) but absent from the
+        // effective PayRule's ActiveDifferentialCodes must not apply, even though it would
+        // otherwise clearly qualify (all-day, no minimum).
+        var rule = new DifferentialRule
+        {
+            Code = "OFF",
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
+            AdjustmentValue = 2m,
+        };
+        var ctx = new PipelineContext(
+            _emp,
+            [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], // ActiveDifferentialCodes empty
+            [],
+            [rule]);
+
+        var result = DifferentialApplier.ApplyDifferentials([ShiftUtc(9, 17)], ctx);
+
         Assert.Empty(result[0].Differentials);
     }
 
@@ -391,7 +422,12 @@ public class DifferentialApplierTests
     // ── Stacking ──
 
     private static PipelineContext CtxRules(Employee emp, IReadOnlyList<DifferentialRule> rules, HolidayCalendar? holidays = null)
-        => new(emp, [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], [], rules, holidays);
+        => new(
+            emp,
+            [new PayRuleAssignment(new PayRule { ActiveDifferentialCodes = rules.Select(r => r.Code).ToHashSet() }, new LocalDate(2000, 1, 1))],
+            [],
+            rules,
+            holidays);
 
     [Fact]
     public void OvernightAndHoliday_Stack_ByDefault()

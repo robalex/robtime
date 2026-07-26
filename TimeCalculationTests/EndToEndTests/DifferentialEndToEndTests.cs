@@ -29,8 +29,9 @@ public class DifferentialEndToEndTests : EndToEndTests
             AdjustmentValue = 3m,
         };
         var holidays = new HolidayCalendar([new LocalDate(2023, 1, 2)]);
+        var payRule = new PayRule { ActiveDifferentialCodes = new HashSet<string> { "HOLIDAY", "NIGHT" } };
         var ctx = new PipelineContext(emp,
-            [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], [],
+            [new PayRuleAssignment(payRule, new LocalDate(2000, 1, 1))], [],
             [holiday, overnight], holidays);
 
         // 22:00 Jan 2 (the holiday) -> 02:00 Jan 3, 4 hrs total
@@ -68,8 +69,9 @@ public class DifferentialEndToEndTests : EndToEndTests
             AdjustmentType = DifferentialAdjustmentType.Multiplier,
             AdjustmentValue = 0.10m,
         };
+        var payRule = new PayRule { ActiveDifferentialCodes = new HashSet<string> { "SHIFT10" } };
         var ctx = new PipelineContext(emp,
-            [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], [], [shiftDiff]);
+            [new PayRuleAssignment(payRule, new LocalDate(2000, 1, 1))], [], [shiftDiff]);
 
         var punches = new List<Punch> { In(emp, At(2, 9)), Out(emp, At(2, 17)) };   // 8h @ $25 (min-wage fallback)
 
@@ -99,8 +101,9 @@ public class DifferentialEndToEndTests : EndToEndTests
             AdjustmentValue = 50m,
         };
         var holidays = new HolidayCalendar([new LocalDate(2023, 1, 2)]);
+        var payRule = new PayRule { ActiveDifferentialCodes = new HashSet<string> { "HOL_BONUS" } };
         var ctx = new PipelineContext(emp,
-            [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], [], [holidayBonus], holidays);
+            [new PayRuleAssignment(payRule, new LocalDate(2000, 1, 1))], [], [holidayBonus], holidays);
 
         var punches = new List<Punch> { In(emp, At(2, 9)), Out(emp, At(2, 17)) };   // 8h, on the holiday
 
@@ -131,8 +134,9 @@ public class DifferentialEndToEndTests : EndToEndTests
             AdjustmentValue = 2m,
             MinHoursInRange = 20m,
         };
+        var payRule = new PayRule { ActiveDifferentialCodes = new HashSet<string> { "LOYALTY" } };
         var ctx = new PipelineContext(emp,
-            [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], [], [loyalty]);
+            [new PayRuleAssignment(payRule, new LocalDate(2000, 1, 1))], [], [loyalty]);
 
         var punches = new List<Punch>();
         for (int day = 2; day <= 6; day++)
@@ -164,8 +168,9 @@ public class DifferentialEndToEndTests : EndToEndTests
             AdjustmentValue = 2m,
             MinHoursInRange = 20m,
         };
+        var payRule = new PayRule { ActiveDifferentialCodes = new HashSet<string> { "LOYALTY" } };
         var ctx = new PipelineContext(emp,
-            [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], [], [loyalty]);
+            [new PayRuleAssignment(payRule, new LocalDate(2000, 1, 1))], [], [loyalty]);
 
         var punches = new List<Punch>();
         for (int day = 2; day <= 4; day++)
@@ -199,8 +204,9 @@ public class DifferentialEndToEndTests : EndToEndTests
             AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
             AdjustmentValue = 5m
         };
+        var payRule = new PayRule { ActiveDifferentialCodes = new HashSet<string> { "LOW", "HIGH" } };
         var ctx = new PipelineContext(emp,
-            [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))], [], [low, high]);
+            [new PayRuleAssignment(payRule, new LocalDate(2000, 1, 1))], [], [low, high]);
 
         var punches = new List<Punch> { In(emp, At(2, 9)), Out(emp, At(2, 17)) };   // 8h
 
