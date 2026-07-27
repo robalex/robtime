@@ -30,10 +30,22 @@ const AREAS = [
     visible: can.manageDifferentialRules,
   },
   {
+    to: '/setup/holidaycalendars',
+    title: 'Holiday calendars',
+    description: 'Observed holiday dates for holiday-based differentials and premiums.',
+    visible: can.manageHolidayCalendars,
+  },
+  {
     to: '/setup/clientpremiumpolicies',
     title: 'Waiver policies',
     description: "This client's own determination of whether each premium can be waived.",
     visible: can.manageClientPremiumPolicies,
+  },
+  {
+    to: '/setup/stateminimumwages',
+    title: 'State minimum wages',
+    description: 'Reference rates shared across every client, not specific to one.',
+    visible: can.manageStateMinimumWages,
   },
 ] as const
 

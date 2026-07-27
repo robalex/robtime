@@ -276,6 +276,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/holidaycalendars": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListHolidayCalendars"];
+        put?: never;
+        post: operations["CreateHolidayCalendar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/holidaycalendars/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetHolidayCalendar"];
+        put: operations["UpdateHolidayCalendar"];
+        post?: never;
+        delete: operations["DeleteHolidayCalendar"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/state-minimum-wages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListStateMinimumWages"];
+        put?: never;
+        post: operations["CreateStateMinimumWage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/state-minimum-wages/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetStateMinimumWage"];
+        put: operations["UpdateStateMinimumWage"];
+        post?: never;
+        delete: operations["DeleteStateMinimumWage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clientpremiumpolicies": {
         parameters: {
             query?: never;
@@ -348,6 +412,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["GetPayRuleTemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/metadata/us-federal-holidays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetUsFederalHolidays"];
         put?: never;
         post?: never;
         delete?: never;
@@ -465,6 +545,12 @@ export interface components {
             homeTimeZoneId?: null | string;
             state?: null | string;
         };
+        CreateHolidayCalendarRequest: {
+            /** Format: int32 */
+            clientId: number;
+            name: string;
+            dates?: null | string[];
+        };
         CreatePayRuleAssignmentRequest: {
             /** Format: int32 */
             payRuleId: number;
@@ -541,6 +627,13 @@ export interface components {
             deviceId?: null | string;
             devicePunchId?: null | string;
         };
+        CreateStateMinimumWageRequest: {
+            state: string;
+            effectiveFrom: components["schemas"]["LocalDate"];
+            effectiveTo?: null | components["schemas"]["LocalDate"];
+            /** Format: double */
+            amount: number;
+        };
         CreateUserRequest: {
             email: string;
             /** Format: int32 */
@@ -607,6 +700,14 @@ export interface components {
             minimumWage: number;
             homeTimeZoneId: string;
             state: string;
+        };
+        HolidayCalendarResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            clientId: number;
+            name: string;
+            dates: string[];
         };
         HttpValidationProblemDetails: {
             type?: null | string;
@@ -677,6 +778,15 @@ export interface components {
             /** Format: int32 */
             pageSize: number;
         };
+        PagedResultOfHolidayCalendarResponse: {
+            items: components["schemas"]["HolidayCalendarResponse"][];
+            /** Format: int32 */
+            totalCount: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+        };
         PagedResultOfPayRuleResponse: {
             items: components["schemas"]["PayRuleResponse"][];
             /** Format: int32 */
@@ -688,6 +798,15 @@ export interface components {
         };
         PagedResultOfPositionResponse: {
             items: components["schemas"]["PositionResponse"][];
+            /** Format: int32 */
+            totalCount: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+        };
+        PagedResultOfStateMinimumWageResponse: {
+            items: components["schemas"]["StateMinimumWageResponse"][];
             /** Format: int32 */
             totalCount: number;
             /** Format: int32 */
@@ -855,6 +974,15 @@ export interface components {
         RoundingStrategy: "None" | "NearestInterval" | "IntervalWithGrace";
         /** @enum {unknown} */
         ShiftDateStrategy: "FirstPunchLocalDate" | "LastPunchLocalDate" | "MajorityHoursLocalDate" | "SplitAtMidnight";
+        StateMinimumWageResponse: {
+            /** Format: int32 */
+            id: number;
+            state: string;
+            effectiveFrom: components["schemas"]["LocalDate"];
+            effectiveTo?: null | components["schemas"]["LocalDate"];
+            /** Format: double */
+            amount: number;
+        };
         UpdateClientPremiumPolicyRequest: {
             premiumCode: string;
             waiverPolicy: components["schemas"]["WaiverPolicy"];
@@ -893,6 +1021,10 @@ export interface components {
             minimumWage: number;
             homeTimeZoneId?: null | string;
             state?: null | string;
+        };
+        UpdateHolidayCalendarRequest: {
+            name: string;
+            dates?: null | string[];
         };
         UpdatePayRuleAssignmentRequest: {
             /** Format: int32 */
@@ -947,6 +1079,13 @@ export interface components {
             name: string;
             /** Format: double */
             baseRate: number;
+        };
+        UpdateStateMinimumWageRequest: {
+            state: string;
+            effectiveFrom: components["schemas"]["LocalDate"];
+            effectiveTo?: null | components["schemas"]["LocalDate"];
+            /** Format: double */
+            amount: number;
         };
         UserResponse: {
             cognitoSub: string;
@@ -2021,6 +2160,274 @@ export interface operations {
             };
         };
     };
+    ListHolidayCalendars: {
+        parameters: {
+            query: {
+                clientId: number;
+                Page?: number;
+                PageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultOfHolidayCalendarResponse"];
+                };
+            };
+        };
+    };
+    CreateHolidayCalendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateHolidayCalendarRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolidayCalendarResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetHolidayCalendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolidayCalendarResponse"];
+                };
+            };
+        };
+    };
+    UpdateHolidayCalendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateHolidayCalendarRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolidayCalendarResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteHolidayCalendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListStateMinimumWages: {
+        parameters: {
+            query?: {
+                state?: string;
+                Page?: number;
+                PageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultOfStateMinimumWageResponse"];
+                };
+            };
+        };
+    };
+    CreateStateMinimumWage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStateMinimumWageRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StateMinimumWageResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetStateMinimumWage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StateMinimumWageResponse"];
+                };
+            };
+        };
+    };
+    UpdateStateMinimumWage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateStateMinimumWageRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StateMinimumWageResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteStateMinimumWage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     ListClientPremiumPolicies: {
         parameters: {
             query: {
@@ -2225,6 +2632,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayRuleTemplateResponse"][];
+                };
+            };
+        };
+    };
+    GetUsFederalHolidays: {
+        parameters: {
+            query: {
+                year: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
                 };
             };
         };

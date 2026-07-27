@@ -251,7 +251,8 @@ public class PayrollDbContext : DbContext
             b.ToTable("holiday_calendars");
             b.HasKey(h => h.Id);
             b.HasOne<Client>().WithMany().HasForeignKey(h => h.ClientId).OnDelete(DeleteBehavior.Restrict);
-            b.HasQueryFilter(h => h.ClientId == _tenantClientId);
+            b.HasQueryFilter("Tenant", h => h.ClientId == _tenantClientId);
+            b.HasQueryFilter("SoftDelete", h => !h.IsDeleted);
 
             b.Property(h => h.Dates)
                 .HasConversion(

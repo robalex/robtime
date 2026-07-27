@@ -13,6 +13,7 @@ public class HolidayCalendar
     public int ClientId { get; set; }
     public string Name { get; set; } = string.Empty;
     public IReadOnlySet<LocalDate> Dates { get; set; } = new HashSet<LocalDate>();
+    public bool IsDeleted { get; set; }
 
     public HolidayCalendar() { }
 
