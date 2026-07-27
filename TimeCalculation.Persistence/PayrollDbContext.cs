@@ -271,7 +271,8 @@ public class PayrollDbContext : DbContext
             b.ToTable("client_premium_policies");
             b.HasKey(c => c.Id);
             b.HasOne<Client>().WithMany().HasForeignKey(c => c.ClientId).OnDelete(DeleteBehavior.Restrict);
-            b.HasQueryFilter(c => c.ClientId == _tenantClientId);
+            b.HasQueryFilter("Tenant", c => c.ClientId == _tenantClientId);
+            b.HasQueryFilter("SoftDelete", c => !c.IsDeleted);
 
             // Resolution lookup: "this client's policy for this premium code, as of a given date."
             b.HasIndex(c => new { c.ClientId, c.PremiumCode, c.EffectiveFrom });

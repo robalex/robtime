@@ -128,6 +128,7 @@ builder.Services.AddScoped<PositionAssignmentService>();
 builder.Services.AddScoped<PayRuleAssignmentService>();
 builder.Services.AddScoped<DifferentialRuleService>();
 builder.Services.AddScoped<PayRuleWhatIfService>();
+builder.Services.AddScoped<ClientPremiumPolicyService>();
 builder.Services.AddScoped<CurrentUserService>();
 // No DB dependency (reads a static in-engine registry), so Singleton — no PayrollDbContext lifetime
 // to match, and there's nothing about it that needs a fresh instance per request.
@@ -294,6 +295,7 @@ app.MapPositionAssignmentEndpoints();
 app.MapPayRuleAssignmentEndpoints();
 app.MapPayRuleEndpoints();
 app.MapDifferentialRuleEndpoints();
+app.MapClientPremiumPolicyEndpoints();
 app.MapPunchEndpoints();
 app.MapMetadataEndpoints();
 app.MapUserEndpoints();

@@ -15,9 +15,8 @@ namespace TimeCalculation.Api.Tests;
 /// future entity that forgets to add (or mis-wires) its tenant filter fails this test instead of
 /// shipping a cross-tenant leak. Runs directly against the DbContext (not through the API), which is
 /// both simpler than standing up full HTTP call chains for entities with no CRUD endpoints yet
-/// (PunchAuditEntry, the assignment entities, DifferentialRule, HolidayCalendar,
-/// ClientPremiumPolicy) and a more direct test of the actual mechanism (the query filter) than an
-/// HTTP round-trip would be.
+/// (PunchAuditEntry, the assignment entities) and a more direct test of the actual mechanism (the
+/// query filter) than an HTTP round-trip would be.
 /// </summary>
 [Collection("Api")]
 public class TenantIsolationTests(ApiFixture fixture)

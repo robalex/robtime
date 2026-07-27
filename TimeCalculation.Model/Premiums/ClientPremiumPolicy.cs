@@ -10,10 +10,9 @@ namespace TimeCalculation.Model.Premiums;
 /// (<see cref="SetBy"/>/<see cref="SetAt"/>) and effective-dated so a past calculation stays
 /// reproducible even after the policy is changed later.
 ///
-/// Not yet consulted by the calculation pipeline — resolving "client override as of the
-/// calculation date, else the rule's own built-in default" is deliberately deferred to a later
-/// pass; the engine's waiver evaluation currently takes a bare <see cref="WaiverPolicy"/> supplied
-/// by its caller, not yet by resolving this entity.
+/// Resolved by <see cref="TimeCalculation.Pipeline.PipelineContext.GetWaiverPolicyOverridesAt"/> as
+/// of the shift's date and consulted by <c>PremiumRuleBase.Resolve</c> — a client override wins over
+/// the rule's own built-in default when one is effective for that premium code on that date.
 /// </summary>
 public class ClientPremiumPolicy
 {
@@ -34,4 +33,6 @@ public class ClientPremiumPolicy
 
     /// <summary>Optional free-text note (e.g. a citation) the client can attach to their determination.</summary>
     public string? Justification { get; set; }
+
+    public bool IsDeleted { get; set; }
 }

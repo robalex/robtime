@@ -70,11 +70,18 @@ public class PayRuleWhatIfService(PayrollDbContext db)
             .Where(a => a.EmployeeId == request.EmployeeId)
             .ToListAsync(ct);
         var differentialRules = await db.DifferentialRules.ToListAsync(ct);
+        // Real waiver overrides, not the empty-list default — otherwise a client's attested
+        // ClientPremiumPolicy never actually affects a what-if run (see PipelineContext.
+        // GetWaiverPolicyOverridesAt, which this list feeds). Scoped by the tenant query filter,
+        // same as differentialRules above.
+        var clientPremiumPolicies = await db.ClientPremiumPolicies.ToListAsync(ct);
 
         var currentAssignments = payRuleAssignments.Select(a => a.ToDomain()).ToList();
         var positionAssignmentsDomain = positionAssignments.Select(a => a.ToDomain()).ToList();
 
-        var currentCtx = new PipelineContext(employee, currentAssignments, positionAssignmentsDomain, differentialRules);
+        var currentCtx = new PipelineContext(
+            employee, currentAssignments, positionAssignmentsDomain, differentialRules,
+            clientPremiumPolicies: clientPremiumPolicies);
         // The synthetic assignment must cover more than [PeriodStart, PeriodEnd): PayCalculator
         // resolves the overtime rule from each *workweek's* start instant (PayCalculator.cs,
         // CalculateWorkweekPay), which for a punch near PeriodStart can fall up to 6 days earlier
@@ -85,7 +92,8 @@ public class PayRuleWhatIfService(PayrollDbContext db)
             employee,
             [new PayRuleAssignment(draftRule, request.PeriodStart.PlusDays(-7), request.PeriodEnd.PlusDays(7))],
             positionAssignmentsDomain,
-            differentialRules);
+            differentialRules,
+            clientPremiumPolicies: clientPremiumPolicies);
 
         PayResult currentResult;
         try

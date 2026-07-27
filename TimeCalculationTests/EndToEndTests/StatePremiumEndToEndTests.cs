@@ -27,6 +27,35 @@ public class StatePremiumEndToEndTests : EndToEndTests
     }
 
     [Fact]
+    public void CaMeal_ClientPolicyOverridesBuiltInDefault_EndToEnd()
+    {
+        // CA_MEAL's built-in default is BothRequired (see the test above: both overrides present
+        // waives it). A client's own ClientPremiumPolicy for that code takes precedence over the
+        // rule's built-in default (PipelineContext.GetWaiverPolicyOverridesAt, consulted by
+        // PremiumRuleBase.Resolve) — here the client has tightened it to NotWaivable, so the same
+        // two overrides that would otherwise waive the violation no longer do.
+        var emp = new Employee { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 20m };
+        var rule = new PayRule { ActivePremiumCodes = new HashSet<string> { "CA_MEAL" } };
+        var policy = new ClientPremiumPolicy
+        {
+            PremiumCode = "CA_MEAL",
+            WaiverPolicy = WaiverPolicy.NotWaivable,
+            SetBy = "test-supervisor",
+            SetAt = Instant.FromUtc(2000, 1, 1, 0, 0),
+            EffectiveFrom = new LocalDate(2000, 1, 1),
+        };
+        var ctx = new PipelineContext(
+            emp, [new PayRuleAssignment(rule, new LocalDate(2000, 1, 1))], [],
+            clientPremiumPolicies: [policy]);
+        var punches = new List<Punch> { In(emp, At(2, 9)), Out(emp, At(2, 17)) };   // 8h, no lunch
+
+        var result = PayCalculator.Calculate(punches, ctx,
+            overridesForShift: _ => [OverrideKind.SupervisorApproval, OverrideKind.EmployeeWaiver]);
+
+        Assert.Equal(180m, result.GrossPay);   // still owed — the client override blocks the waiver
+    }
+
+    [Fact]
     public void CaRest_NotWaivable_ChargedEvenWithOverrides_EndToEnd()
     {
         var emp = new Employee { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 20m };
