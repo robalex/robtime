@@ -24,25 +24,30 @@ public abstract class PremiumRuleBase : IPremiumRule
     protected PremiumResult Resolve(
         PremiumContext ctx, bool violated, decimal hours, decimal multiplier, string violatedMsg, string okMsg)
     {
+        // Client override as of the calc date, else this rule's own built-in default (Gap I —
+        // RobTime never asserts an unverified legal answer on the client's behalf; see
+        // ClientPremiumPolicy's own doc comment).
+        var effectivePolicy = ctx.WaiverPolicyOverrides.TryGetValue(Code, out var overridden) ? overridden : WaiverPolicy;
+
         if (!violated)
             return new PremiumResult
             {
                 Code = Code,
                 Violated = false,
-                WaiverPolicy = WaiverPolicy,
+                WaiverPolicy = effectivePolicy,
                 BaseRate = ctx.RegularRate,
                 Multiplier = multiplier,
                 Explanation = okMsg,
             };
 
-        bool waived = WaiverEvaluator.IsWaived(WaiverPolicy, ctx.Overrides);
+        bool waived = WaiverEvaluator.IsWaived(effectivePolicy, ctx.Overrides);
 
         return new PremiumResult
         {
             Code = Code,
             Violated = true,
             Waived = waived,
-            WaiverPolicy = WaiverPolicy,
+            WaiverPolicy = effectivePolicy,
             BaseRate = ctx.RegularRate,
             Multiplier = multiplier,
             Hours = waived ? 0 : hours,

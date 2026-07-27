@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using NodaTime;
 using TimeCalculation.Model;
 using TimeCalculation.Model.PayRules;
+using TimeCalculation.Model.Premiums;
 
 namespace TimeCalculation.Pipeline;
 
@@ -21,13 +22,15 @@ public class PipelineContext
     public DateTimeZone EmployeeTimeZone { get; }
     public IReadOnlyList<DifferentialRule> DifferentialRules { get; }
     public HolidayCalendar? HolidayCalendar { get; }
+    public IReadOnlyList<ClientPremiumPolicy> ClientPremiumPolicies { get; }
 
     public PipelineContext(
         Employee employee,
         IReadOnlyList<PayRuleAssignment> payRuleAssignments,
         IReadOnlyList<EmployeePositionAssignment> positionAssignments,
         IReadOnlyList<DifferentialRule>? differentialRules = null,
-        HolidayCalendar? holidayCalendar = null)
+        HolidayCalendar? holidayCalendar = null,
+        IReadOnlyList<ClientPremiumPolicy>? clientPremiumPolicies = null)
     {
         Employee = employee;
         EmployeeTimeZone = DateTimeZoneProviders.Tzdb[employee.HomeTimeZoneId];
@@ -35,6 +38,7 @@ public class PipelineContext
         _positionAssignments = positionAssignments.OrderBy(a => a.EffectiveFrom).ToList();
         DifferentialRules = differentialRules ?? [];
         HolidayCalendar = holidayCalendar;
+        ClientPremiumPolicies = clientPremiumPolicies ?? [];
 
         ValidateDifferentialRules(DifferentialRules);
     }
@@ -176,6 +180,20 @@ public class PipelineContext
     {
         public int CompareTo(T? other) => date.CompareTo(from(other!));
     }
+
+    /// <summary>
+    /// Resolves each premium code's client-asserted <see cref="WaiverPolicy"/> override as of a
+    /// given date, keyed by <c>PremiumCode</c> — a code absent from the result has no client
+    /// override, so callers fall back to the rule's own built-in default (see
+    /// PremiumRuleBase.Resolve). A code should never have more than one covering policy at a time
+    /// (the API's own overlap check enforces this per client), but if it somehow did, the row with
+    /// the latest EffectiveFrom wins, matching GetRuleAt's "most specific/recent assignment" convention.
+    /// </summary>
+    public IReadOnlyDictionary<string, WaiverPolicy> GetWaiverPolicyOverridesAt(LocalDate date) =>
+        ClientPremiumPolicies
+            .Where(p => p.EffectiveFrom <= date && (p.EffectiveTo is null || date <= p.EffectiveTo))
+            .GroupBy(p => p.PremiumCode)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(p => p.EffectiveFrom).First().WaiverPolicy);
 
     /// <summary>
     /// Returns the instants at which a PayRule or EmployeePosition effective-date boundary falls

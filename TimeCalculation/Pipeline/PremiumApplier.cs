@@ -39,6 +39,7 @@ public static class PremiumApplier
             {
                 RegularRate = rateForShift(shift),
                 Overrides = overridesForShift?.Invoke(shift) ?? [],
+                WaiverPolicyOverrides = ctx.GetWaiverPolicyOverridesAt(shift.ShiftDate),
             };
 
             // Computed once per shift rather than per rule per method (Applies + Calculate), since
