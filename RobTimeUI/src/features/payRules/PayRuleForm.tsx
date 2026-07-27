@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import type { PayRuleTemplate } from './queries'
 import type { PremiumRuleMetadata } from '@/features/premiumRules/queries'
+import type { DifferentialRule } from '@/features/differentialRules/queries'
 
 const WORKWEEK_DAYS = [
   'Monday',
@@ -58,6 +59,7 @@ const payRuleFormSchema = z.object({
   expectedLunchLengthMinutes: z.string().optional(),
   shiftDateStrategy: z.string().min(1),
   activePremiumCodes: z.array(z.string()),
+  activeDifferentialCodes: z.array(z.string()),
 })
 
 export type PayRuleFormValues = z.infer<typeof payRuleFormSchema>
@@ -103,6 +105,9 @@ interface PayRuleFormProps {
    * registry changed) — the form still works, just without the diff affordance. */
   template: PayRuleTemplate | null
   premiumRules: PremiumRuleMetadata[]
+  /** The pay rule's own client's differentials — jurisdiction templates don't preset these (they're
+   * client-authored), so unlike premiums there's no "modified from template" diff for this field. */
+  differentialRules: DifferentialRule[]
   defaultValues: PayRuleFormValues
   submitLabel: string
   onSubmit: (values: PayRuleFormValues) => Promise<unknown>
@@ -112,6 +117,7 @@ interface PayRuleFormProps {
 export function PayRuleForm({
   template,
   premiumRules,
+  differentialRules,
   defaultValues,
   submitLabel,
   onSubmit,
@@ -315,7 +321,7 @@ export function PayRuleForm({
           Native details/summary: keyboard- and screen-reader-accessible with no JS dependency. */}
       <details className="rounded-lg border p-4" open={advancedInitiallyModified}>
         <summary className="cursor-pointer text-sm font-medium">
-          Advanced — punch pairing, shifts, and state premiums
+          Advanced — punch pairing, shifts, state premiums, and differentials
         </summary>
         <div className="mt-4 space-y-6">
           <div className="grid gap-4 sm:grid-cols-3">
@@ -404,6 +410,34 @@ export function PayRuleForm({
                     <br />
                     <span className="text-muted-foreground">{rule.description}</span>
                   </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Differentials</Label>
+            <div className="space-y-2 rounded-md border p-3">
+              {differentialRules.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  This client has no differential rules yet.
+                </p>
+              )}
+              {differentialRules.map((rule) => (
+                <label key={rule.code} className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 rounded border-input"
+                    value={rule.code}
+                    checked={values.activeDifferentialCodes.includes(rule.code)}
+                    onChange={(event) => {
+                      const next = event.target.checked
+                        ? [...values.activeDifferentialCodes, rule.code]
+                        : values.activeDifferentialCodes.filter((code) => code !== rule.code)
+                      form.setValue('activeDifferentialCodes', next, { shouldDirty: true })
+                    }}
+                  />
+                  <span className="font-medium">{rule.code}</span>
                 </label>
               ))}
             </div>

@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useCreatePayRule, usePayRuleTemplates, type PayRuleTemplate } from '@/features/payRules/queries'
 import { usePremiumRules } from '@/features/premiumRules/queries'
+import { useDifferentialRules } from '@/features/differentialRules/queries'
 import { PayRuleForm, type PayRuleFormValues } from '@/features/payRules/PayRuleForm'
 import { RequiresClient } from '@/components/RequiresClient'
 import { toApiProblem } from '@/lib/problem'
@@ -22,6 +23,7 @@ function NewPayRuleFlow({ clientId }: { clientId: number }) {
   const navigate = useNavigate()
   const { data: templates, isPending: templatesPending, isError, error } = usePayRuleTemplates()
   const { data: premiumRules } = usePremiumRules()
+  const { data: differentialRules } = useDifferentialRules({ clientId, page: 1, pageSize: 100 })
   const createPayRule = useCreatePayRule()
   const [selectedTemplate, setSelectedTemplate] = useState<PayRuleTemplate | null>(null)
 
@@ -86,6 +88,7 @@ function NewPayRuleFlow({ clientId }: { clientId: number }) {
     expectedLunchLengthMinutes: '',
     shiftDateStrategy: 'FirstPunchLocalDate',
     activePremiumCodes: [...selectedTemplate.activePremiumCodes],
+    activeDifferentialCodes: [],
   }
 
   return (
@@ -104,6 +107,7 @@ function NewPayRuleFlow({ clientId }: { clientId: number }) {
       <PayRuleForm
         template={selectedTemplate}
         premiumRules={premiumRules ?? []}
+        differentialRules={differentialRules?.items ?? []}
         defaultValues={defaultValues}
         submitLabel="Create pay rule"
         onCancel={() => void navigate({ to: '/setup/payrules' })}
@@ -142,6 +146,7 @@ function NewPayRuleFlow({ clientId }: { clientId: number }) {
               : undefined,
             shiftDateStrategy: values.shiftDateStrategy as never,
             activePremiumCodes: values.activePremiumCodes,
+            activeDifferentialCodes: values.activeDifferentialCodes,
           })
           await navigate({ to: '/setup/payrules' })
         }}

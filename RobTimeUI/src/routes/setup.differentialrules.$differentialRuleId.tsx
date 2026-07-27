@@ -109,8 +109,8 @@ function EditDifferentialRule() {
         <div className="space-y-1">
           <h2 className="text-sm font-medium">Delete this differential rule</h2>
           <p className="text-sm text-muted-foreground">
-            Soft-deleted. If a pay rule still lists this code as active, remove it there too — a pay
-            rule doesn't validate that its differential codes still exist.
+            Soft-deleted. If a pay rule still lists this code as active, deletion is blocked until
+            it's removed from that pay rule first.
           </p>
         </div>
         {confirmingDelete ? (

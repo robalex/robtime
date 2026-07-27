@@ -8,6 +8,7 @@ import {
   useUpdatePayRule,
 } from '@/features/payRules/queries'
 import { usePremiumRules } from '@/features/premiumRules/queries'
+import { useDifferentialRules } from '@/features/differentialRules/queries'
 import { PayRuleForm, type PayRuleFormValues } from '@/features/payRules/PayRuleForm'
 import { WhatIfPanel } from '@/features/payRules/WhatIfPanel'
 import { toApiProblem } from '@/lib/problem'
@@ -25,6 +26,9 @@ function EditPayRule() {
   const { data: rule, isPending: rulePending, isError, error } = usePayRule(id)
   const { data: templates } = usePayRuleTemplates()
   const { data: premiumRules } = usePremiumRules()
+  const { data: differentialRules } = useDifferentialRules(
+    rule ? { clientId: rule.clientId, page: 1, pageSize: 100 } : null,
+  )
   const updatePayRule = useUpdatePayRule(id)
   const deletePayRule = useDeletePayRule()
   const createNewVersion = useCreateNewPayRuleVersion(id)
@@ -97,6 +101,10 @@ function EditPayRule() {
             <dt className="text-muted-foreground">State premiums</dt>
             <dd>{rule.activePremiumCodes.length > 0 ? rule.activePremiumCodes.join(', ') : 'None'}</dd>
           </div>
+          <div>
+            <dt className="text-muted-foreground">Differentials</dt>
+            <dd>{rule.activeDifferentialCodes.length > 0 ? rule.activeDifferentialCodes.join(', ') : 'None'}</dd>
+          </div>
         </dl>
 
         <div className="max-w-2xl space-y-2">
@@ -144,6 +152,7 @@ function EditPayRule() {
     expectedLunchLengthMinutes: String(rule.expectedLunchLengthMinutes),
     shiftDateStrategy: rule.shiftDateStrategy,
     activePremiumCodes: rule.activePremiumCodes,
+    activeDifferentialCodes: rule.activeDifferentialCodes,
   }
 
   return (
@@ -167,6 +176,7 @@ function EditPayRule() {
       <PayRuleForm
         template={template}
         premiumRules={premiumRules ?? []}
+        differentialRules={differentialRules?.items ?? []}
         defaultValues={defaultValues}
         submitLabel="Save changes"
         onCancel={() => void navigate({ to: '/setup/payrules' })}
@@ -202,6 +212,7 @@ function EditPayRule() {
               : undefined,
             shiftDateStrategy: values.shiftDateStrategy as never,
             activePremiumCodes: values.activePremiumCodes,
+            activeDifferentialCodes: values.activeDifferentialCodes,
           })
         }
       />

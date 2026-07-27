@@ -153,4 +153,36 @@ public class DifferentialRuleEndpointsTests(ApiFixture fixture)
         Assert.Equal(IsoDayOfWeek.Tuesday, created.DayOfWeekRangeEnd);
         Assert.Equal(20m, created.MinHoursInRange);
     }
+
+    [Fact]
+    public async Task DeleteDifferentialRule_ReferencedByPayRule_Returns409AndNamesTheRule()
+    {
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"Diff Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var createRequest = new CreateDifferentialRuleRequest
+        {
+            ClientId = clientId,
+            Code = "NIGHT",
+            DayScheduleMode = DayScheduleMode.EveryDay,
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
+            AdjustmentValue = 2m,
+        };
+        var createResponse = await api.PostAsJsonAsync("/differentialrules", createRequest, TestJson.Options, TestContext.Current.CancellationToken);
+        var created = (await createResponse.Content.ReadFromJsonAsync<DifferentialRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken))!;
+
+        var payRuleName = $"Rule {Guid.NewGuid()}";
+        var payRuleResponse = await api.PostAsJsonAsync(
+            "/payrules",
+            new CreatePayRuleRequest { ClientId = clientId, Name = payRuleName, ActiveDifferentialCodes = ["NIGHT"] },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        payRuleResponse.EnsureSuccessStatusCode();
+
+        var deleteResponse = await api.DeleteAsync($"/differentialrules/{created.Id}", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Conflict, deleteResponse.StatusCode);
+        var body = await deleteResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains(payRuleName, body);
+
+        var getAfterFailedDelete = await api.GetAsync($"/differentialrules/{created.Id}", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, getAfterFailedDelete.StatusCode);
+    }
 }

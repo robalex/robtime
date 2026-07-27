@@ -132,6 +132,20 @@ public class DifferentialRuleService(PayrollDbContext db)
             return ServiceResult<DifferentialRule>.NotFound($"No differential rule with id {id}.");
         }
 
+        // ActiveDifferentialCodes is a comma-delimited converted column (see PayrollDbContext), so
+        // "which pay rules reference this code" can't be pushed into SQL — pulled client-side, same
+        // as the set itself already assumes a small, read-mostly table.
+        var referencingPayRules = (await db.PayRules.ToListAsync(ct))
+            .Where(r => r.ActiveDifferentialCodes.Contains(rule.Code))
+            .ToList();
+        if (referencingPayRules.Count > 0)
+        {
+            var names = string.Join(", ", referencingPayRules.Select(r => $"'{r.Name}' ({r.Status}, v{r.Version})"));
+            return ServiceResult<DifferentialRule>.Conflict(
+                $"Differential rule '{rule.Code}' is still referenced by {referencingPayRules.Count} pay " +
+                $"rule(s): {names}. Remove it from those pay rules before deleting.");
+        }
+
         rule.IsDeleted = true;
         await db.SaveChangesAsync(ct);
 
