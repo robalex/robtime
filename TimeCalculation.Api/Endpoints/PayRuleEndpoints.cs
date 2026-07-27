@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using TimeCalculation.Api.Auth;
 using TimeCalculation.Api.Contracts;
 using TimeCalculation.Api.Services;
 using TimeCalculation.Model;
@@ -9,14 +10,20 @@ public static class PayRuleEndpoints
 {
     public static void MapPayRuleEndpoints(this WebApplication app)
     {
-        app.MapPost("/payrules", CreatePayRule).WithName("CreatePayRule").RequireAuthorization();
+        app.MapPost("/payrules", CreatePayRule).WithName("CreatePayRule")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
         app.MapGet("/payrules", ListPayRules).WithName("ListPayRules").RequireAuthorization();
         app.MapGet("/payrules/{id:int}", GetPayRule).WithName("GetPayRule").RequireAuthorization();
-        app.MapPut("/payrules/{id:int}", UpdatePayRule).WithName("UpdatePayRule").RequireAuthorization();
-        app.MapDelete("/payrules/{id:int}", DeletePayRule).WithName("DeletePayRule").RequireAuthorization();
-        app.MapPost("/payrules/{id:int}/activate", ActivatePayRule).WithName("ActivatePayRule").RequireAuthorization();
-        app.MapPost("/payrules/{id:int}/versions", CreateNewPayRuleVersion).WithName("CreateNewPayRuleVersion").RequireAuthorization();
-        app.MapPost("/payrules/{id:int}/what-if", RunWhatIf).WithName("RunPayRuleWhatIf").RequireAuthorization();
+        app.MapPut("/payrules/{id:int}", UpdatePayRule).WithName("UpdatePayRule")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
+        app.MapDelete("/payrules/{id:int}", DeletePayRule).WithName("DeletePayRule")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
+        app.MapPost("/payrules/{id:int}/activate", ActivatePayRule).WithName("ActivatePayRule")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
+        app.MapPost("/payrules/{id:int}/versions", CreateNewPayRuleVersion).WithName("CreateNewPayRuleVersion")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
+        app.MapPost("/payrules/{id:int}/what-if", RunWhatIf).WithName("RunPayRuleWhatIf")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
     }
 
     private static async Task<Results<Created<PayRuleResponse>, ValidationProblem, ProblemHttpResult>> CreatePayRule(

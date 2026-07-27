@@ -27,6 +27,25 @@ public class PunchEndpointsTests(ApiFixture fixture)
     }
 
     [Fact]
+    public async Task CreatePunch_AsEmployee_Returns403()
+    {
+        // No self-service Employee punch entry yet (Phase 6 not built — see AuthorizationPolicies'
+        // doc comment): this route requires Supervisor-or-higher until per-employee scoping exists.
+        var (clientId, _, employeeId) = await CreateEmployeeAsync();
+        var employeeApi = fixture.CreateAuthenticatedClient(AppRole.Employee, clientId, sub: $"test-employee-{Guid.NewGuid()}");
+        var request = new CreatePunchRequest
+        {
+            EmployeeId = employeeId,
+            PunchTime = SystemClock.Instance.GetCurrentInstant(),
+            Kind = PunchKind.In,
+        };
+
+        var response = await employeeApi.PostAsJsonAsync("/punches", request, TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task CreatePunch_UnknownEmployee_Returns404()
     {
         var (_, api, _) = await CreateEmployeeAsync();

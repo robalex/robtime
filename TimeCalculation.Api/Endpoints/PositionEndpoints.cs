@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using TimeCalculation.Api.Auth;
 using TimeCalculation.Api.Contracts;
 using TimeCalculation.Api.Services;
 
@@ -8,11 +9,14 @@ public static class PositionEndpoints
 {
     public static void MapPositionEndpoints(this WebApplication app)
     {
-        app.MapPost("/positions", CreatePosition).WithName("CreatePosition").RequireAuthorization();
+        app.MapPost("/positions", CreatePosition).WithName("CreatePosition")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
         app.MapGet("/positions", ListPositions).WithName("ListPositions").RequireAuthorization();
         app.MapGet("/positions/{id:int}", GetPosition).WithName("GetPosition").RequireAuthorization();
-        app.MapPut("/positions/{id:int}", UpdatePosition).WithName("UpdatePosition").RequireAuthorization();
-        app.MapDelete("/positions/{id:int}", DeletePosition).WithName("DeletePosition").RequireAuthorization();
+        app.MapPut("/positions/{id:int}", UpdatePosition).WithName("UpdatePosition")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
+        app.MapDelete("/positions/{id:int}", DeletePosition).WithName("DeletePosition")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
     }
 
     private static async Task<Results<Created<PositionResponse>, ValidationProblem, ProblemHttpResult>> CreatePosition(

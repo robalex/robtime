@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using NodaTime;
 using TimeCalculation.Api.Contracts;
+using TimeCalculation.Model;
 using Xunit;
 
 namespace TimeCalculation.Api.Tests;
@@ -10,6 +11,22 @@ namespace TimeCalculation.Api.Tests;
 public class PositionAssignmentEndpointsTests(ApiFixture fixture)
 {
     private static LocalDate Date(string iso) => LocalDate.FromDateOnly(DateOnly.Parse(iso));
+
+    [Fact]
+    public async Task CreateAssignment_AsEmployee_Returns403()
+    {
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync(
+            $"Assign Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var employeeId = await CreateEmployeeAsync(api, clientId);
+        var employeeApi = fixture.CreateAuthenticatedClient(AppRole.Employee, clientId, sub: $"test-employee-{Guid.NewGuid()}");
+
+        var response = await employeeApi.PostAsJsonAsync(
+            $"/employees/{employeeId}/positions",
+            new CreatePositionAssignmentRequest { PositionId = 999999999, EffectiveFrom = Date("2026-01-01") },
+            TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 
     [Fact]
     public async Task CreateAndList_ReturnsAssignmentWithPositionDetails()

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using NodaTime;
 using TimeCalculation.Api.Contracts;
+using TimeCalculation.Model;
 using TimeCalculation.Model.Premiums;
 using Xunit;
 
@@ -27,6 +28,24 @@ public class ClientPremiumPolicyEndpointsTests(ApiFixture fixture)
         var response = await api.PostAsJsonAsync("/clientpremiumpolicies", request, TestJson.Options, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreatePolicy_AsEmployee_Returns403()
+    {
+        var (clientId, _) = await fixture.CreateClientAndScopedClientAsync($"CPP Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var employeeApi = fixture.CreateAuthenticatedClient(AppRole.Employee, clientId, sub: $"test-employee-{Guid.NewGuid()}");
+        var request = new CreateClientPremiumPolicyRequest
+        {
+            ClientId = clientId,
+            PremiumCode = "CA_MEAL",
+            WaiverPolicy = WaiverPolicy.SupervisorOnly,
+            EffectiveFrom = Date("2026-01-01"),
+        };
+
+        var response = await employeeApi.PostAsJsonAsync("/clientpremiumpolicies", request, TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]

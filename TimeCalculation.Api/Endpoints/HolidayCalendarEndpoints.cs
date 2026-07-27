@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using TimeCalculation.Api.Auth;
 using TimeCalculation.Api.Contracts;
 using TimeCalculation.Api.Services;
 
@@ -8,11 +9,14 @@ public static class HolidayCalendarEndpoints
 {
     public static void MapHolidayCalendarEndpoints(this WebApplication app)
     {
-        app.MapPost("/holidaycalendars", CreateHolidayCalendar).WithName("CreateHolidayCalendar").RequireAuthorization();
+        app.MapPost("/holidaycalendars", CreateHolidayCalendar).WithName("CreateHolidayCalendar")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
         app.MapGet("/holidaycalendars", ListHolidayCalendars).WithName("ListHolidayCalendars").RequireAuthorization();
         app.MapGet("/holidaycalendars/{id:int}", GetHolidayCalendar).WithName("GetHolidayCalendar").RequireAuthorization();
-        app.MapPut("/holidaycalendars/{id:int}", UpdateHolidayCalendar).WithName("UpdateHolidayCalendar").RequireAuthorization();
-        app.MapDelete("/holidaycalendars/{id:int}", DeleteHolidayCalendar).WithName("DeleteHolidayCalendar").RequireAuthorization();
+        app.MapPut("/holidaycalendars/{id:int}", UpdateHolidayCalendar).WithName("UpdateHolidayCalendar")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
+        app.MapDelete("/holidaycalendars/{id:int}", DeleteHolidayCalendar).WithName("DeleteHolidayCalendar")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
     }
 
     private static async Task<Results<Created<HolidayCalendarResponse>, ValidationProblem, ProblemHttpResult>> CreateHolidayCalendar(

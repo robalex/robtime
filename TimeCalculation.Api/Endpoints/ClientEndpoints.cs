@@ -15,8 +15,10 @@ public static class ClientEndpoints
         app.MapGet("/clients", ListClients).WithName("ListClients")
             .RequireAuthorization(AuthorizationPolicies.SystemAdmin);
         app.MapGet("/clients/{id:int}", GetClient).WithName("GetClient").RequireAuthorization();
-        app.MapPut("/clients/{id:int}", UpdateClient).WithName("UpdateClient").RequireAuthorization();
-        app.MapDelete("/clients/{id:int}", DeleteClient).WithName("DeleteClient").RequireAuthorization();
+        app.MapPut("/clients/{id:int}", UpdateClient).WithName("UpdateClient")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
+        app.MapDelete("/clients/{id:int}", DeleteClient).WithName("DeleteClient")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
     }
 
     private static async Task<Results<Created<ClientResponse>, ValidationProblem>> CreateClient(

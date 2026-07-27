@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using TimeCalculation.Api.Auth;
 using TimeCalculation.Api.Contracts;
 using TimeCalculation.Api.Services;
 
@@ -13,11 +14,11 @@ public static class PayRuleAssignmentEndpoints
         app.MapGet("/employees/{employeeId:int}/payrules", ListAssignments)
             .WithName("ListPayRuleAssignments").RequireAuthorization();
         app.MapPost("/employees/{employeeId:int}/payrules", CreateAssignment)
-            .WithName("CreatePayRuleAssignment").RequireAuthorization();
+            .WithName("CreatePayRuleAssignment").RequireAuthorization(AuthorizationPolicies.ClientAdmin);
         app.MapPut("/employees/{employeeId:int}/payrules/{id:int}", UpdateAssignment)
-            .WithName("UpdatePayRuleAssignment").RequireAuthorization();
+            .WithName("UpdatePayRuleAssignment").RequireAuthorization(AuthorizationPolicies.ClientAdmin);
         app.MapDelete("/employees/{employeeId:int}/payrules/{id:int}", DeleteAssignment)
-            .WithName("DeletePayRuleAssignment").RequireAuthorization();
+            .WithName("DeletePayRuleAssignment").RequireAuthorization(AuthorizationPolicies.ClientAdmin);
     }
 
     private static async Task<Results<Ok<List<PayRuleAssignmentResponse>>, ProblemHttpResult>> ListAssignments(

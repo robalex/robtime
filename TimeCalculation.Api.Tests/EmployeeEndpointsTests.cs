@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using TimeCalculation.Api.Contracts;
+using TimeCalculation.Model;
 using Xunit;
 
 namespace TimeCalculation.Api.Tests;
@@ -65,5 +66,17 @@ public class EmployeeEndpointsTests(ApiFixture fixture)
 
         var deleteResponse = await api.DeleteAsync($"/employees/{created.Id}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateEmployee_AsEmployee_Returns403()
+    {
+        var (clientId, _) = await fixture.CreateClientAndScopedClientAsync($"Employee Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var employeeApi = fixture.CreateAuthenticatedClient(AppRole.Employee, clientId, sub: $"test-employee-{Guid.NewGuid()}");
+        var request = new CreateEmployeeRequest { ClientId = clientId, FirstName = "Test", LastName = "Employee", MinimumWage = 15m };
+
+        var response = await employeeApi.PostAsJsonAsync("/employees", request, TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 }

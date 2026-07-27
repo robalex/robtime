@@ -11,7 +11,12 @@ public static class PunchEndpoints
 {
     public static void MapPunchEndpoints(this WebApplication app)
     {
-        app.MapPost("/punches", CreatePunch).WithName("CreatePunch").RequireAuthorization();
+        // Supervisor-or-higher for now ("view/edit punches for their client," UI_PLAN.md §5) — this
+        // route has no per-employee scoping yet, so an Employee-role caller could otherwise create a
+        // punch for any employee just by naming a different EmployeeId. Self-service Employee punch
+        // entry needs that scoping (Phase 6, not yet built) before it can safely open up.
+        app.MapPost("/punches", CreatePunch).WithName("CreatePunch")
+            .RequireAuthorization(AuthorizationPolicies.Supervisor);
     }
 
     private static async Task<Results<Created<Punch>, ValidationProblem, ProblemHttpResult>> CreatePunch(

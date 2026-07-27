@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using TimeCalculation.Api.Auth;
 using TimeCalculation.Api.Contracts;
 using TimeCalculation.Api.Services;
 
@@ -8,11 +9,14 @@ public static class EmployeeEndpoints
 {
     public static void MapEmployeeEndpoints(this WebApplication app)
     {
-        app.MapPost("/employees", CreateEmployee).WithName("CreateEmployee").RequireAuthorization();
+        app.MapPost("/employees", CreateEmployee).WithName("CreateEmployee")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
         app.MapGet("/employees", ListEmployees).WithName("ListEmployees").RequireAuthorization();
         app.MapGet("/employees/{id:int}", GetEmployee).WithName("GetEmployee").RequireAuthorization();
-        app.MapPut("/employees/{id:int}", UpdateEmployee).WithName("UpdateEmployee").RequireAuthorization();
-        app.MapDelete("/employees/{id:int}", DeleteEmployee).WithName("DeleteEmployee").RequireAuthorization();
+        app.MapPut("/employees/{id:int}", UpdateEmployee).WithName("UpdateEmployee")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
+        app.MapDelete("/employees/{id:int}", DeleteEmployee).WithName("DeleteEmployee")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
     }
 
     private static async Task<Results<Created<EmployeeResponse>, ValidationProblem, ProblemHttpResult>> CreateEmployee(

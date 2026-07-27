@@ -10,9 +10,13 @@ namespace TimeCalculation.Api.Auth;
 /// exact-match role check, since SystemAdmin explicitly acts as ClientAdmin within its selected
 /// client (§5's "SystemAdmin scoping" decision) instead of needing a separate code path.
 ///
-/// Not yet applied to any endpoint — landing the infrastructure ahead of the endpoint-by-endpoint
-/// retrofit (UI_PLAN.md Phase 1) so it exists to build against without a large simultaneous change
-/// to every existing CRUD endpoint and its tests.
+/// Applied per the role table (UI_PLAN.md §5): mutations on client configuration (employees,
+/// positions, pay rules, differentials, holiday calendars, waiver policies, assignments) require
+/// ClientAdmin — "everything within one client." Reads stay open to any authenticated role,
+/// matching Employee's "read-only on everything else." Punch creation requires Supervisor for now
+/// ("view/edit punches for their client") — self-service Employee punch entry needs the
+/// PunchChangeRequest/per-employee scoping Phase 6 hasn't built yet, so Employee can't hit it via
+/// this route until that lands.
 /// </summary>
 public static class AuthorizationPolicies
 {

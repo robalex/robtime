@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using NodaTime;
 using TimeCalculation.Api.Contracts;
+using TimeCalculation.Model;
 using Xunit;
 
 namespace TimeCalculation.Api.Tests;
@@ -18,6 +19,18 @@ public class HolidayCalendarEndpointsTests(ApiFixture fixture)
         var response = await api.PostAsJsonAsync("/holidaycalendars", request, TestJson.Options, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateHolidayCalendar_AsEmployee_Returns403()
+    {
+        var (clientId, _) = await fixture.CreateClientAndScopedClientAsync($"Holiday Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var employeeApi = fixture.CreateAuthenticatedClient(AppRole.Employee, clientId, sub: $"test-employee-{Guid.NewGuid()}");
+        var request = new CreateHolidayCalendarRequest { ClientId = clientId, Name = "Federal" };
+
+        var response = await employeeApi.PostAsJsonAsync("/holidaycalendars", request, TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]

@@ -29,6 +29,25 @@ public class DifferentialRuleEndpointsTests(ApiFixture fixture)
     }
 
     [Fact]
+    public async Task CreateDifferentialRule_AsEmployee_Returns403()
+    {
+        var (clientId, _) = await fixture.CreateClientAndScopedClientAsync($"Diff Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var employeeApi = fixture.CreateAuthenticatedClient(AppRole.Employee, clientId, sub: $"test-employee-{Guid.NewGuid()}");
+        var request = new CreateDifferentialRuleRequest
+        {
+            ClientId = clientId,
+            Code = "NIGHT",
+            DayScheduleMode = DayScheduleMode.EveryDay,
+            AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
+            AdjustmentValue = 2m,
+        };
+
+        var response = await employeeApi.PostAsJsonAsync("/differentialrules", request, TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task CreateDifferentialRule_NegativeAdjustmentValue_Returns400()
     {
         var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"Diff Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);

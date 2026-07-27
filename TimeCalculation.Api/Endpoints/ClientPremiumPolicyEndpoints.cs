@@ -10,11 +10,14 @@ public static class ClientPremiumPolicyEndpoints
 {
     public static void MapClientPremiumPolicyEndpoints(this WebApplication app)
     {
-        app.MapPost("/clientpremiumpolicies", CreateClientPremiumPolicy).WithName("CreateClientPremiumPolicy").RequireAuthorization();
+        app.MapPost("/clientpremiumpolicies", CreateClientPremiumPolicy).WithName("CreateClientPremiumPolicy")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
         app.MapGet("/clientpremiumpolicies", ListClientPremiumPolicies).WithName("ListClientPremiumPolicies").RequireAuthorization();
         app.MapGet("/clientpremiumpolicies/{id:int}", GetClientPremiumPolicy).WithName("GetClientPremiumPolicy").RequireAuthorization();
-        app.MapPut("/clientpremiumpolicies/{id:int}", UpdateClientPremiumPolicy).WithName("UpdateClientPremiumPolicy").RequireAuthorization();
-        app.MapDelete("/clientpremiumpolicies/{id:int}", DeleteClientPremiumPolicy).WithName("DeleteClientPremiumPolicy").RequireAuthorization();
+        app.MapPut("/clientpremiumpolicies/{id:int}", UpdateClientPremiumPolicy).WithName("UpdateClientPremiumPolicy")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
+        app.MapDelete("/clientpremiumpolicies/{id:int}", DeleteClientPremiumPolicy).WithName("DeleteClientPremiumPolicy")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
     }
 
     private static async Task<Results<Created<ClientPremiumPolicyResponse>, ValidationProblem, ProblemHttpResult>> CreateClientPremiumPolicy(

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using TimeCalculation.Api.Contracts;
+using TimeCalculation.Model;
 using Xunit;
 
 namespace TimeCalculation.Api.Tests;
@@ -47,6 +48,18 @@ public class ClientEndpointsTests(ApiFixture fixture)
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task UpdateClient_AsEmployee_Returns403()
+    {
+        var (clientId, _) = await fixture.CreateClientAndScopedClientAsync($"Auth Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var employeeApi = fixture.CreateAuthenticatedClient(AppRole.Employee, clientId, sub: $"test-employee-{Guid.NewGuid()}");
+        var request = new UpdateClientRequest { Name = "Renamed by employee" };
+
+        var response = await employeeApi.PutAsJsonAsync($"/clients/{clientId}", request, TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]

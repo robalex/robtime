@@ -25,6 +25,18 @@ public class PayRuleEndpointsTests(ApiFixture fixture)
     }
 
     [Fact]
+    public async Task CreatePayRule_AsEmployee_Returns403()
+    {
+        var (clientId, _) = await fixture.CreateClientAndScopedClientAsync($"PayRule Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var employeeApi = fixture.CreateAuthenticatedClient(AppRole.Employee, clientId, sub: $"test-employee-{Guid.NewGuid()}");
+        var request = new CreatePayRuleRequest { ClientId = clientId, Name = $"Rule {Guid.NewGuid()}" };
+
+        var response = await employeeApi.PostAsJsonAsync("/payrules", request, TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task CreatePayRule_Valid_RuleFamilyIdEqualsOwnId()
     {
         // Gap F's versioning convention: a first-created version's RuleFamilyId equals its own Id,

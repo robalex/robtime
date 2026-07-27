@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using TimeCalculation.Api.Auth;
 using TimeCalculation.Api.Contracts;
 using TimeCalculation.Api.Services;
 
@@ -8,11 +9,14 @@ public static class DifferentialRuleEndpoints
 {
     public static void MapDifferentialRuleEndpoints(this WebApplication app)
     {
-        app.MapPost("/differentialrules", CreateDifferentialRule).WithName("CreateDifferentialRule").RequireAuthorization();
+        app.MapPost("/differentialrules", CreateDifferentialRule).WithName("CreateDifferentialRule")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
         app.MapGet("/differentialrules", ListDifferentialRules).WithName("ListDifferentialRules").RequireAuthorization();
         app.MapGet("/differentialrules/{id:int}", GetDifferentialRule).WithName("GetDifferentialRule").RequireAuthorization();
-        app.MapPut("/differentialrules/{id:int}", UpdateDifferentialRule).WithName("UpdateDifferentialRule").RequireAuthorization();
-        app.MapDelete("/differentialrules/{id:int}", DeleteDifferentialRule).WithName("DeleteDifferentialRule").RequireAuthorization();
+        app.MapPut("/differentialrules/{id:int}", UpdateDifferentialRule).WithName("UpdateDifferentialRule")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
+        app.MapDelete("/differentialrules/{id:int}", DeleteDifferentialRule).WithName("DeleteDifferentialRule")
+            .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
     }
 
     private static async Task<Results<Created<DifferentialRuleResponse>, ValidationProblem, ProblemHttpResult>> CreateDifferentialRule(
