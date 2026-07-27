@@ -276,6 +276,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clientpremiumpolicies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListClientPremiumPolicies"];
+        put?: never;
+        post: operations["CreateClientPremiumPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clientpremiumpolicies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetClientPremiumPolicy"];
+        put: operations["UpdateClientPremiumPolicy"];
+        post?: never;
+        delete: operations["DeleteClientPremiumPolicy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/punches": {
         parameters: {
             query?: never;
@@ -367,6 +399,19 @@ export interface components {
         AppRole: "SystemAdmin" | "ClientAdmin" | "Supervisor" | "Employee";
         /** @enum {unknown} */
         BonusKind: "Discretionary" | "NonDiscretionary" | null;
+        ClientPremiumPolicyResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            clientId: number;
+            premiumCode: string;
+            waiverPolicy: components["schemas"]["WaiverPolicy"];
+            setBy: string;
+            setAt: components["schemas"]["Instant"];
+            effectiveFrom: components["schemas"]["LocalDate"];
+            effectiveTo?: null | components["schemas"]["LocalDate"];
+            justification?: null | string;
+        };
         ClientResponse: {
             /** Format: int32 */
             id: number;
@@ -374,6 +419,15 @@ export interface components {
             createdBy: string;
             /** Format: date-time */
             createdDate: string;
+        };
+        CreateClientPremiumPolicyRequest: {
+            /** Format: int32 */
+            clientId: number;
+            premiumCode: string;
+            waiverPolicy: components["schemas"]["WaiverPolicy"];
+            effectiveFrom: components["schemas"]["LocalDate"];
+            effectiveTo?: null | components["schemas"]["LocalDate"];
+            justification?: null | string;
         };
         CreateClientRequest: {
             name: string;
@@ -587,6 +641,15 @@ export interface components {
             displayName?: null | string;
             isProvisioned: boolean;
         };
+        PagedResultOfClientPremiumPolicyResponse: {
+            items: components["schemas"]["ClientPremiumPolicyResponse"][];
+            /** Format: int32 */
+            totalCount: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+        };
         PagedResultOfClientResponse: {
             items: components["schemas"]["ClientResponse"][];
             /** Format: int32 */
@@ -792,6 +855,13 @@ export interface components {
         RoundingStrategy: "None" | "NearestInterval" | "IntervalWithGrace";
         /** @enum {unknown} */
         ShiftDateStrategy: "FirstPunchLocalDate" | "LastPunchLocalDate" | "MajorityHoursLocalDate" | "SplitAtMidnight";
+        UpdateClientPremiumPolicyRequest: {
+            premiumCode: string;
+            waiverPolicy: components["schemas"]["WaiverPolicy"];
+            effectiveFrom: components["schemas"]["LocalDate"];
+            effectiveTo?: null | components["schemas"]["LocalDate"];
+            justification?: null | string;
+        };
         UpdateClientRequest: {
             name: string;
         };
@@ -1932,6 +2002,141 @@ export interface operations {
         };
     };
     DeleteDifferentialRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListClientPremiumPolicies: {
+        parameters: {
+            query: {
+                clientId: number;
+                premiumCode?: string;
+                Page?: number;
+                PageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultOfClientPremiumPolicyResponse"];
+                };
+            };
+        };
+    };
+    CreateClientPremiumPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateClientPremiumPolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientPremiumPolicyResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetClientPremiumPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientPremiumPolicyResponse"];
+                };
+            };
+        };
+    };
+    UpdateClientPremiumPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateClientPremiumPolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientPremiumPolicyResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteClientPremiumPolicy: {
         parameters: {
             query?: never;
             header?: never;

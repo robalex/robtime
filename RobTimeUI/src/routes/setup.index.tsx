@@ -29,6 +29,12 @@ const AREAS = [
     description: 'Time-based pay differentials — night shift, weekend, holiday.',
     visible: can.manageDifferentialRules,
   },
+  {
+    to: '/setup/clientpremiumpolicies',
+    title: 'Waiver policies',
+    description: "This client's own determination of whether each premium can be waived.",
+    visible: can.manageClientPremiumPolicies,
+  },
 ] as const
 
 function SetupHome() {
