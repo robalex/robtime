@@ -41,4 +41,19 @@ export const can = {
   /** Supervisor sees wage rates and pay amounts (§9 decision 16). */
   viewPay: (me: Me | undefined) => atLeast(me, 'Supervisor'),
   approvePunchChanges: (me: Me | undefined) => atLeast(me, 'Supervisor'),
+  /** Approving/un-approving a timecard locks/unlocks its period (Phase 6.7, UI_PLAN.md decision 21)
+   * — a distinct action from deciding a single PunchChangeRequest, kept as its own permission even
+   * though both currently resolve to the same Supervisor+ bar. */
+  approveTimecard: (me: Me | undefined) => atLeast(me, 'Supervisor'),
+
+  /**
+   * People is where per-employee records are managed *and* where a supervisor reads someone else's
+   * timecard (UI_PLAN.md Phase 6's first/third-person split), so it's Supervisor+ rather than
+   * ClientAdmin — a supervisor who can't open the destination can't review the timecards they're
+   * meant to sign off. The mutating screens inside it stay gated by `manageEmployees`.
+   */
+  viewPeople: (me: Me | undefined) => atLeast(me, 'Supervisor'),
+
+  /** Setup is entirely client/system configuration — nothing in it is an employee's business. */
+  viewSetup: (me: Me | undefined) => atLeast(me, 'ClientAdmin'),
 }

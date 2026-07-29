@@ -379,9 +379,153 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["ListPunches"];
         put?: never;
         post: operations["CreatePunch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/punches/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CreatePunchBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/punches/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetPunch"];
+        put: operations["UpdatePunch"];
+        post?: never;
+        delete: operations["DeletePunch"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/punch-change-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListPunchChangeRequests"];
+        put?: never;
+        post: operations["SubmitPunchChangeRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/punch-change-requests/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetPunchChangeRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/punch-change-requests/{id}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["DecidePunchChangeRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/employees/{id}/timecard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetTimecard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/employees/{id}/timecard/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ApproveTimecard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/employees/{id}/timecard/unapprove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["UnapproveTimecard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/employees/{id}/timecard/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PreviewTimecard"];
         delete?: never;
         options?: never;
         head?: never;
@@ -468,6 +612,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/clock-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetMyClockStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -477,8 +637,16 @@ export interface components {
         };
         /** @enum {unknown} */
         AppRole: "SystemAdmin" | "ClientAdmin" | "Supervisor" | "Employee";
+        BatchCreatePunchesRequest: {
+            punches: components["schemas"]["CreatePunchRequest"][];
+        };
         /** @enum {unknown} */
         BonusKind: "Discretionary" | "NonDiscretionary" | null;
+        BulkPunchPreviewResponse: {
+            /** Format: double */
+            grossPay: number;
+            weeks: components["schemas"]["PreviewWeekSummary"][];
+        };
         ClientPremiumPolicyResponse: {
             /** Format: int32 */
             id: number;
@@ -499,6 +667,16 @@ export interface components {
             createdBy: string;
             /** Format: date-time */
             createdDate: string;
+        };
+        ClockStatusResponse: {
+            /** Format: int32 */
+            employeeId: number;
+            isClockedIn: boolean;
+            since?: null | components["schemas"]["Instant"];
+            /** Format: int32 */
+            positionId?: null | number;
+            /** Format: int32 */
+            sincePunchId?: null | number;
         };
         CreateClientPremiumPolicyRequest: {
             /** Format: int32 */
@@ -582,6 +760,8 @@ export interface components {
             roundingGraceMinutes?: null | number;
             shiftDateStrategy?: null | components["schemas"]["ShiftDateStrategy"];
             workweekStartDay?: null | components["schemas"]["IsoDayOfWeek"];
+            payPeriodFrequency?: null | components["schemas"]["PayPeriodFrequency"];
+            payPeriodAnchor?: null | components["schemas"]["LocalDate"];
             activePremiumCodes?: null | string[];
             activeDifferentialCodes?: null | string[];
             /** Format: double */
@@ -645,6 +825,10 @@ export interface components {
         };
         /** @enum {unknown} */
         DayScheduleMode: "EveryDay" | "DaysOfWeek" | "ConsecutiveDayRange" | "SpecificDates" | "Holidays";
+        DecidePunchChangeRequestRequest: {
+            approve: boolean;
+            reviewNote?: null | string;
+        };
         /** @enum {unknown} */
         DifferentialAdjustmentType: "FlatPerHour" | "Multiplier" | "FixedBonus";
         DifferentialRuleResponse: {
@@ -670,21 +854,18 @@ export interface components {
             minHoursInRange: number;
             exclusivityGroup?: null | string;
         };
-        Employee: {
+        DraftPunchEntry: {
+            punchTime: components["schemas"]["Instant"];
+            kind: components["schemas"]["PunchKind"];
+            subtype?: null | components["schemas"]["PunchSubtype"];
             /** Format: int32 */
-            id?: number;
-            /** Format: int32 */
-            clientId?: number;
-            firstName?: string;
-            middleName?: string;
-            lastName?: string;
-            salutation?: string;
-            postNominalLetters?: string;
+            positionId?: null | number;
             /** Format: double */
-            minimumWage?: number;
-            homeTimeZoneId?: string;
-            state?: string;
-            isDeleted?: boolean;
+            amount?: null | number;
+            /** Format: double */
+            hours?: null | number;
+            bonusKind?: null | components["schemas"]["BonusKind"];
+            countsTowardRegularRate?: boolean;
         };
         EmployeeResponse: {
             /** Format: int32 */
@@ -805,6 +986,24 @@ export interface components {
             /** Format: int32 */
             pageSize: number;
         };
+        PagedResultOfPunchChangeRequestResponse: {
+            items: components["schemas"]["PunchChangeRequestResponse"][];
+            /** Format: int32 */
+            totalCount: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+        };
+        PagedResultOfPunchResponse: {
+            items: components["schemas"]["PunchResponse"][];
+            /** Format: int32 */
+            totalCount: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+        };
         PagedResultOfStateMinimumWageResponse: {
             items: components["schemas"]["StateMinimumWageResponse"][];
             /** Format: int32 */
@@ -816,6 +1015,8 @@ export interface components {
         };
         /** @enum {unknown} */
         PayLineType: "Regular" | "OvertimePremium" | "Differential" | "Bonus" | "FixedHours" | "Premium";
+        /** @enum {unknown} */
+        PayPeriodFrequency: "Weekly" | "BiWeekly" | "SemiMonthly" | "Monthly";
         PayRuleAssignmentResponse: {
             /** Format: int32 */
             id: number;
@@ -862,6 +1063,8 @@ export interface components {
             roundingGraceMinutes: number;
             shiftDateStrategy: components["schemas"]["ShiftDateStrategy"];
             workweekStartDay: components["schemas"]["IsoDayOfWeek"];
+            payPeriodFrequency: components["schemas"]["PayPeriodFrequency"];
+            payPeriodAnchor: components["schemas"]["LocalDate"];
             activePremiumCodes: string[];
             activeDifferentialCodes: string[];
             /** Format: double */
@@ -890,17 +1093,6 @@ export interface components {
             hasSeventhDayRule: boolean;
             /** Format: double */
             weeklyOvertimeThresholdHours: number;
-        };
-        Position: {
-            /** Format: int32 */
-            id?: number;
-            /** Format: int32 */
-            clientId?: number;
-            code?: string;
-            name?: string;
-            /** Format: double */
-            baseRate?: number;
-            isDeleted?: boolean;
         };
         PositionAssignmentResponse: {
             /** Format: int32 */
@@ -935,17 +1127,70 @@ export interface components {
             jurisdiction: components["schemas"]["Jurisdiction"];
             waiverPolicy: components["schemas"]["WaiverPolicy"];
         };
-        Punch: {
+        PreviewPunchesRequest: {
+            draftPunches: components["schemas"]["DraftPunchEntry"][];
+        };
+        PreviewWeekSummary: {
+            weekStart: components["schemas"]["LocalDate"];
+            /** Format: double */
+            regularHours: number;
+            /** Format: double */
+            overtimeHours: number;
+            /** Format: double */
+            doubletimeHours: number;
+            /** Format: double */
+            gross: number;
+        };
+        /** @enum {unknown} */
+        PunchChangeKind: "Add" | "Edit" | "Delete";
+        PunchChangeRequestResponse: {
             /** Format: int32 */
-            id?: number;
+            id: number;
             /** Format: int32 */
-            clientId?: number;
+            clientId: number;
             /** Format: int32 */
-            employeeId?: number;
-            punchTime?: components["schemas"]["Instant"];
+            employeeId: number;
+            /** Format: int32 */
+            punchId?: null | number;
+            changeKind: components["schemas"]["PunchChangeKind"];
+            requestedPunchTime?: null | components["schemas"]["Instant"];
+            requestedPunchTimeZoneId?: null | string;
+            requestedKind?: null | components["schemas"]["PunchKind"];
+            requestedSubtype?: null | components["schemas"]["PunchSubtype"];
+            /** Format: int32 */
+            requestedPositionId?: null | number;
+            /** Format: double */
+            requestedAmount?: null | number;
+            /** Format: double */
+            requestedHours?: null | number;
+            requestedBonusKind?: null | components["schemas"]["BonusKind"];
+            requestedCountsTowardRegularRate?: null | boolean;
+            requesterUserId: string;
+            reason: string;
+            createdAt: components["schemas"]["Instant"];
+            status: components["schemas"]["PunchChangeRequestStatus"];
+            reviewerUserId?: null | string;
+            reviewedAt?: null | components["schemas"]["Instant"];
+            reviewNote?: null | string;
+            employeeFirstName?: null | string;
+            employeeLastName?: null | string;
+            currentPunch?: null | components["schemas"]["PunchResponse"];
+        };
+        /** @enum {unknown} */
+        PunchChangeRequestStatus: "Pending" | "Approved" | "Denied";
+        /** @enum {unknown} */
+        PunchKind: "In" | "Out" | "FixedDollar" | "FixedHours";
+        PunchResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            clientId: number;
+            /** Format: int32 */
+            employeeId: number;
+            punchTime: components["schemas"]["Instant"];
             roundedPunchTime?: null | components["schemas"]["Instant"];
-            punchTimeZoneId?: string;
-            kind?: components["schemas"]["PunchKind"];
+            punchTimeZoneId: string;
+            kind: components["schemas"]["PunchKind"];
             subtype?: null | components["schemas"]["PunchSubtype"];
             /** Format: int32 */
             positionId?: null | number;
@@ -954,20 +1199,12 @@ export interface components {
             /** Format: double */
             hours?: null | number;
             bonusKind?: null | components["schemas"]["BonusKind"];
-            countsTowardRegularRate?: boolean;
-            createdAt?: components["schemas"]["Instant"];
-            createdBy?: string;
-            isDeleted?: boolean;
+            countsTowardRegularRate: boolean;
+            createdAt: components["schemas"]["Instant"];
+            createdBy: string;
             deviceId?: null | string;
             devicePunchId?: null | string;
-            employee?: null | components["schemas"]["Employee"];
-            position?: null | components["schemas"]["Position"];
-            effectiveTime?: components["schemas"]["Instant"];
-            isClockPunch?: boolean;
-            isFixedEntry?: boolean;
         };
-        /** @enum {unknown} */
-        PunchKind: "In" | "Out" | "FixedDollar" | "FixedHours";
         /** @enum {unknown} */
         PunchSubtype: "None" | "Break" | "Lunch" | null;
         /** @enum {unknown} */
@@ -982,6 +1219,120 @@ export interface components {
             effectiveTo?: null | components["schemas"]["LocalDate"];
             /** Format: double */
             amount: number;
+        };
+        SubmitPunchChangeRequestRequest: {
+            changeKind: components["schemas"]["PunchChangeKind"];
+            /** Format: int32 */
+            punchId?: null | number;
+            /** Format: int32 */
+            employeeId?: null | number;
+            reason: string;
+            punchTime?: null | components["schemas"]["Instant"];
+            punchTimeZoneId?: null | string;
+            kind?: null | components["schemas"]["PunchKind"];
+            subtype?: null | components["schemas"]["PunchSubtype"];
+            /** Format: int32 */
+            positionId?: null | number;
+            /** Format: double */
+            amount?: null | number;
+            /** Format: double */
+            hours?: null | number;
+            bonusKind?: null | components["schemas"]["BonusKind"];
+            countsTowardRegularRate?: null | boolean;
+        };
+        TimecardDayResponse: {
+            date: components["schemas"]["LocalDate"];
+            shifts: components["schemas"]["TimecardShiftResponse"][];
+            /** Format: double */
+            totalHours: number;
+            /** Format: double */
+            gross: number;
+        };
+        TimecardFixedEntryResponse: {
+            /** Format: int32 */
+            id: number;
+            time: components["schemas"]["Instant"];
+            kind: components["schemas"]["PunchKind"];
+            /** Format: double */
+            amount?: null | number;
+            /** Format: double */
+            hours?: null | number;
+        };
+        TimecardLineItemResponse: {
+            type: components["schemas"]["PayLineType"];
+            code: string;
+            description: string;
+            /** Format: double */
+            hours: number;
+            /** Format: double */
+            amount: number;
+            /** Format: double */
+            baseRate?: null | number;
+            /** Format: double */
+            multiplier?: null | number;
+        };
+        TimecardPunchPairResponse: {
+            in?: null | components["schemas"]["TimecardPunchResponse"];
+            out?: null | components["schemas"]["TimecardPunchResponse"];
+            /** Format: int32 */
+            positionId?: null | number;
+            positionName?: null | string;
+            /** Format: double */
+            rate?: null | number;
+            /** Format: double */
+            hours: number;
+            isIncomplete: boolean;
+            isSplit: boolean;
+        };
+        TimecardPunchResponse: {
+            /** Format: int32 */
+            id: number;
+            time: components["schemas"]["Instant"];
+            roundedTime?: null | components["schemas"]["Instant"];
+            subtype?: null | components["schemas"]["PunchSubtype"];
+        };
+        TimecardResponse: {
+            /** Format: int32 */
+            employeeId: number;
+            periodStart: components["schemas"]["LocalDate"];
+            periodEnd: components["schemas"]["LocalDate"];
+            /** Format: int32 */
+            payRuleId: number;
+            payRuleName: string;
+            /** Format: int32 */
+            payRuleVersion: number;
+            /** Format: double */
+            grossPay: number;
+            workweeks: components["schemas"]["TimecardWorkweekResponse"][];
+            isLocked?: boolean;
+            approvedByUserId?: null | string;
+            approvedAt?: null | components["schemas"]["Instant"];
+        };
+        TimecardShiftResponse: {
+            shiftDate: components["schemas"]["LocalDate"];
+            /** Format: int32 */
+            anchorPunchId: number;
+            pairs: components["schemas"]["TimecardPunchPairResponse"][];
+            fixedEntries: components["schemas"]["TimecardFixedEntryResponse"][];
+            lineItems: components["schemas"]["TimecardLineItemResponse"][];
+            /** Format: double */
+            totalHours: number;
+            /** Format: double */
+            gross: number;
+        };
+        TimecardWorkweekResponse: {
+            weekStart: components["schemas"]["LocalDate"];
+            /** Format: double */
+            regularRate?: null | number;
+            /** Format: double */
+            regularHours: number;
+            /** Format: double */
+            overtimeHours: number;
+            /** Format: double */
+            doubletimeHours: number;
+            days: components["schemas"]["TimecardDayResponse"][];
+            /** Format: double */
+            gross: number;
         };
         UpdateClientPremiumPolicyRequest: {
             premiumCode: string;
@@ -1055,6 +1406,8 @@ export interface components {
             roundingGraceMinutes?: null | number;
             shiftDateStrategy?: null | components["schemas"]["ShiftDateStrategy"];
             workweekStartDay?: null | components["schemas"]["IsoDayOfWeek"];
+            payPeriodFrequency?: null | components["schemas"]["PayPeriodFrequency"];
+            payPeriodAnchor?: null | components["schemas"]["LocalDate"];
             activePremiumCodes?: null | string[];
             activeDifferentialCodes?: null | string[];
             /** Format: double */
@@ -1079,6 +1432,21 @@ export interface components {
             name: string;
             /** Format: double */
             baseRate: number;
+        };
+        UpdatePunchRequest: {
+            punchTime?: null | components["schemas"]["Instant"];
+            punchTimeZoneId?: null | string;
+            kind?: null | components["schemas"]["PunchKind"];
+            subtype?: null | components["schemas"]["PunchSubtype"];
+            /** Format: int32 */
+            positionId?: null | number;
+            /** Format: double */
+            amount?: null | number;
+            /** Format: double */
+            hours?: null | number;
+            bonusKind?: null | components["schemas"]["BonusKind"];
+            countsTowardRegularRate?: null | boolean;
+            reason?: null | string;
         };
         UpdateStateMinimumWageRequest: {
             state: string;
@@ -2563,6 +2931,41 @@ export interface operations {
             };
         };
     };
+    ListPunches: {
+        parameters: {
+            query: {
+                employeeId: number;
+                from?: string;
+                to?: string;
+                Page?: number;
+                PageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultOfPunchResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
     CreatePunch: {
         parameters: {
             query?: never;
@@ -2582,7 +2985,370 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Punch"];
+                    "application/json": components["schemas"]["PunchResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    CreatePunchBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchCreatePunchesRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PunchResponse"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetPunch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PunchResponse"];
+                };
+            };
+        };
+    };
+    UpdatePunch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePunchRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PunchResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    DeletePunch: {
+        parameters: {
+            query?: {
+                reason?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListPunchChangeRequests: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["PunchChangeRequestStatus"];
+                employeeId?: number;
+                Page?: number;
+                PageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultOfPunchChangeRequestResponse"];
+                };
+            };
+        };
+    };
+    SubmitPunchChangeRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitPunchChangeRequestRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PunchChangeRequestResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetPunchChangeRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PunchChangeRequestResponse"];
+                };
+            };
+        };
+    };
+    DecidePunchChangeRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecidePunchChangeRequestRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PunchChangeRequestResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetTimecard: {
+        parameters: {
+            query?: {
+                date?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimecardResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    ApproveTimecard: {
+        parameters: {
+            query?: {
+                date?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimecardResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    UnapproveTimecard: {
+        parameters: {
+            query?: {
+                date?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimecardResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    PreviewTimecard: {
+        parameters: {
+            query?: {
+                date?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewPunchesRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkPunchPreviewResponse"];
                 };
             };
             /** @description Bad Request */
@@ -2707,6 +3473,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    GetMyClockStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClockStatusResponse"];
                 };
             };
         };

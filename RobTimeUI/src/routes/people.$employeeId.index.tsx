@@ -5,6 +5,8 @@ import { usePositionAssignments } from '@/features/positionAssignments/queries'
 import { usePayRuleAssignments } from '@/features/payRuleAssignments/queries'
 import { EmployeeForm } from '@/features/employees/EmployeeForm'
 import { EffectiveDatedTimeline, type TimelinePeriod } from '@/components/EffectiveDatedTimeline'
+import { Timecard } from '@/features/timecard/Timecard'
+import { BulkPunchEntry } from '@/features/timecard/BulkPunchEntry'
 import { toApiProblem } from '@/lib/problem'
 import { parseLocalDate } from '@/lib/dates'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -172,7 +174,10 @@ function EmployeeDetail() {
       {activeTab === 'positions' && <PositionsTab employeeId={id} employeeIdParam={employeeId} />}
       {activeTab === 'payrule' && <PayRuleTab employeeId={id} employeeIdParam={employeeId} />}
       {activeTab === 'punches' && (
-        <p className="text-sm text-muted-foreground">Punches and timecards land in Phase 6.</p>
+        <div className="space-y-6">
+          <Timecard employeeId={id} />
+          <BulkPunchEntry employeeId={id} />
+        </div>
       )}
     </div>
   )
