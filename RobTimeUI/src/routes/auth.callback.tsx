@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useAuth } from '@/auth/AuthProvider'
+import { postSilentCallbackResult } from '@/auth/silentAuth'
 import { Button } from '@/components/ui/button'
 
 export const Route = createFileRoute('/auth/callback')({
@@ -28,8 +29,21 @@ function AuthCallback() {
   // effects in development, so this guard is load-bearing, not defensive noise.
   const exchangeStarted = useRef(false)
 
+  // Loaded inside AuthProvider's hidden silent-reauth iframe (see silentAuth.ts), not as a real
+  // top-level navigation. This frame's job is just to relay the code/state/error to the parent
+  // window, which holds the PKCE verifier this code needs and does the actual token exchange itself
+  // — completeSignIn here would update this throwaway iframe's own React tree, not the app the user
+  // is looking at.
+  const isSilentFrame = window.self !== window.top
+
   useEffect(() => {
-    if (error || !code || !state || exchangeStarted.current) {
+    if (isSilentFrame) {
+      postSilentCallbackResult({ code, state, error })
+    }
+  }, [isSilentFrame, code, state, error])
+
+  useEffect(() => {
+    if (isSilentFrame || error || !code || !state || exchangeStarted.current) {
       return
     }
     exchangeStarted.current = true
@@ -40,7 +54,11 @@ function AuthCallback() {
       // search params the way `href` does.
       .then((returnTo) => router.navigate({ href: returnTo, replace: true }))
       .catch((err: unknown) => setFailure(err instanceof Error ? err.message : 'Sign-in failed.'))
-  }, [code, state, error, completeSignIn, router])
+  }, [isSilentFrame, code, state, error, completeSignIn, router])
+
+  if (isSilentFrame) {
+    return null
+  }
 
   if (failure) {
     return (

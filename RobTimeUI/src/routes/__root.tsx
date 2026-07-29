@@ -35,7 +35,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 })
 
 function RootLayout() {
-  const { isAuthenticated, signIn } = useAuth()
+  const { isAuthenticated, trySilentSignIn } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const isPublic = PUBLIC_ROUTES.includes(location.pathname)
@@ -45,34 +45,35 @@ function RootLayout() {
   // also means a new route is protected by default — the safer failure mode than opt-in protection,
   // where forgetting the guard silently exposes a screen.
   //
-  // Goes straight to Cognito (signIn), not to our own /login page — this is what makes a page
-  // refresh recover invisibly instead of needing a click. AuthProvider's own doc comment already
-  // promises this: tokens are memory-only, so a refresh always drops isAuthenticated, but Cognito's
-  // *own* session cookie means the round trip is silent when that cookie is still good — the whole
-  // point falls apart if we stop at a local page requiring a click first. /login still exists as the
-  // fallback for when signIn() itself can't even start (e.g. missing VITE_COGNITO_* env config) and
-  // as the retry target auth/callback.tsx uses after a real failure (the user denied consent, etc.).
+  // trySilentSignIn, not signIn directly — it tries a hidden-iframe reauth first (silentAuth.ts) and
+  // only falls back to the visible Cognito redirect if that doesn't come back within its timeout.
+  // AuthProvider's own doc comment already promises the underlying recovery: tokens are memory-only,
+  // so a refresh always drops isAuthenticated, but Cognito's *own* session cookie means the app can
+  // recover without the user ever leaving the page when that cookie is still good. /login still
+  // exists as the fallback for when even trySilentSignIn's own fallback can't start (e.g. missing
+  // VITE_COGNITO_* env config) and as the retry target auth/callback.tsx uses after a real failure
+  // (the user denied consent, etc.).
   useEffect(() => {
     if (!isAuthenticated && !isPublic) {
       // location.href, not location.pathname — the latter silently drops any search string (e.g.
       // ?tab=punches), so a reload on a non-default tab would round-trip through Cognito and land
       // back on the bare path. See auth.callback.tsx's matching use of `href` (not `to`) to actually
       // honour it on the way back.
-      signIn(location.href).catch(() =>
+      trySilentSignIn(location.href).catch(() =>
         navigate({ to: '/login', search: { redirect: location.href }, replace: true }),
       )
     }
-  }, [isAuthenticated, isPublic, location.href, navigate, signIn])
+  }, [isAuthenticated, isPublic, location.href, navigate, trySilentSignIn])
 
   if (isPublic) {
     return <Outlet />
   }
 
   if (!isAuthenticated) {
-    // Covers both the instant before signIn()'s redirect actually takes effect and a genuinely
-    // logged-out visit to Cognito's hosted login page and back — a blank frame here would otherwise
-    // flash on every single navigation while that's in flight.
-    return <p className="py-16 text-center text-muted-foreground">Redirecting to sign in…</p>
+    // Covers the silent reauth attempt, the instant before a fallback redirect actually takes
+    // effect, and a genuinely logged-out visit to Cognito's hosted login page and back — a blank
+    // frame here would otherwise flash on every single navigation while any of that is in flight.
+    return <p className="py-16 text-center text-muted-foreground">Signing you in…</p>
   }
 
   return <AuthenticatedLayout />

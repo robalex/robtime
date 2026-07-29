@@ -1,12 +1,15 @@
-import { createContext, use, useCallback, useMemo, useState, type ReactNode } from 'react'
+import { createContext, use, useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { authorizeUrl, getCognitoConfig, logoutUrl, tokenUrl } from './config'
 import { challengeFromVerifier, createState, createVerifier, stashFlowState, takeFlowState } from './pkce'
+import { silentAuthorize } from './silentAuth'
 
 /**
  * Holds the session. Tokens are kept in memory only — never localStorage or a cookie readable by
  * script (UI_PLAN.md §5: "bearer tokens in localStorage are readable by any XSS"). The cost is that
  * a page refresh drops the session; the mitigation is that Cognito keeps its own session cookie, so
- * re-authenticating is a redirect round-trip with no credential re-entry, not a real login.
+ * re-authenticating is a redirect round-trip with no credential re-entry, not a real login — and
+ * `trySilentSignIn` below is what keeps that round trip from being a *visible* one, doing the same
+ * check inside a hidden iframe instead of the top-level page whenever that cookie is still good.
  *
  * WHICH TOKEN GOES TO THE API — a deliberate choice, not an oversight. We send the **ID token**.
  * Cognito omits custom attributes from access tokens unless you pay for the Essentials tier's
@@ -21,6 +24,7 @@ interface AuthContextValue {
   idToken: string | null
   isAuthenticated: boolean
   signIn: (returnTo?: string) => Promise<void>
+  trySilentSignIn: (returnTo?: string) => Promise<void>
   signOut: () => void
   completeSignIn: (code: string, state: string) => Promise<string>
 }
@@ -98,6 +102,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return flow.returnTo
   }, [])
 
+  // Guards against a concurrent second attempt (React StrictMode double-invokes effects in dev) —
+  // not a permanent one-shot flag, so a later real sign-out/expiry can still try again.
+  const silentAttemptInFlight = useRef(false)
+
+  const trySilentSignIn = useCallback(async (returnTo = window.location.pathname + window.location.search + window.location.hash) => {
+    if (silentAttemptInFlight.current) {
+      return
+    }
+    silentAttemptInFlight.current = true
+
+    try {
+      const config = getCognitoConfig()
+      const verifier = createVerifier()
+      const state = createState()
+      // Same sessionStorage stash the full-redirect flow uses — the hidden iframe navigates through
+      // Cognito and back to our own origin, so it shares this tab's sessionStorage the same way a
+      // top-level navigation would, and completeSignIn below reads it back exactly as it always does.
+      stashFlowState(verifier, state, returnTo)
+      const url = authorizeUrl(config, state, await challengeFromVerifier(verifier))
+
+      const result = await silentAuthorize(url)
+      if (!result) {
+        // No valid Cognito session cookie (or something else went wrong) — fall back to the visible
+        // redirect, the same behaviour as before this existed.
+        await signIn(returnTo)
+        return
+      }
+
+      // The top-level page never navigated away for the silent path, so there's nowhere to route
+      // back to — completeSignIn's returned returnTo only matters to the full-redirect flow.
+      await completeSignIn(result.code, result.state)
+    } catch {
+      await signIn(returnTo)
+    } finally {
+      silentAttemptInFlight.current = false
+    }
+  }, [signIn, completeSignIn])
+
   const signOut = useCallback(() => {
     setIdToken(null)
     // Cognito's own session cookie has to be cleared too — dropping the local token alone would
@@ -106,8 +148,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ idToken, isAuthenticated: idToken !== null, signIn, signOut, completeSignIn }),
-    [idToken, signIn, signOut, completeSignIn],
+    () => ({ idToken, isAuthenticated: idToken !== null, signIn, trySilentSignIn, signOut, completeSignIn }),
+    [idToken, signIn, trySilentSignIn, signOut, completeSignIn],
   )
 
   return <AuthContext value={value}>{children}</AuthContext>
