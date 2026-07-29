@@ -1,12 +1,16 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronLeft, ChevronRight, Lock, TriangleAlert } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Lock, Pencil, Plus, TriangleAlert, X } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { formatLocalDate, parseLocalDate, toWireLocalDate } from '@/lib/dates'
 import { toApiProblem } from '@/lib/problem'
 import { useMe } from '@/auth/useMe'
 import { can } from '@/lib/permissions'
+import { useMyPunchChangeRequests, useSubmitPunchChangeRequest } from '@/features/punchChangeRequests/queries'
 import {
   useApproveTimecard,
   useTimecard,
@@ -18,6 +22,17 @@ type Workweek = TimecardData['workweeks'][number]
 type Day = Workweek['days'][number]
 type Shift = Day['shifts'][number]
 type Pair = Shift['pairs'][number]
+type PunchStub = NonNullable<Pair['in']>
+
+/** What every row below needs to offer punch-change-request affordances — bundled into one prop
+ * rather than three, since they always travel together down WorkweekSection -> DayRow ->
+ * ShiftDetail -> PairRow. Undefined (not just canRequest: false) would work too, but a concrete
+ * "off" value keeps every level's prop type the same shape rather than needing an extra branch. */
+interface RequestScope {
+  employeeId: number
+  canRequestChanges: boolean
+  pendingPunchIds: Set<number>
+}
 
 const HOURS_FORMAT = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 const MONEY_FORMAT = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
@@ -47,6 +62,11 @@ function formatInstant(iso: string): string {
   })
 }
 
+function toDateTimeLocal(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 /**
  * Built once, mounted twice (UI_PLAN.md's `/time` first-person vs. People `?tab=punches` split) —
  * every prop this needs is `employeeId` and an optional `date` inside the target period; who's
@@ -59,6 +79,21 @@ export function Timecard({ employeeId }: { employeeId: number }) {
   const approve = useApproveTimecard(employeeId, date)
   const unapprove = useUnapproveTimecard(employeeId, date)
   const [approvalError, setApprovalError] = useState<string | null>(null)
+
+  // Only the employee viewing their own, still-open period gets request affordances — a supervisor
+  // reviewing someone else's timecard already has direct edit access (People -> Punches' fast entry
+  // grid, PUT /punches), so routing them through a request-to-themselves would just be a detour.
+  // `timecard?.isLocked ?? true` defaults to "can't request" before the timecard has loaded, since
+  // useMyPunchChangeRequests below (like every hook) has to be called unconditionally regardless of
+  // where the isPending/isError guards below end up returning early.
+  const canRequestChanges = me?.employeeId === employeeId && !(timecard?.isLocked ?? true)
+  const myRequests = useMyPunchChangeRequests(employeeId, canRequestChanges)
+  const pendingPunchIds = new Set(
+    (myRequests.data?.items ?? [])
+      .filter((r) => r.status === 'Pending' && r.punchId != null)
+      .map((r) => r.punchId!),
+  )
+  const requestScope: RequestScope = { employeeId, canRequestChanges, pendingPunchIds }
 
   if (isPending) {
     return <p className="text-sm text-muted-foreground">Loading timecard…</p>
@@ -199,7 +234,7 @@ export function Timecard({ employeeId }: { employeeId: number }) {
 
         <div className="space-y-4">
           {timecard.workweeks.map((week) => (
-            <WorkweekSection key={week.weekStart} week={week} />
+            <WorkweekSection key={week.weekStart} week={week} requestScope={requestScope} />
           ))}
         </div>
       </CardContent>
@@ -216,7 +251,7 @@ function Stat({ label, value, emphasize }: { label: string; value: string; empha
   )
 }
 
-function WorkweekSection({ week }: { week: Workweek }) {
+function WorkweekSection({ week, requestScope }: { week: Workweek; requestScope: RequestScope }) {
   const [open, setOpen] = useState(true)
   // Not "does this week have paid hours" — an all-incomplete week (orphan punches only) has zero
   // hours by construction (PunchPair.TotalHours is 0 for a missing pair) but still has real shift
@@ -241,8 +276,8 @@ function WorkweekSection({ week }: { week: Workweek }) {
 
       {open && (
         <div className="space-y-1 border-t px-4 py-2">
-          {hasAnyShifts ? (
-            week.days.map((day) => <DayRow key={day.date} day={day} />)
+          {hasAnyShifts || requestScope.canRequestChanges ? (
+            week.days.map((day) => <DayRow key={day.date} day={day} requestScope={requestScope} />)
           ) : (
             <p className="py-2 text-sm text-muted-foreground">No punches this week.</p>
           )}
@@ -252,31 +287,52 @@ function WorkweekSection({ week }: { week: Workweek }) {
   )
 }
 
-function DayRow({ day }: { day: Day }) {
+function DayRow({ day, requestScope }: { day: Day; requestScope: RequestScope }) {
+  const [adding, setAdding] = useState(false)
+  const { canRequestChanges } = requestScope
+
+  const header = (
+    <div className="flex items-center justify-between text-sm text-muted-foreground">
+      <span>{formatLocalDate(parseLocalDate(day.date))}</span>
+      {canRequestChanges ? (
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setAdding((o) => !o)}>
+          <Plus className="size-3" /> Request punch
+        </Button>
+      ) : day.shifts.length === 0 ? (
+        <span>—</span>
+      ) : null}
+    </div>
+  )
+
   if (day.shifts.length === 0) {
     return (
-      <div className="flex items-center justify-between border-t py-2 text-sm text-muted-foreground first:border-t-0">
-        <span>{formatLocalDate(parseLocalDate(day.date))}</span>
-        <span>—</span>
+      <div className="space-y-2 border-t py-2 first:border-t-0">
+        {header}
+        {adding && (
+          <AddPunchForm employeeId={requestScope.employeeId} date={day.date} onDone={() => setAdding(false)} />
+        )}
       </div>
     )
   }
 
   return (
     <div className="space-y-2 border-t py-2 first:border-t-0">
-      <p className="text-sm text-muted-foreground">{formatLocalDate(parseLocalDate(day.date))}</p>
+      {header}
+      {adding && (
+        <AddPunchForm employeeId={requestScope.employeeId} date={day.date} onDone={() => setAdding(false)} />
+      )}
       {day.shifts.map((shift) => (
-        <ShiftDetail key={shift.anchorPunchId} shift={shift} />
+        <ShiftDetail key={shift.anchorPunchId} shift={shift} requestScope={requestScope} />
       ))}
     </div>
   )
 }
 
-function ShiftDetail({ shift }: { shift: Shift }) {
+function ShiftDetail({ shift, requestScope }: { shift: Shift; requestScope: RequestScope }) {
   return (
     <div className="space-y-1 pl-3">
       {shift.pairs.map((pair, i) => (
-        <PairRow key={i} pair={pair} />
+        <PairRow key={i} pair={pair} requestScope={requestScope} />
       ))}
       {shift.fixedEntries.map((entry) => (
         <div key={entry.id} className="flex items-center justify-between text-sm">
@@ -304,19 +360,312 @@ function ShiftDetail({ shift }: { shift: Shift }) {
   )
 }
 
-function PairRow({ pair }: { pair: Pair }) {
+function PairRow({ pair, requestScope }: { pair: Pair; requestScope: RequestScope }) {
+  const { employeeId, canRequestChanges, pendingPunchIds } = requestScope
+  const [active, setActive] = useState<{ punch: PunchStub; mode: 'edit' | 'delete' } | null>(null)
+
+  function toggle(punch: PunchStub, mode: 'edit' | 'delete') {
+    setActive((current) => (current?.punch.id === punch.id && current.mode === mode ? null : { punch, mode }))
+  }
+
+  const punches = [pair.in, pair.out].filter((p): p is PunchStub => p != null)
+
   return (
-    <div className={cn('flex items-center justify-between text-sm', pair.isIncomplete && 'text-amber-700 dark:text-amber-500')}>
-      <span className="flex items-center gap-2">
-        <span>
-          {pair.in ? formatTime(pair.in.time) : <em className="not-italic text-muted-foreground">missing</em>}
-          {' – '}
-          {pair.out ? formatTime(pair.out.time) : <em className="not-italic">missing</em>}
+    <div className="space-y-1">
+      <div className={cn('flex items-center justify-between text-sm', pair.isIncomplete && 'text-amber-700 dark:text-amber-500')}>
+        <span className="flex items-center gap-2">
+          <span>
+            {pair.in ? formatTime(pair.in.time) : <em className="not-italic text-muted-foreground">missing</em>}
+            {' – '}
+            {pair.out ? formatTime(pair.out.time) : <em className="not-italic">missing</em>}
+          </span>
+          {pair.positionName && <span className="text-xs text-muted-foreground">{pair.positionName}</span>}
+          {pair.isSplit && <span className="text-xs text-muted-foreground">(split)</span>}
         </span>
-        {pair.positionName && <span className="text-xs text-muted-foreground">{pair.positionName}</span>}
-        {pair.isSplit && <span className="text-xs text-muted-foreground">(split)</span>}
-      </span>
-      <span className="tabular-nums">{formatHours(pair.hours)}</span>
+        <span className="flex items-center gap-2">
+          <span className="tabular-nums">{formatHours(pair.hours)}</span>
+          {canRequestChanges &&
+            punches.map((punch) =>
+              pendingPunchIds.has(punch.id) ? (
+                <span key={punch.id} className="text-xs text-muted-foreground">
+                  pending
+                </span>
+              ) : (
+                <span key={punch.id} className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    aria-label={`Request edit for ${formatTime(punch.time)}`}
+                    onClick={() => toggle(punch, 'edit')}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Pencil className="size-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Request removal for ${formatTime(punch.time)}`}
+                    onClick={() => toggle(punch, 'delete')}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </span>
+              ),
+            )}
+        </span>
+      </div>
+      {active?.mode === 'edit' && (
+        <EditPunchForm employeeId={employeeId} punch={active.punch} onDone={() => setActive(null)} />
+      )}
+      {active?.mode === 'delete' && (
+        <DeletePunchForm employeeId={employeeId} punch={active.punch} onDone={() => setActive(null)} />
+      )}
+    </div>
+  )
+}
+
+function EditPunchForm({
+  employeeId,
+  punch,
+  onDone,
+}: {
+  employeeId: number
+  punch: PunchStub
+  onDone: () => void
+}) {
+  const submit = useSubmitPunchChangeRequest(employeeId)
+  const [when, setWhen] = useState(() => toDateTimeLocal(new Date(punch.time)))
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit() {
+    setError(null)
+    if (!reason.trim()) {
+      setError('A reason is required.')
+      return
+    }
+    try {
+      await submit.mutateAsync({
+        changeKind: 'Edit',
+        punchId: punch.id,
+        reason,
+        punchTime: new Date(when).toISOString(),
+      })
+      onDone()
+    } catch (err) {
+      setError(toApiProblem(err, 'Could not submit this request.').message)
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/30 p-2">
+      <div className="space-y-1">
+        <Label htmlFor={`edit-time-${punch.id}`} className="text-xs">
+          New time
+        </Label>
+        <Input
+          id={`edit-time-${punch.id}`}
+          type="datetime-local"
+          className="h-8"
+          value={when}
+          onChange={(e) => setWhen(e.target.value)}
+        />
+      </div>
+      <div className="flex-1 space-y-1">
+        <Label htmlFor={`edit-reason-${punch.id}`} className="text-xs">
+          Reason
+        </Label>
+        <Input
+          id={`edit-reason-${punch.id}`}
+          className="h-8"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Why this change?"
+        />
+      </div>
+      <Button size="sm" disabled={submit.isPending} onClick={() => void handleSubmit()}>
+        {submit.isPending ? 'Submitting…' : 'Submit'}
+      </Button>
+      <Button size="sm" variant="outline" onClick={onDone}>
+        Cancel
+      </Button>
+      {error && <p className="w-full text-xs text-destructive">{error}</p>}
+    </div>
+  )
+}
+
+function DeletePunchForm({
+  employeeId,
+  punch,
+  onDone,
+}: {
+  employeeId: number
+  punch: PunchStub
+  onDone: () => void
+}) {
+  const submit = useSubmitPunchChangeRequest(employeeId)
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit() {
+    setError(null)
+    if (!reason.trim()) {
+      setError('A reason is required.')
+      return
+    }
+    try {
+      await submit.mutateAsync({ changeKind: 'Delete', punchId: punch.id, reason })
+      onDone()
+    } catch (err) {
+      setError(toApiProblem(err, 'Could not submit this request.').message)
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-2">
+      <div className="flex-1 space-y-1">
+        <Label htmlFor={`delete-reason-${punch.id}`} className="text-xs">
+          Reason for removing this punch
+        </Label>
+        <Input
+          id={`delete-reason-${punch.id}`}
+          className="h-8"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Why should this be removed?"
+        />
+      </div>
+      <Button size="sm" variant="destructive" disabled={submit.isPending} onClick={() => void handleSubmit()}>
+        {submit.isPending ? 'Submitting…' : 'Request removal'}
+      </Button>
+      <Button size="sm" variant="outline" onClick={onDone}>
+        Cancel
+      </Button>
+      {error && <p className="w-full text-xs text-destructive">{error}</p>}
+    </div>
+  )
+}
+
+type AddPunchKind = 'In' | 'Out' | 'FixedDollar' | 'FixedHours'
+
+function AddPunchForm({ employeeId, date, onDone }: { employeeId: number; date: string; onDone: () => void }) {
+  const submit = useSubmitPunchChangeRequest(employeeId)
+  const [kind, setKind] = useState<AddPunchKind>('In')
+  const [when, setWhen] = useState(`${date}T09:00`)
+  const [amount, setAmount] = useState('')
+  const [hours, setHours] = useState('')
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit() {
+    setError(null)
+    if (!reason.trim()) {
+      setError('A reason is required.')
+      return
+    }
+    if (kind === 'FixedDollar' && !amount) {
+      setError('Enter an amount.')
+      return
+    }
+    if (kind === 'FixedHours' && !hours) {
+      setError('Enter hours.')
+      return
+    }
+
+    try {
+      await submit.mutateAsync({
+        changeKind: 'Add',
+        employeeId,
+        reason,
+        punchTime: new Date(when).toISOString(),
+        kind,
+        amount: kind === 'FixedDollar' ? Number(amount) : undefined,
+        hours: kind === 'FixedHours' ? Number(hours) : undefined,
+      })
+      onDone()
+    } catch (err) {
+      setError(toApiProblem(err, 'Could not submit this request.').message)
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/30 p-2">
+      <div className="space-y-1">
+        <Label htmlFor={`add-when-${date}`} className="text-xs">
+          When
+        </Label>
+        <Input
+          id={`add-when-${date}`}
+          type="datetime-local"
+          className="h-8"
+          value={when}
+          onChange={(e) => setWhen(e.target.value)}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor={`add-kind-${date}`} className="text-xs">
+          Kind
+        </Label>
+        <Select
+          id={`add-kind-${date}`}
+          className="h-8 w-32"
+          value={kind}
+          onChange={(e) => setKind(e.target.value as AddPunchKind)}
+        >
+          <option value="In">Clock In</option>
+          <option value="Out">Clock Out</option>
+          <option value="FixedDollar">Fixed $</option>
+          <option value="FixedHours">Fixed hours</option>
+        </Select>
+      </div>
+      {kind === 'FixedDollar' && (
+        <div className="space-y-1">
+          <Label htmlFor={`add-amount-${date}`} className="text-xs">
+            Amount
+          </Label>
+          <Input
+            id={`add-amount-${date}`}
+            type="number"
+            step="0.01"
+            className="h-8 w-24"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </div>
+      )}
+      {kind === 'FixedHours' && (
+        <div className="space-y-1">
+          <Label htmlFor={`add-hours-${date}`} className="text-xs">
+            Hours
+          </Label>
+          <Input
+            id={`add-hours-${date}`}
+            type="number"
+            step="0.25"
+            className="h-8 w-20"
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
+          />
+        </div>
+      )}
+      <div className="flex-1 space-y-1">
+        <Label htmlFor={`add-reason-${date}`} className="text-xs">
+          Reason
+        </Label>
+        <Input
+          id={`add-reason-${date}`}
+          className="h-8"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="e.g. forgot to clock in"
+        />
+      </div>
+      <Button size="sm" disabled={submit.isPending} onClick={() => void handleSubmit()}>
+        {submit.isPending ? 'Submitting…' : 'Submit'}
+      </Button>
+      <Button size="sm" variant="outline" onClick={onDone}>
+        Cancel
+      </Button>
+      {error && <p className="w-full text-xs text-destructive">{error}</p>}
     </div>
   )
 }

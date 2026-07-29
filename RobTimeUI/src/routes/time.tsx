@@ -6,6 +6,7 @@ import { ClockCard } from '@/features/clock/ClockCard'
 import { Timecard } from '@/features/timecard/Timecard'
 import { BulkPunchEntry } from '@/features/timecard/BulkPunchEntry'
 import { PendingRequestsQueue } from '@/features/punchChangeRequests/PendingRequestsQueue'
+import { MyPunchRequests } from '@/features/punchChangeRequests/MyPunchRequests'
 
 export const Route = createFileRoute('/time')({
   component: Time,
@@ -39,6 +40,7 @@ function Time() {
         <>
           <ClockCard employeeId={me.employeeId} />
           <Timecard employeeId={me.employeeId} />
+          <MyPunchRequests employeeId={me.employeeId} />
           <BulkPunchEntry employeeId={me.employeeId} />
         </>
       ) : (

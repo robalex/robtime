@@ -10,7 +10,7 @@ namespace TimeCalculation.Api.Services;
 public class PunchChangeRequestService(PayrollDbContext db, IClock clock, TimecardLockService lockService)
 {
     public async Task<ServiceResult<PunchChangeRequest>> SubmitAsync(
-        SubmitPunchChangeRequestRequest request, string requesterUserId, CancellationToken ct)
+        SubmitPunchChangeRequestRequest request, string requesterUserId, int? callerEmployeeId, CancellationToken ct)
     {
         var errors = PunchChangeRequestValidator.Validate(request);
         if (errors.Count > 0)
@@ -58,6 +58,16 @@ public class PunchChangeRequestService(PayrollDbContext db, IClock clock, Timeca
             }
 
             employee = editEmployee;
+        }
+
+        // An Employee caller (callerEmployeeId set) may only submit requests that target their own
+        // record — Supervisor+ (callerEmployeeId null) is unrestricted. Checked here rather than
+        // before this point because Edit/Delete's target employee isn't known until the punch lookup
+        // above resolves it; the endpoint's own ResolveCallerScopeAsync only rules out an Employee
+        // caller with no linked record at all.
+        if (callerEmployeeId is { } restrictedToEmployeeId && restrictedToEmployeeId != employeeId)
+        {
+            return ServiceResult<PunchChangeRequest>.Forbidden("You can only submit change requests for your own punches.");
         }
 
         // Blocks a request against a locked period the same way a direct edit is blocked (UI_PLAN.md
@@ -116,7 +126,7 @@ public class PunchChangeRequestService(PayrollDbContext db, IClock clock, Timeca
     }
 
     public async Task<PagedResult<PunchChangeRequestResponse>> ListAsync(
-        PunchChangeRequestStatus? status, int? employeeId, PagingQuery paging, CancellationToken ct)
+        PunchChangeRequestStatus? status, int? employeeId, int? callerEmployeeId, PagingQuery paging, CancellationToken ct)
     {
         var query = db.PunchChangeRequests.AsQueryable();
         if (status is { } statusFilter)
@@ -124,7 +134,11 @@ public class PunchChangeRequestService(PayrollDbContext db, IClock clock, Timeca
             query = query.Where(r => r.Status == statusFilter);
         }
 
-        if (employeeId is { } employeeIdFilter)
+        // An Employee caller only ever sees their own requests, regardless of what employeeId (if
+        // any) they passed — simpler and safer than rejecting a mismatched filter on a read-only
+        // list, unlike SubmitAsync's Forbidden for the same situation on a write.
+        var effectiveEmployeeId = callerEmployeeId ?? employeeId;
+        if (effectiveEmployeeId is { } employeeIdFilter)
         {
             query = query.Where(r => r.EmployeeId == employeeIdFilter);
         }
@@ -145,12 +159,17 @@ public class PunchChangeRequestService(PayrollDbContext db, IClock clock, Timeca
         };
     }
 
-    public async Task<ServiceResult<PunchChangeRequestResponse>> GetAsync(int id, CancellationToken ct)
+    public async Task<ServiceResult<PunchChangeRequestResponse>> GetAsync(int id, int? callerEmployeeId, CancellationToken ct)
     {
         var changeRequest = await db.PunchChangeRequests.FirstOrDefaultAsync(r => r.Id == id, ct);
         if (changeRequest is null)
         {
             return ServiceResult<PunchChangeRequestResponse>.NotFound($"No punch change request with id {id}.");
+        }
+
+        if (callerEmployeeId is { } restrictedToEmployeeId && restrictedToEmployeeId != changeRequest.EmployeeId)
+        {
+            return ServiceResult<PunchChangeRequestResponse>.Forbidden("You can only view your own punch change requests.");
         }
 
         var enriched = await EnrichAsync([changeRequest], ct);

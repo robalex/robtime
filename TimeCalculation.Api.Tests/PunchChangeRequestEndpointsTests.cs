@@ -299,6 +299,189 @@ public class PunchChangeRequestEndpointsTests(ApiFixture fixture)
         Assert.Null(fetched.CurrentPunch);
     }
 
+    [Fact]
+    public async Task Employee_CanSubmitEditRequestForOwnPunch()
+    {
+        var (clientId, api, employeeId) = await CreateEmployeeAsync();
+        var punchId = await CreatePunchAsync(api, employeeId, PunchKind.In);
+        var employeeApi = await CreateLinkedEmployeeClientAsync(clientId, employeeId);
+
+        var response = await employeeApi.PostAsJsonAsync(
+            "/punch-change-requests",
+            new SubmitPunchChangeRequestRequest { ChangeKind = PunchChangeKind.Edit, PunchId = punchId, Reason = "Wrong time", Kind = PunchKind.Out },
+            TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var submitted = await response.Content.ReadFromJsonAsync<PunchChangeRequestResponse>(TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Equal(employeeId, submitted!.EmployeeId);
+    }
+
+    [Fact]
+    public async Task Employee_CanSubmitAddRequestForSelf()
+    {
+        var (clientId, api, employeeId) = await CreateEmployeeAsync();
+        var employeeApi = await CreateLinkedEmployeeClientAsync(clientId, employeeId);
+
+        var response = await employeeApi.PostAsJsonAsync(
+            "/punch-change-requests",
+            new SubmitPunchChangeRequestRequest
+            {
+                ChangeKind = PunchChangeKind.Add, EmployeeId = employeeId, Reason = "Missed clock-in",
+                PunchTime = SystemClock.Instance.GetCurrentInstant(), Kind = PunchKind.In,
+            },
+            TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Employee_CannotSubmitEditRequestForColleaguesPunch_Returns403()
+    {
+        var (clientId, api, employeeId) = await CreateEmployeeAsync();
+        var colleagueId = await CreateColleagueAsync(api, clientId);
+        var colleaguePunchId = await CreatePunchAsync(api, colleagueId, PunchKind.In);
+        var employeeApi = await CreateLinkedEmployeeClientAsync(clientId, employeeId);
+
+        var response = await employeeApi.PostAsJsonAsync(
+            "/punch-change-requests",
+            new SubmitPunchChangeRequestRequest { ChangeKind = PunchChangeKind.Edit, PunchId = colleaguePunchId, Reason = "x", Kind = PunchKind.Out },
+            TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Employee_CannotSubmitAddRequestForColleague_Returns403()
+    {
+        var (clientId, api, employeeId) = await CreateEmployeeAsync();
+        var colleagueId = await CreateColleagueAsync(api, clientId);
+        var employeeApi = await CreateLinkedEmployeeClientAsync(clientId, employeeId);
+
+        var response = await employeeApi.PostAsJsonAsync(
+            "/punch-change-requests",
+            new SubmitPunchChangeRequestRequest
+            {
+                ChangeKind = PunchChangeKind.Add, EmployeeId = colleagueId, Reason = "x",
+                PunchTime = SystemClock.Instance.GetCurrentInstant(), Kind = PunchKind.In,
+            },
+            TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Employee_CanListAndGetOwnRequest()
+    {
+        var (clientId, api, employeeId) = await CreateEmployeeAsync();
+        var punchId = await CreatePunchAsync(api, employeeId, PunchKind.In);
+        var employeeApi = await CreateLinkedEmployeeClientAsync(clientId, employeeId);
+        var submitResponse = await employeeApi.PostAsJsonAsync(
+            "/punch-change-requests",
+            new SubmitPunchChangeRequestRequest { ChangeKind = PunchChangeKind.Delete, PunchId = punchId, Reason = "x" },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        var submitted = (await submitResponse.Content.ReadFromJsonAsync<PunchChangeRequestResponse>(TestJson.Options, TestContext.Current.CancellationToken))!;
+
+        // No employeeId query param — an Employee caller sees their own regardless.
+        var listResponse = await employeeApi.GetAsync("/punch-change-requests", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+        var list = await listResponse.Content.ReadFromJsonAsync<PagedResult<PunchChangeRequestResponse>>(TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Contains(list!.Items, r => r.Id == submitted.Id);
+
+        var getResponse = await employeeApi.GetAsync($"/punch-change-requests/{submitted.Id}", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Employee_ListDoesNotLeakColleaguesRequests()
+    {
+        var (clientId, api, employeeId) = await CreateEmployeeAsync();
+        var colleagueId = await CreateColleagueAsync(api, clientId);
+        var colleaguePunchId = await CreatePunchAsync(api, colleagueId, PunchKind.In);
+        await api.PostAsJsonAsync(
+            "/punch-change-requests",
+            new SubmitPunchChangeRequestRequest { ChangeKind = PunchChangeKind.Delete, PunchId = colleaguePunchId, Reason = "x" },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        var employeeApi = await CreateLinkedEmployeeClientAsync(clientId, employeeId);
+
+        // Explicitly asking for the colleague's requests doesn't work either — the caller's own id
+        // wins over whatever employeeId filter was passed, it isn't just a default.
+        var response = await employeeApi.GetAsync($"/punch-change-requests?employeeId={colleagueId}", TestContext.Current.CancellationToken);
+
+        var list = await response.Content.ReadFromJsonAsync<PagedResult<PunchChangeRequestResponse>>(TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Empty(list!.Items);
+    }
+
+    [Fact]
+    public async Task Employee_CannotGetColleaguesRequestById_Returns403()
+    {
+        var (clientId, api, employeeId) = await CreateEmployeeAsync();
+        var colleagueId = await CreateColleagueAsync(api, clientId);
+        var colleaguePunchId = await CreatePunchAsync(api, colleagueId, PunchKind.In);
+        var submitResponse = await api.PostAsJsonAsync(
+            "/punch-change-requests",
+            new SubmitPunchChangeRequestRequest { ChangeKind = PunchChangeKind.Delete, PunchId = colleaguePunchId, Reason = "x" },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        var submitted = (await submitResponse.Content.ReadFromJsonAsync<PunchChangeRequestResponse>(TestJson.Options, TestContext.Current.CancellationToken))!;
+        var employeeApi = await CreateLinkedEmployeeClientAsync(clientId, employeeId);
+
+        var response = await employeeApi.GetAsync($"/punch-change-requests/{submitted.Id}", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task EmployeeWithNoLinkedRecord_CannotSubmitListOrGet_Returns403()
+    {
+        var (clientId, api, employeeId) = await CreateEmployeeAsync();
+        var punchId = await CreatePunchAsync(api, employeeId, PunchKind.In);
+        var unlinkedApi = fixture.CreateAuthenticatedClient(AppRole.Employee, clientId, sub: $"test-unlinked-{Guid.NewGuid()}");
+
+        var submitResponse = await unlinkedApi.PostAsJsonAsync(
+            "/punch-change-requests",
+            new SubmitPunchChangeRequestRequest { ChangeKind = PunchChangeKind.Edit, PunchId = punchId, Reason = "x", Kind = PunchKind.Out },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.Forbidden, submitResponse.StatusCode);
+
+        var listResponse = await unlinkedApi.GetAsync("/punch-change-requests", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.Forbidden, listResponse.StatusCode);
+
+        var getResponse = await unlinkedApi.GetAsync("/punch-change-requests/1", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.Forbidden, getResponse.StatusCode);
+    }
+
+    private async Task<int> CreateColleagueAsync(HttpClient api, int clientId)
+    {
+        var response = await api.PostAsJsonAsync(
+            "/employees",
+            new CreateEmployeeRequest { ClientId = clientId, FirstName = "Colleague", LastName = "Employee", MinimumWage = 15m },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        var employee = await response.Content.ReadFromJsonAsync<EmployeeResponse>(TestJson.Options, TestContext.Current.CancellationToken);
+        return employee!.Id;
+    }
+
+    /// <summary>An Employee-role client whose sub has a real AppUser row linking it to
+    /// <paramref name="employeeId"/> — same pattern as TimecardEndpointsTests/SelfServiceClockTests,
+    /// duplicated here because these are the scoping rules for a different route.</summary>
+    private async Task<HttpClient> CreateLinkedEmployeeClientAsync(int clientId, int employeeId)
+    {
+        var sub = $"test-linked-employee-{Guid.NewGuid()}";
+        var options = new DbContextOptionsBuilder<PayrollDbContext>()
+            .UseNpgsql(fixture.ConnectionString, npgsql => npgsql.UseNodaTime())
+            .Options;
+        await using var db = new PayrollDbContext(options, new FixedTenantContextAccessor(clientId));
+        db.AppUsers.Add(new AppUser
+        {
+            CognitoSub = sub,
+            ClientId = clientId,
+            EmployeeId = employeeId,
+            DisplayName = "Test Employee",
+            Role = AppRole.Employee,
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        return fixture.CreateAuthenticatedClient(AppRole.Employee, clientId, sub);
+    }
+
     private async Task<(int ClientId, HttpClient Api, int EmployeeId)> CreateEmployeeAsync()
     {
         var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"Punch Change Request Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
