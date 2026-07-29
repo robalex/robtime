@@ -52,11 +52,40 @@ builder.Services.AddProblemDetails();
 // actually builds the context, test override included.
 builder.Services.AddDbContext<PayrollDbContext>(options =>
 {
-    var connectionString = builder.Configuration.GetConnectionString("PayrollDb")
-        ?? throw new InvalidOperationException(
+    // Staging/production supply the password via App Runner's RuntimeEnvironmentSecrets, pulled
+    // directly from the RDS-managed Secrets Manager secret at deploy time — Terraform never reads or
+    // stores it (infra/modules/database's manage_master_user_password design). That secret is JSON
+    // (host/port/dbname/username/password), not a preformed connection string, so App Runner injects
+    // its pieces as separate values (Database:Host/Port/Name/Username plain, Database:Password from
+    // the secret) and this composes them. ConnectionStrings:PayrollDb still wins when set directly
+    // (local dev, tests, appsettings) — this fallback only fires when that's absent.
+    var connectionString = builder.Configuration.GetConnectionString("PayrollDb");
+    if (string.IsNullOrEmpty(connectionString))
+    {
+        var dbHost = builder.Configuration["Database:Host"];
+        var dbPassword = builder.Configuration["Database:Password"];
+        if (!string.IsNullOrEmpty(dbHost) && !string.IsNullOrEmpty(dbPassword))
+        {
+            connectionString = new Npgsql.NpgsqlConnectionStringBuilder
+            {
+                Host = dbHost,
+                Port = int.Parse(builder.Configuration["Database:Port"] ?? "5432"),
+                Database = builder.Configuration["Database:Name"],
+                Username = builder.Configuration["Database:Username"],
+                Password = dbPassword,
+                SslMode = Npgsql.SslMode.Require,
+            }.ConnectionString;
+        }
+    }
+
+    if (string.IsNullOrEmpty(connectionString))
+    {
+        throw new InvalidOperationException(
             $"No 'PayrollDb' connection string found for environment '{builder.Environment.EnvironmentName}'. " +
-            "Set it in the matching appsettings file, in user-secrets, or via the " +
-            "ConnectionStrings__PayrollDb environment variable.");
+            "Set it in the matching appsettings file, in user-secrets, via the " +
+            "ConnectionStrings__PayrollDb environment variable, or via the discrete Database__Host/" +
+            "Port/Name/Username/Password environment variables.");
+    }
 
     // Never add .EnableSensitiveDataLogging() here. EF Core already masks parameter values in its
     // own query logs by default ("Parameters=[@p0='?', ...]") — that's the one piece of PII-in-logs

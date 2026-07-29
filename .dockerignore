@@ -1,0 +1,20 @@
+# Keeps the Docker build context (repo root — see TimeCalculation.Api/Dockerfile's own comment on
+# why) to just what the image actually needs. Without this, `docker build` uploads the whole repo —
+# including host bin/obj (wrong RID for the container), RobTimeUI's node_modules, and .git — before
+# the Dockerfile's own COPY layers even get a chance to be selective.
+**/bin/
+**/obj/
+**/node_modules/
+**/.vite/
+**/dist/
+
+.git/
+.github/
+
+# Not part of the API image.
+RobTimeUI/
+TimeCalculation.Api.Tests/
+TimeCalculationTests/
+infra/
+
+*.md

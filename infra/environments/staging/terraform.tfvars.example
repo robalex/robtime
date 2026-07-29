@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars and adjust. Everything here has a workable default (see variables.tf) —
+# this file only needs to exist if you're overriding one of them, e.g. after bootstrap gives you the
+# real state bucket name (which goes in main.tf's backend block, not here) or once the frontend
+# module's real CloudFront domain is known and callback_urls/logout_urls need updating.
+
+# aws_region              = "us-east-1"
+# environment             = "staging"
+# hosted_ui_domain_prefix = "robtime-staging"
+# callback_urls           = ["http://localhost:5173/auth/callback", "https://xxxxxxxx.cloudfront.net/auth/callback"]
+# logout_urls             = ["http://localhost:5173/", "https://xxxxxxxx.cloudfront.net/"]
+# app_url                 = "https://xxxxxxxx.cloudfront.net"
