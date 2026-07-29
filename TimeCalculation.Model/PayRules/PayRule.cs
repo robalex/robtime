@@ -60,6 +60,18 @@ public class PayRule
     // Workweek definition (FLSA-required consistent 168-hr window)
     public IsoDayOfWeek WorkweekStartDay { get; set; } = IsoDayOfWeek.Sunday;
 
+    // Pay period definition (Phase 6 prerequisite — UI_PLAN.md §9 decision 18: lives here rather
+    // than on ClientSettings so a frequency change gets the same effective-dating/versioning as any
+    // other rule change). PayPeriodAnchor is only consulted for Weekly/BiWeekly — SemiMonthly and
+    // Monthly derive their boundaries from the calendar and ignore it entirely; see
+    // PayPeriodCalculator's own doc comments. Its default (LocalDate's own default,
+    // 0001-01-01) matches PayPeriodCalculator.ContainingDate's `anchor = default` parameter default,
+    // so an un-set anchor still resolves to a real, consistent period boundary rather than needing
+    // null-handling — a client running Weekly/BiWeekly should still set a real reference date once
+    // one is known, since 0001-01-01 has no relationship to their actual pay calendar.
+    public PayPeriodFrequency PayPeriodFrequency { get; set; } = PayPeriodFrequency.BiWeekly;
+    public LocalDate PayPeriodAnchor { get; set; }
+
     // Overtime
     public OvertimeRule OvertimeRule { get; set; } = new OvertimeRule();
 

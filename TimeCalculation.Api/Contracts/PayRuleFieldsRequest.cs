@@ -30,6 +30,9 @@ public abstract record PayRuleFieldsRequest
     public ShiftDateStrategy? ShiftDateStrategy { get; init; }
     public IsoDayOfWeek? WorkweekStartDay { get; init; }
 
+    public PayPeriodFrequency? PayPeriodFrequency { get; init; }
+    public LocalDate? PayPeriodAnchor { get; init; }
+
     // HashSet, not IReadOnlySet — System.Text.Json can't deserialize an interface-typed collection
     // without a custom converter (found via TimeCalculation.Api.Tests actually round-tripping this
     // DTO through JSON, not just checking it serialized). Wire-format DTOs need to be shaped for

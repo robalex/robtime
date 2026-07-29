@@ -31,6 +31,9 @@ public sealed record PayRuleResponse
     public required ShiftDateStrategy ShiftDateStrategy { get; init; }
     public required IsoDayOfWeek WorkweekStartDay { get; init; }
 
+    public required PayPeriodFrequency PayPeriodFrequency { get; init; }
+    public required LocalDate PayPeriodAnchor { get; init; }
+
     // HashSet, not IReadOnlySet — see PayRuleFieldsRequest's comment on the same fields; a .NET
     // client (this project's own integration tests included) can't deserialize an interface-typed
     // collection with System.Text.Json's default converters.
@@ -66,6 +69,8 @@ public sealed record PayRuleResponse
         RoundingGraceMinutes = payRule.RoundingRule.RoundingGraceMinutes,
         ShiftDateStrategy = payRule.ShiftDateStrategy,
         WorkweekStartDay = payRule.WorkweekStartDay,
+        PayPeriodFrequency = payRule.PayPeriodFrequency,
+        PayPeriodAnchor = payRule.PayPeriodAnchor,
         ActivePremiumCodes = payRule.ActivePremiumCodes.ToHashSet(),
         ActiveDifferentialCodes = payRule.ActiveDifferentialCodes.ToHashSet(),
         WeeklyOvertimeThresholdHours = payRule.OvertimeRule.WeeklyOvertimeThresholdHours,

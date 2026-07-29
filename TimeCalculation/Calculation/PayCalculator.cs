@@ -22,6 +22,19 @@ public static class PayCalculator
     public static PayResult Calculate(
         IReadOnlyList<Punch> punches,
         PipelineContext ctx,
+        Func<Shift, IReadOnlyList<OverrideKind>>? overridesForShift = null) =>
+        CalculateDetailed(punches, ctx, overridesForShift).Result;
+
+    /// <summary>
+    /// The same calculation, additionally returning the Workweek → WorkDay → Shift → PunchPair graph
+    /// it grouped along the way. For callers that must render or freeze punch-level detail (the
+    /// timecard, and the approval snapshot behind it) — see PayCalculationDetail for why that detail
+    /// can't be reconstructed from a PayResult after the fact. Calculate() is this minus the graph,
+    /// so the two can never disagree about the pay they report.
+    /// </summary>
+    public static PayCalculationDetail CalculateDetailed(
+        IReadOnlyList<Punch> punches,
+        PipelineContext ctx,
         Func<Shift, IReadOnlyList<OverrideKind>>? overridesForShift = null)
     {
         var shifts = PrepareShifts(punches, ctx);
@@ -34,9 +47,20 @@ public static class PayCalculator
         // strip non-qualifying ones here before the regular rate reads them.
         var shiftsQualified = RangeDifferentialQualifier.Execute(shiftsWithDifferentials, ctx);
 
-        var weekPays = CalculateWeeklyPay(shiftsQualified, ctx, overridesForShift);
+        // Stages 9–10. Held in a local rather than folded into the pay projection below because the
+        // grouping itself is half of what this method returns.
+        var days = WorkDayGrouper.Execute(shiftsQualified, ctx);
+        var weeks = WorkweekGrouper.Execute(days, ctx);
 
-        return new PayResult { EmployeeId = ctx.Employee.Id, Workweeks = weekPays };
+        var weekPays = weeks
+            .Select(week => CalculateWorkweekPay(week, ctx, overridesForShift))
+            .ToList();
+
+        return new PayCalculationDetail
+        {
+            Result = new PayResult { EmployeeId = ctx.Employee.Id, Workweeks = weekPays },
+            Weeks = weeks,
+        };
     }
 
     /// <summary>Stages 1–6: raw punches → rounded, paired, enriched, built, subtyped, and dated shifts.</summary>
@@ -48,20 +72,6 @@ public static class PayCalculator
         var shifts = ShiftBuilder.BuildShifts(enriched, fixedEntries, ctx);
         var subtyped = PunchSubtypeInferrer.InferPunchSubtypes(shifts, ctx);
         return ShiftDater.AssignDatesToShifts(subtyped, ctx);
-    }
-
-    /// <summary>Stages 9–13: group shifts into workweeks, then compute each week's pay.</summary>
-    private static IReadOnlyList<WorkweekPay> CalculateWeeklyPay(
-        IReadOnlyList<Shift> shifts,
-        PipelineContext ctx,
-        Func<Shift, IReadOnlyList<OverrideKind>>? overridesForShift)
-    {
-        var days = WorkDayGrouper.Execute(shifts, ctx);
-        var weeks = WorkweekGrouper.Execute(days, ctx);
-
-        return weeks
-            .Select(week => CalculateWorkweekPay(week, ctx, overridesForShift))
-            .ToList();
     }
 
     /// <summary>

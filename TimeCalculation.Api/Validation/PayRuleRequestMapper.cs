@@ -83,6 +83,16 @@ public static class PayRuleRequestMapper
             payRule.WorkweekStartDay = weekStart;
         }
 
+        if (request.PayPeriodFrequency is { } payPeriodFrequency)
+        {
+            payRule.PayPeriodFrequency = payPeriodFrequency;
+        }
+
+        if (request.PayPeriodAnchor is { } payPeriodAnchor)
+        {
+            payRule.PayPeriodAnchor = payPeriodAnchor;
+        }
+
         if (request.ActivePremiumCodes is { } premiumCodes)
         {
             payRule.ActivePremiumCodes = premiumCodes;
