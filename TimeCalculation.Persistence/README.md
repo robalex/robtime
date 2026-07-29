@@ -92,7 +92,12 @@ just break local dev for a protection that doesn't apply to traffic that never l
   (in the engine project) dedup runs ahead of whichever path is chosen.
 - **Multi-tenancy** — open decision #5 (EF global filters, implemented here, vs Postgres RLS).
 - **`PayCalculationSnapshot`** — persist as `jsonb` (the record graph is calculation output, not a
-  relational aggregate).
+  relational aggregate). **No longer open-ended: scheduled for Phase 6.7** (`UI_PLAN.md` decision 24),
+  where approving a timecard freezes its `PayResult` so a later engine change can't alter pay that
+  was already paid out. Note the record needs shape changes first — an engine/build version stamp,
+  `ClientId`, and pay-period bounds — and that storing the full payload is mandatory rather than an
+  optimization, because only `PayRule` is genuinely versioned, so re-running from referenced rule
+  ids does not reproduce a past calculation. Details in `UI_PLAN.md` §8.
 - **Repository/unit-of-work abstraction** — deliberately not added. `IPunchRepository` and
   `IPunchAuditWriter` existed briefly as speculative interfaces with no implementation and no
   consumer; removed rather than carried forward unimplemented. If a future API project genuinely

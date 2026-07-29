@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NodaTime;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using TimeCalculation.Persistence;
 namespace TimeCalculation.Persistence.Migrations
 {
     [DbContext(typeof(PayrollDbContext))]
-    partial class PayrollDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260728044814_AddClientSettings")]
+    partial class AddClientSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -788,170 +791,6 @@ namespace TimeCalculation.Persistence.Migrations
                     b.ToTable("pay_rule_assignments", (string)null);
                 });
 
-            modelBuilder.Entity("TimeCalculation.Persistence.PunchChangeRequest", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ChangeKind")
-                        .HasColumnType("integer")
-                        .HasColumnName("change_kind");
-
-                    b.Property<int>("ClientId")
-                        .HasColumnType("integer")
-                        .HasColumnName("client_id");
-
-                    b.Property<Instant>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<int>("EmployeeId")
-                        .HasColumnType("integer")
-                        .HasColumnName("employee_id");
-
-                    b.Property<int?>("PunchId")
-                        .HasColumnType("integer")
-                        .HasColumnName("punch_id");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("reason");
-
-                    b.Property<decimal?>("RequestedAmount")
-                        .HasPrecision(19, 4)
-                        .HasColumnType("numeric(19,4)")
-                        .HasColumnName("requested_amount");
-
-                    b.Property<int?>("RequestedBonusKind")
-                        .HasColumnType("integer")
-                        .HasColumnName("requested_bonus_kind");
-
-                    b.Property<bool?>("RequestedCountsTowardRegularRate")
-                        .HasColumnType("boolean")
-                        .HasColumnName("requested_counts_toward_regular_rate");
-
-                    b.Property<decimal?>("RequestedHours")
-                        .HasPrecision(10, 4)
-                        .HasColumnType("numeric(10,4)")
-                        .HasColumnName("requested_hours");
-
-                    b.Property<int?>("RequestedKind")
-                        .HasColumnType("integer")
-                        .HasColumnName("requested_kind");
-
-                    b.Property<int?>("RequestedPositionId")
-                        .HasColumnType("integer")
-                        .HasColumnName("requested_position_id");
-
-                    b.Property<Instant?>("RequestedPunchTime")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("requested_punch_time");
-
-                    b.Property<string>("RequestedPunchTimeZoneId")
-                        .HasColumnType("text")
-                        .HasColumnName("requested_punch_time_zone_id");
-
-                    b.Property<int?>("RequestedSubtype")
-                        .HasColumnType("integer")
-                        .HasColumnName("requested_subtype");
-
-                    b.Property<string>("RequesterUserId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("requester_user_id");
-
-                    b.Property<string>("ReviewNote")
-                        .HasColumnType("text")
-                        .HasColumnName("review_note");
-
-                    b.Property<Instant?>("ReviewedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("reviewed_at");
-
-                    b.Property<string>("ReviewerUserId")
-                        .HasColumnType("text")
-                        .HasColumnName("reviewer_user_id");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer")
-                        .HasColumnName("status");
-
-                    b.HasKey("Id")
-                        .HasName("pk_punch_change_requests");
-
-                    b.HasIndex("EmployeeId")
-                        .HasDatabaseName("ix_punch_change_requests_employee_id");
-
-                    b.HasIndex("ClientId", "Status", "EmployeeId")
-                        .HasDatabaseName("ix_punch_change_requests_client_id_status_employee_id");
-
-                    b.ToTable("punch_change_requests", (string)null);
-                });
-
-            modelBuilder.Entity("TimeCalculation.Persistence.TimecardApproval", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<Instant>("ApprovedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("approved_at");
-
-                    b.Property<string>("ApprovedByUserId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("approved_by_user_id");
-
-                    b.Property<int>("ClientId")
-                        .HasColumnType("integer")
-                        .HasColumnName("client_id");
-
-                    b.Property<int>("EmployeeId")
-                        .HasColumnType("integer")
-                        .HasColumnName("employee_id");
-
-                    b.Property<LocalDate>("PeriodEnd")
-                        .HasColumnType("date")
-                        .HasColumnName("period_end");
-
-                    b.Property<LocalDate>("PeriodStart")
-                        .HasColumnType("date")
-                        .HasColumnName("period_start");
-
-                    b.Property<string>("SnapshotJson")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("snapshot_json");
-
-                    b.Property<Instant?>("UnapprovedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("unapproved_at");
-
-                    b.Property<string>("UnapprovedByUserId")
-                        .HasColumnType("text")
-                        .HasColumnName("unapproved_by_user_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_timecard_approvals");
-
-                    b.HasIndex("EmployeeId")
-                        .HasDatabaseName("ix_timecard_approvals_employee_id");
-
-                    b.HasIndex("ClientId", "EmployeeId", "PeriodStart", "PeriodEnd")
-                        .HasDatabaseName("ix_timecard_approvals_client_id_employee_id_period_start_perio");
-
-                    b.ToTable("timecard_approvals", (string)null);
-                });
-
             modelBuilder.Entity("TimeCalculation.Model.DifferentialRule", b =>
                 {
                     b.HasOne("TimeCalculation.Model.Client", null)
@@ -1194,40 +1033,6 @@ namespace TimeCalculation.Persistence.Migrations
                         .HasConstraintName("fk_pay_rule_assignments_pay_rules_pay_rule_id");
 
                     b.Navigation("PayRule");
-                });
-
-            modelBuilder.Entity("TimeCalculation.Persistence.PunchChangeRequest", b =>
-                {
-                    b.HasOne("TimeCalculation.Model.Client", null)
-                        .WithMany()
-                        .HasForeignKey("ClientId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_punch_change_requests_clients_client_id");
-
-                    b.HasOne("TimeCalculation.Model.Employee", null)
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_punch_change_requests_employees_employee_id");
-                });
-
-            modelBuilder.Entity("TimeCalculation.Persistence.TimecardApproval", b =>
-                {
-                    b.HasOne("TimeCalculation.Model.Client", null)
-                        .WithMany()
-                        .HasForeignKey("ClientId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_timecard_approvals_clients_client_id");
-
-                    b.HasOne("TimeCalculation.Model.Employee", null)
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_timecard_approvals_employees_employee_id");
                 });
 #pragma warning restore 612, 618
         }

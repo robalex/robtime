@@ -18,8 +18,8 @@ namespace TimeCalculation.Persistence;
 /// this project for storage, TimeCalculation.Model for the shapes they share.
 ///
 /// Not encoded here (deferred / open decisions): table partitioning by year (Postgres DDL, applied
-/// in a migration), the worker-queue choice for parallel period calculation (open decision #6), and
-/// JSON storage of PayCalculationSnapshot.
+/// in a migration), and the worker-queue choice for parallel period calculation (open decision #6).
+/// PayCalculationSnapshot's JSON storage landed in Phase 6.7 — see TimecardApproval.SnapshotJson.
 /// </summary>
 public class PayrollDbContext : DbContext
 {
@@ -47,6 +47,9 @@ public class PayrollDbContext : DbContext
     public DbSet<DifferentialRule> DifferentialRules => Set<DifferentialRule>();
     public DbSet<HolidayCalendar> HolidayCalendars => Set<HolidayCalendar>();
     public DbSet<ClientPremiumPolicy> ClientPremiumPolicies => Set<ClientPremiumPolicy>();
+    public DbSet<ClientSettings> ClientSettings => Set<ClientSettings>();
+    public DbSet<PunchChangeRequest> PunchChangeRequests => Set<PunchChangeRequest>();
+    public DbSet<TimecardApproval> TimecardApprovals => Set<TimecardApproval>();
 
     /// <summary>
     /// Snake-cases every generated identifier so columns match the already snake_cased table names
@@ -152,6 +155,26 @@ public class PayrollDbContext : DbContext
             b.HasIndex(a => new { a.ClientId, a.PunchId });
             b.HasOne<Client>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Restrict);
             b.HasQueryFilter(a => a.ClientId == _tenantClientId);
+        });
+
+        model.Entity<PunchChangeRequest>(b =>
+        {
+            b.ToTable("punch_change_requests");
+            b.HasKey(r => r.Id);
+            // Pending-queue lookup (Phase 6.6): "this client's pending requests," status leading
+            // since that's always in the query, then EmployeeId for the timecard's own filtered view.
+            b.HasIndex(r => new { r.ClientId, r.Status, r.EmployeeId });
+
+            b.Property(r => r.RequestedAmount).HasPrecision(19, 4);
+            b.Property(r => r.RequestedHours).HasPrecision(10, 4);
+
+            b.HasOne<Client>().WithMany().HasForeignKey(r => r.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Employee>().WithMany().HasForeignKey(r => r.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+            // No FK to Punch — PunchId is null for a pending Add request (there's no punch yet), so
+            // this can't be a required relationship, and EF's optional-FK-to-a-record-type support is
+            // more friction than a plain unconstrained int buys here. The punch_audits table takes the
+            // same approach for the same reason once a punch is soft-deleted out from under an entry.
+            b.HasQueryFilter(r => r.ClientId == _tenantClientId);
         });
 
         model.Entity<PayRule>(b =>
@@ -279,6 +302,16 @@ public class PayrollDbContext : DbContext
             b.HasIndex(c => new { c.ClientId, c.PremiumCode, c.EffectiveFrom });
         });
 
+        model.Entity<ClientSettings>(b =>
+        {
+            b.ToTable("client_settings");
+            // ClientId IS the primary key, not a separate surrogate — one row per client, so a
+            // unique index on ClientId would just duplicate what the PK already gives for free.
+            b.HasKey(s => s.ClientId);
+            b.HasOne<Client>().WithMany().HasForeignKey(s => s.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasQueryFilter(s => s.ClientId == _tenantClientId);
+        });
+
         model.Entity<PayRuleAssignmentEntity>(b =>
         {
             b.ToTable("pay_rule_assignments");
@@ -315,6 +348,20 @@ public class PayrollDbContext : DbContext
             b.HasKey(s => s.Id);
             b.Property(s => s.Amount).HasPrecision(19, 4);
             b.HasIndex(s => new { s.State, s.EffectiveFrom });
+        });
+
+        model.Entity<TimecardApproval>(b =>
+        {
+            b.ToTable("timecard_approvals");
+            b.HasKey(a => a.Id);
+            // "Is this employee/period locked right now" (TimecardLockService) and "what's the active
+            // approval for this period" (TimecardService) both filter on all four and then pick the
+            // row with UnapprovedAt still null — this index serves both without needing UnapprovedAt
+            // in it, since there are only ever a handful of rows per (employee, period) to scan.
+            b.HasIndex(a => new { a.ClientId, a.EmployeeId, a.PeriodStart, a.PeriodEnd });
+            b.HasOne<Client>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Employee>().WithMany().HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+            b.HasQueryFilter(a => a.ClientId == _tenantClientId);
         });
     }
 }
