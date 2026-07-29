@@ -50,6 +50,7 @@ public class PayrollDbContext : DbContext
     public DbSet<ClientSettings> ClientSettings => Set<ClientSettings>();
     public DbSet<PunchChangeRequest> PunchChangeRequests => Set<PunchChangeRequest>();
     public DbSet<TimecardApproval> TimecardApprovals => Set<TimecardApproval>();
+    public DbSet<PunchImportBatch> PunchImportBatches => Set<PunchImportBatch>();
 
     /// <summary>
     /// Snake-cases every generated identifier so columns match the already snake_cased table names
@@ -143,6 +144,11 @@ public class PayrollDbContext : DbContext
             b.HasOne<Client>().WithMany().HasForeignKey(p => p.ClientId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne(p => p.Employee).WithMany().HasForeignKey(p => p.EmployeeId);
             b.HasOne(p => p.Position).WithMany().HasForeignKey(p => p.PositionId);
+            // Restrict, not a real concern in practice: PunchImportBatch rows are never deleted
+            // (DeleteBatchAsync hard-deletes the punches themselves, not their parent batch), so this
+            // FK is never actually asked to cascade or block anything — it's here for referential
+            // integrity, not because a delete path exercises it.
+            b.HasOne<PunchImportBatch>().WithMany().HasForeignKey(p => p.ImportBatchId).OnDelete(DeleteBehavior.Restrict);
 
             b.HasQueryFilter("Tenant", p => p.ClientId == _tenantClientId);
             b.HasQueryFilter("SoftDelete", p => !p.IsDeleted);
@@ -362,6 +368,15 @@ public class PayrollDbContext : DbContext
             b.HasOne<Client>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne<Employee>().WithMany().HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Restrict);
             b.HasQueryFilter(a => a.ClientId == _tenantClientId);
+        });
+
+        model.Entity<PunchImportBatch>(b =>
+        {
+            b.ToTable("punch_import_batches");
+            b.HasKey(i => i.Id);
+            b.HasIndex(i => new { i.ClientId, i.ImportedAt });
+            b.HasOne<Client>().WithMany().HasForeignKey(i => i.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasQueryFilter(i => i.ClientId == _tenantClientId);
         });
     }
 }

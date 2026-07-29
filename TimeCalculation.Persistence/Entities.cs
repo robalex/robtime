@@ -183,3 +183,33 @@ public class TimecardApproval
     /// response pipeline directly).</summary>
     public string SnapshotJson { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// One bulk CSV punch import — the tag every <c>Punch.ImportBatchId</c> it produced points back to,
+/// and what "undo this import" (PunchImportService.DeleteBatchAsync) operates on. <c>Id</c> *is* the
+/// batch code; there's no separate human-facing code column, since the numeric id is already what a
+/// "delete batch 42" action needs and nothing else references a batch by any other name.
+///
+/// Deleting a batch hard-deletes its Punch rows (not the usual IsDeleted soft-delete every other
+/// tenant-scoped entity gets) — decided explicitly: an import can be large enough that leaving a bad
+/// one soft-deleted-but-present forever is real, pointless bloat, unlike a single mis-entered punch.
+/// This row itself is never deleted, only marked via Deleted*— one row regardless of how large the
+/// batch was, so keeping it costs nothing and preserves "who imported what, and who later removed
+/// it" as real history. The PunchAuditEntry "Created" rows the import wrote are kept too, for the
+/// same reason every other punch-mutating path never touches audit history when the punch it
+/// describes later goes away (PunchAuditEntry.PunchId is deliberately not a real FK, precisely so it
+/// can outlive the punch) — they're inert once the punch is gone, never read by pay calculation,
+/// and record something that's still true after the delete ("this punch existed, briefly").
+/// </summary>
+public class PunchImportBatch
+{
+    public int Id { get; set; }
+    public int ClientId { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public int PunchCount { get; set; }
+    public string ImportedByUserId { get; set; } = string.Empty;
+    public Instant ImportedAt { get; set; }
+
+    public string? DeletedByUserId { get; set; }
+    public Instant? DeletedAt { get; set; }
+}

@@ -36,6 +36,10 @@ export const can = {
   manageDifferentialRules: (me: Me | undefined) => atLeast(me, 'ClientAdmin'),
   manageHolidayCalendars: (me: Me | undefined) => atLeast(me, 'ClientAdmin'),
   manageClientPremiumPolicies: (me: Me | undefined) => atLeast(me, 'ClientAdmin'),
+  /** A bulk import can create or hard-delete punches for any employee in the tenant at once — closer
+   * in kind to Position/PayRule administration than to a supervisor fixing one employee's shift, so
+   * it sits at the same bar as those rather than Supervisor's per-punch edit access. */
+  importPunches: (me: Me | undefined) => atLeast(me, 'ClientAdmin'),
   /** Shared reference data across every client — not a per-tenant setting. */
   manageStateMinimumWages: (me: Me | undefined) => atLeast(me, 'SystemAdmin'),
   /** Supervisor sees wage rates and pay amounts (§9 decision 16). */

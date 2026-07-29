@@ -33,6 +33,11 @@ public record Punch
     public string? DeviceId { get; init; }
     public string? DevicePunchId { get; init; }
 
+    /// <summary>Non-null only for a punch created via bulk CSV import — see PunchImportBatch. Lets
+    /// "undo this import" (PunchImportService.DeleteBatchAsync) find exactly the punches one bad
+    /// file produced, without guessing from CreatedBy/CreatedAt.</summary>
+    public int? ImportBatchId { get; init; }
+
     // Navigation properties — may be null in pure pipeline contexts
     public Employee? Employee { get; init; }
     public Position? Position { get; init; }

@@ -28,4 +28,50 @@ public class TimecardLockService(PayrollDbContext db)
             ? $"The pay period covering {date} is locked because this timecard has been approved. A supervisor must reopen it before this can change."
             : null;
     }
+
+    /// <summary>Bulk form of <see cref="CheckAsync"/> for punch import, which can span thousands of
+    /// rows across many employees — one query loading every active approval for the employees
+    /// involved, then an in-memory check per target, instead of one round trip per punch. Returns the
+    /// first conflict found (matching CheckAsync's single-message contract, and how every other
+    /// punch-mutating path already treats a lock as one whole-operation Conflict rather than a
+    /// per-row concern), or null if none of the targets fall in a locked period.</summary>
+    public async Task<string?> CheckBulkAsync(IReadOnlyList<LockCheckTarget> targets, CancellationToken ct)
+    {
+        if (targets.Count == 0)
+        {
+            return null;
+        }
+
+        var employeeIds = targets.Select(t => t.Employee.Id).Distinct().ToList();
+        var approvals = await db.TimecardApprovals
+            .Where(a => employeeIds.Contains(a.EmployeeId) && a.UnapprovedAt == null)
+            .ToListAsync(ct);
+
+        if (approvals.Count == 0)
+        {
+            return null;
+        }
+
+        var approvalsByEmployee = approvals.ToLookup(a => a.EmployeeId);
+
+        foreach (var target in targets)
+        {
+            if (!approvalsByEmployee.Contains(target.Employee.Id))
+            {
+                continue;
+            }
+
+            var zone = DateTimeZoneProviders.Tzdb[target.Employee.HomeTimeZoneId];
+            var date = target.PunchTime.InZone(zone).Date;
+            var locked = approvalsByEmployee[target.Employee.Id].Any(a => a.PeriodStart <= date && date <= a.PeriodEnd);
+            if (locked)
+            {
+                return $"The pay period covering {date} for employee {target.Employee.Id} is locked because this timecard has been approved. A supervisor must reopen it before this can change.";
+            }
+        }
+
+        return null;
+    }
 }
+
+public sealed record LockCheckTarget(Employee Employee, Instant PunchTime);
