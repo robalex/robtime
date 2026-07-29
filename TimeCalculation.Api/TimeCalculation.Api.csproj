@@ -44,9 +44,11 @@
          POST /payrules/{id}/what-if (2026-07-26) is the second: PayRuleWhatIfService runs
          PayCalculator twice — current assignment history vs. the route's PayRule forced over the
          requested period — and diffs the results (UI_PLAN.md §7's single-employee down payment).
-         The next planned consumer is the Phase 6 timecard endpoint. Still no endpoint should invoke
-         PayCalculator for its own sake outside these purposes — this project does CRUD, not
-         calculation. -->
+         GET /employees/{id}/timecard (2026-07-28) is the third: TimecardService runs PayCalculator
+         once over the employee's real assignment history for their actual current pay period
+         (UI_PLAN.md's Phase 6 "Timecard" design — a role-gated rendering of PayResult, not a new
+         data shape). Still no endpoint should invoke PayCalculator for its own sake outside these
+         purposes — this project does CRUD, not calculation. -->
     <ProjectReference Include="..\TimeCalculation\TimeCalculation.csproj" />
   </ItemGroup>
 
