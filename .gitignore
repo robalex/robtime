@@ -1,5 +1,16 @@
 .aider*
 
+# Terraform (infra/ — see DEPLOY_PLAN.md). State and plan output are environment-specific and/or
+# carry secrets (`terraform.tfvars` can); .terraform.lock.hcl IS meant to be committed, so it's
+# deliberately not listed here.
+infra/**/.terraform/
+infra/**/*.tfstate
+infra/**/*.tfstate.*
+infra/**/*.tfplan
+infra/**/crash.log
+infra/**/terraform.tfvars
+infra/**/*.auto.tfvars
+
 # RobTimeUI (Vite/React frontend — see UI_PLAN.md §2)
 RobTimeUI/node_modules/
 RobTimeUI/dist/

@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "RobTimeUI", "run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "robtime-api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "TimeCalculation.Api"],
+      "port": 53534
     }
   ]
 }
