@@ -13,10 +13,14 @@ namespace TimeCalculation.Api.Auth;
 /// Applied per the role table (UI_PLAN.md §5): mutations on client configuration (employees,
 /// positions, pay rules, differentials, holiday calendars, waiver policies, assignments) require
 /// ClientAdmin — "everything within one client." Reads stay open to any authenticated role,
-/// matching Employee's "read-only on everything else." Punch creation requires Supervisor for now
-/// ("view/edit punches for their client") — self-service Employee punch entry needs the
-/// PunchChangeRequest/per-employee scoping Phase 6 hasn't built yet, so Employee can't hit it via
-/// this route until that lands.
+/// matching Employee's "read-only on everything else."
+///
+/// One important limit on what a policy here can express: <b>a policy answers "which roles may call
+/// this route," never "which rows may they touch."</b> Phase 6.4's self-service clock opened
+/// <c>POST /punches</c> to the <see cref="Employee"/> policy, but an employee is confined to their
+/// own record by <c>EmployeeScopeResolver</c> inside the handler — the policy alone would let any
+/// employee punch as a colleague. Punch edit/delete/list stay Supervisor-gated precisely because
+/// they have no such per-row check yet.
 /// </summary>
 public static class AuthorizationPolicies
 {
