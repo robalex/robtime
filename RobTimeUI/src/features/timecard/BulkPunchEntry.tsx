@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarPlus, Plus, Trash2 } from 'lucide-react'
+import { CalendarPlus, Plus, TriangleAlert, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,9 +8,12 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { toApiProblem } from '@/lib/problem'
 import { usePositionAssignments } from '@/features/positionAssignments/queries'
+import { useEmployee } from '@/features/employees/queries'
+import { resolveRowInstant } from './resolveLocalTime'
 import {
   useCreatePunchBatch,
   usePreviewTimecard,
+  useResolveLocalPunchTime,
   type CreatePunch,
   type DraftPunchEntry,
 } from './queries'
@@ -20,8 +23,9 @@ type BonusKind = 'Discretionary' | 'NonDiscretionary'
 
 interface DraftRow {
   key: string
-  // datetime-local string ("2026-06-01T09:00") — browser-local time, same convention Timecard.tsx
-  // and ClockCard.tsx already use elsewhere in this app (see Timecard.tsx's formatTime comment).
+  // datetime-local string ("2026-06-01T09:00") — a *local* wall-clock time, resolved against the
+  // employee's own HomeTimeZoneId (not the browser's) via POST /punches/resolve-local-time at save
+  // time. See resolveLocalTime.ts.
   when: string
   kind: PunchKind
   positionId: string // '' = fall back to the default position picker below
@@ -29,6 +33,9 @@ interface DraftRow {
   hours: string // FixedHours
   bonusKind: BonusKind | ''
   countsTowardRegularRate: boolean
+  // Only meaningful once resolve-local-time has flagged this row's `when` as an ambiguous fall-back
+  // hour (see ambiguousKeys below) — undefined until then, since most rows are never ambiguous.
+  daylightSaving?: boolean
 }
 
 const HOURS_FORMAT = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
@@ -67,9 +74,15 @@ function blankRow(counter: { current: number }, when: string, kind: PunchKind = 
   }
 }
 
-/** The row's data as a draft entry, or null if it isn't complete enough to preview/save yet —
- * an in-progress row (e.g. FixedDollar with no amount typed) is simply skipped rather than treated
- * as an error, since the grid is meant to preview "as best it can" while someone is still typing. */
+/** The row's data as a draft entry, or null if it isn't complete enough to preview/save yet — an
+ * in-progress row (e.g. FixedDollar with no amount typed) is simply skipped rather than treated as
+ * an error, since the grid is meant to preview "as best it can" while someone is still typing.
+ *
+ * punchTime here is a *browser-local* approximation (`new Date().toISOString()`), deliberately not
+ * the real DST-aware resolution — this feeds only the live pay preview, which is allowed to be off
+ * by an hour or two while someone is mid-edit. handleSave below re-resolves every row for real
+ * (against the employee's own HomeTimeZoneId, via resolve-local-time) before anything is persisted,
+ * so what actually gets saved is always exact regardless of what the preview estimated. */
 function toDraftEntry(row: DraftRow, defaultPositionId: string): DraftPunchEntry | null {
   if (!row.when) {
     return null
@@ -113,11 +126,16 @@ export function BulkPunchEntry({ employeeId, date }: { employeeId: number; date?
   const [defaultPositionId, setDefaultPositionId] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedCount, setSavedCount] = useState<number | null>(null)
+  // Row keys resolve-local-time has flagged as an ambiguous fall-back hour — set only on a Save
+  // attempt (previewing doesn't call the real resolver), cleared once a save actually succeeds.
+  const [ambiguousKeys, setAmbiguousKeys] = useState<Set<string>>(new Set())
   const focusKey = useRef<string | null>(null)
 
   const positions = usePositionAssignments(employeeId)
+  const employee = useEmployee(employeeId)
   const preview = usePreviewTimecard(employeeId, date)
   const batch = useCreatePunchBatch(employeeId)
+  const resolveLocalTime = useResolveLocalPunchTime()
 
   const draftEntries = useMemo(
     () => rows.map((row) => toDraftEntry(row, defaultPositionId)).filter((e): e is DraftPunchEntry => e !== null),
@@ -199,16 +217,47 @@ export function BulkPunchEntry({ employeeId, date }: { employeeId: number; date?
     }
   }
 
+  // Resolves every complete row against the employee's real HomeTimeZoneId before anything is
+  // persisted — unlike the live preview above, this is the exact DST-aware resolution, so a row
+  // landing in a spring-forward gap or fall-back overlap is caught here rather than silently saved
+  // against the wrong instant. All-or-nothing, same as the batch-create endpoint itself: any row
+  // that can't be resolved (gap, still-ambiguous, or anything else) blocks the whole save.
   async function handleSave() {
     setSaveError(null)
     setSavedCount(null)
-    const punches: CreatePunch[] = rows
-      .map((row) => toDraftEntry(row, defaultPositionId))
-      .map((entry) => (entry ? ({ ...entry, employeeId } as CreatePunch) : null))
-      .filter((p): p is CreatePunch => p !== null)
 
-    if (punches.length === 0) {
+    const zoneId = employee.data?.homeTimeZoneId
+    if (!zoneId) {
+      setSaveError('Still loading this employee — try again in a moment.')
+      return
+    }
+
+    const completeRows = rows.filter((row) => toDraftEntry(row, defaultPositionId) !== null)
+    if (completeRows.length === 0) {
       setSaveError('Enter at least one complete punch first.')
+      return
+    }
+
+    const punches: CreatePunch[] = []
+    const stillAmbiguous = new Set<string>()
+    let blockingError: string | null = null
+
+    for (const row of completeRows) {
+      const outcome = await resolveRowInstant(resolveLocalTime.mutateAsync, row.when, zoneId, row.daylightSaving)
+      if (outcome.kind === 'resolved') {
+        const draft = toDraftEntry(row, defaultPositionId)!
+        punches.push({ ...draft, punchTime: outcome.instant, employeeId } as CreatePunch)
+      } else if (outcome.kind === 'ambiguous') {
+        stillAmbiguous.add(row.key)
+        blockingError ??= 'One or more rows need a daylight-saving choice — see below.'
+      } else {
+        blockingError ??= outcome.message
+      }
+    }
+
+    setAmbiguousKeys(stillAmbiguous)
+    if (blockingError) {
+      setSaveError(blockingError)
       return
     }
 
@@ -216,6 +265,7 @@ export function BulkPunchEntry({ employeeId, date }: { employeeId: number; date?
       const saved = await batch.mutateAsync(punches)
       setSavedCount(saved.length)
       setRows([blankRow(rowCounter, todayAt(9), 'In'), blankRow(rowCounter, todayAt(17), 'Out')])
+      setAmbiguousKeys(new Set())
     } catch (err) {
       setSaveError(toApiProblem(err, 'Could not save these punches.').message)
     }
@@ -279,9 +329,27 @@ export function BulkPunchEntry({ employeeId, date }: { employeeId: number; date?
                       data-row-key={row.key}
                       className="h-8 min-w-[190px]"
                       value={row.when}
-                      onChange={(e) => updateRow(row.key, { when: e.target.value })}
+                      onChange={(e) => updateRow(row.key, { when: e.target.value, daylightSaving: undefined })}
                       onKeyDown={(e) => handleRowKeyDown(row, e)}
                     />
+                    {ambiguousKeys.has(row.key) && (
+                      <div className="mt-1 flex items-center gap-1">
+                        <TriangleAlert className="size-3.5 shrink-0 text-amber-600 dark:text-amber-500" />
+                        <Select
+                          className="h-6 text-xs"
+                          value={row.daylightSaving === undefined ? '' : String(row.daylightSaving)}
+                          onChange={(e) =>
+                            updateRow(row.key, {
+                              daylightSaving: e.target.value === '' ? undefined : e.target.value === 'true',
+                            })
+                          }
+                        >
+                          <option value="">This time happens twice — which one?</option>
+                          <option value="true">Earlier (still daylight saving time)</option>
+                          <option value="false">Later (already standard time)</option>
+                        </Select>
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-1.5">
                     <Select
@@ -416,8 +484,13 @@ export function BulkPunchEntry({ employeeId, date }: { employeeId: number; date?
                 {formatMoney(preview.data?.grossPay ?? 0)}
               </span>
             </div>
-            <Button type="button" size="sm" disabled={batch.isPending} onClick={() => void handleSave()}>
-              {batch.isPending ? 'Saving…' : 'Save punches'}
+            <Button
+              type="button"
+              size="sm"
+              disabled={batch.isPending || resolveLocalTime.isPending || employee.isPending}
+              onClick={() => void handleSave()}
+            >
+              {batch.isPending || resolveLocalTime.isPending ? 'Saving…' : 'Save punches'}
             </Button>
           </div>
         </div>

@@ -26,6 +26,13 @@ public static class PunchEndpoints
         app.MapPost("/punches/batch", CreatePunchBatch).WithName("CreatePunchBatch")
             .RequireAuthorization(AuthorizationPolicies.Employee);
 
+        // A pure computation, not a punch-creation path — turns a local date/time + zone into an
+        // Instant (or a DST gap/ambiguity error) so the manual/bulk-entry UI can show the same
+        // resolution punch import already does before the actual create/edit/change-request call.
+        // Never touches Punches or any tenant data, so any signed-in caller may use it.
+        app.MapPost("/punches/resolve-local-time", ResolveLocalPunchTime).WithName("ResolveLocalPunchTime")
+            .RequireAuthorization(AuthorizationPolicies.Employee);
+
         // The remaining four stay Supervisor-or-higher: none are per-employee scoped, so an
         // Employee-role caller could otherwise read/edit/delete any punch just by naming a different
         // EmployeeId/punch id. 6.5 (own timecard) and 6.6 apply the same resolver to the routes they
@@ -105,6 +112,24 @@ public static class PunchEndpoints
             _ => throw new InvalidOperationException(
                 $"Unexpected {nameof(ServiceResultKind)} '{result.Kind}' for batch punch creation."),
         };
+    }
+
+    private static Results<Ok<ResolveLocalPunchTimeResponse>, ValidationProblem> ResolveLocalPunchTime(
+        ResolveLocalPunchTimeRequest request)
+    {
+        var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(request.PunchTimeZoneId);
+        if (zone is null)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["PunchTimeZoneId"] = [$"'{request.PunchTimeZoneId}' is not a recognized time zone."],
+            });
+        }
+
+        var resolved = LocalTimeResolver.Resolve(request.PunchTime, zone, request.DaylightSaving?.ToString());
+        return resolved.Kind == ServiceResultKind.Success
+            ? TypedResults.Ok(new ResolveLocalPunchTimeResponse { PunchTime = resolved.Value })
+            : TypedResults.ValidationProblem(resolved.ValidationErrors!);
     }
 
     /// <summary>Maps a non-Success <see cref="EmployeeScopeResolver"/> outcome onto a response.

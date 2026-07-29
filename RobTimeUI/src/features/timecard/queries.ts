@@ -6,6 +6,7 @@ export type Timecard = components['schemas']['TimecardResponse']
 export type DraftPunchEntry = components['schemas']['DraftPunchEntry']
 export type BulkPunchPreview = components['schemas']['BulkPunchPreviewResponse']
 export type CreatePunch = components['schemas']['CreatePunchRequest']
+export type ResolveLocalPunchTimeRequest = components['schemas']['ResolveLocalPunchTimeRequest']
 
 export const timecardKeys = {
   all: ['timecard'] as const,
@@ -60,6 +61,21 @@ export function usePreviewTimecard(employeeId: number, date?: string) {
         params: { path: { id: employeeId }, query: date ? { date } : undefined },
         body: { draftPunches },
       })
+      if (error) {
+        throw error
+      }
+      return data
+    },
+  })
+}
+
+// Not a query — there's no stable cache key for "resolve this local time," it's a pure per-call
+// computation the manual/bulk-entry forms call once per row right before they save, the same DST-
+// aware resolution punch import applies to CSV rows (see TimeCalculation.Api's LocalTimeResolver).
+export function useResolveLocalPunchTime() {
+  return useMutation({
+    mutationFn: async (request: ResolveLocalPunchTimeRequest) => {
+      const { data, error } = await api.POST('/punches/resolve-local-time', { body: request })
       if (error) {
         throw error
       }

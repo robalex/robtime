@@ -11,8 +11,11 @@ import { toApiProblem } from '@/lib/problem'
 import { useMe } from '@/auth/useMe'
 import { can } from '@/lib/permissions'
 import { useMyPunchChangeRequests, useSubmitPunchChangeRequest } from '@/features/punchChangeRequests/queries'
+import { useEmployee } from '@/features/employees/queries'
+import { resolveRowInstant } from './resolveLocalTime'
 import {
   useApproveTimecard,
+  useResolveLocalPunchTime,
   useTimecard,
   useUnapproveTimecard,
   type Timecard as TimecardData,
@@ -433,22 +436,45 @@ function EditPunchForm({
   onDone: () => void
 }) {
   const submit = useSubmitPunchChangeRequest(employeeId)
+  const employee = useEmployee(employeeId)
+  const resolveLocalTime = useResolveLocalPunchTime()
   const [when, setWhen] = useState(() => toDateTimeLocal(new Date(punch.time)))
+  // Only set once resolve-local-time has flagged `when` as an ambiguous fall-back hour — undefined
+  // otherwise, since the overwhelming majority of edits are never ambiguous.
+  const [daylightSaving, setDaylightSaving] = useState<boolean | undefined>(undefined)
+  const [ambiguous, setAmbiguous] = useState(false)
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  // Resolves `when` against the employee's real HomeTimeZoneId (not the browser's) before
+  // submitting — the same DST-aware resolution punch import applies to CSV rows. If the local time
+  // is genuinely ambiguous (the fall-back overlap), this stops short of submitting and shows the
+  // "which occurrence" picker instead of guessing.
   async function handleSubmit() {
     setError(null)
     if (!reason.trim()) {
       setError('A reason is required.')
       return
     }
+    const zoneId = employee.data?.homeTimeZoneId
+    if (!zoneId) {
+      setError('Still loading this employee — try again in a moment.')
+      return
+    }
+
+    const outcome = await resolveRowInstant(resolveLocalTime.mutateAsync, when, zoneId, daylightSaving)
+    if (outcome.kind !== 'resolved') {
+      setAmbiguous(outcome.kind === 'ambiguous')
+      setError(outcome.message)
+      return
+    }
+
     try {
       await submit.mutateAsync({
         changeKind: 'Edit',
         punchId: punch.id,
         reason,
-        punchTime: new Date(when).toISOString(),
+        punchTime: outcome.instant,
       })
       onDone()
     } catch (err) {
@@ -467,8 +493,23 @@ function EditPunchForm({
           type="datetime-local"
           className="h-8"
           value={when}
-          onChange={(e) => setWhen(e.target.value)}
+          onChange={(e) => {
+            setWhen(e.target.value)
+            setAmbiguous(false)
+            setDaylightSaving(undefined)
+          }}
         />
+        {ambiguous && (
+          <Select
+            className="h-7 text-xs"
+            value={daylightSaving === undefined ? '' : String(daylightSaving)}
+            onChange={(e) => setDaylightSaving(e.target.value === '' ? undefined : e.target.value === 'true')}
+          >
+            <option value="">This time happens twice — which one?</option>
+            <option value="true">Earlier (still daylight saving time)</option>
+            <option value="false">Later (already standard time)</option>
+          </Select>
+        )}
       </div>
       <div className="flex-1 space-y-1">
         <Label htmlFor={`edit-reason-${punch.id}`} className="text-xs">
@@ -482,8 +523,8 @@ function EditPunchForm({
           placeholder="Why this change?"
         />
       </div>
-      <Button size="sm" disabled={submit.isPending} onClick={() => void handleSubmit()}>
-        {submit.isPending ? 'Submitting…' : 'Submit'}
+      <Button size="sm" disabled={submit.isPending || resolveLocalTime.isPending} onClick={() => void handleSubmit()}>
+        {submit.isPending || resolveLocalTime.isPending ? 'Submitting…' : 'Submit'}
       </Button>
       <Button size="sm" variant="outline" onClick={onDone}>
         Cancel
@@ -549,8 +590,12 @@ type AddPunchKind = 'In' | 'Out' | 'FixedDollar' | 'FixedHours'
 
 function AddPunchForm({ employeeId, date, onDone }: { employeeId: number; date: string; onDone: () => void }) {
   const submit = useSubmitPunchChangeRequest(employeeId)
+  const employee = useEmployee(employeeId)
+  const resolveLocalTime = useResolveLocalPunchTime()
   const [kind, setKind] = useState<AddPunchKind>('In')
   const [when, setWhen] = useState(`${date}T09:00`)
+  const [daylightSaving, setDaylightSaving] = useState<boolean | undefined>(undefined)
+  const [ambiguous, setAmbiguous] = useState(false)
   const [amount, setAmount] = useState('')
   const [hours, setHours] = useState('')
   const [reason, setReason] = useState('')
@@ -570,13 +615,25 @@ function AddPunchForm({ employeeId, date, onDone }: { employeeId: number; date: 
       setError('Enter hours.')
       return
     }
+    const zoneId = employee.data?.homeTimeZoneId
+    if (!zoneId) {
+      setError('Still loading this employee — try again in a moment.')
+      return
+    }
+
+    const outcome = await resolveRowInstant(resolveLocalTime.mutateAsync, when, zoneId, daylightSaving)
+    if (outcome.kind !== 'resolved') {
+      setAmbiguous(outcome.kind === 'ambiguous')
+      setError(outcome.message)
+      return
+    }
 
     try {
       await submit.mutateAsync({
         changeKind: 'Add',
         employeeId,
         reason,
-        punchTime: new Date(when).toISOString(),
+        punchTime: outcome.instant,
         kind,
         amount: kind === 'FixedDollar' ? Number(amount) : undefined,
         hours: kind === 'FixedHours' ? Number(hours) : undefined,
@@ -598,8 +655,23 @@ function AddPunchForm({ employeeId, date, onDone }: { employeeId: number; date: 
           type="datetime-local"
           className="h-8"
           value={when}
-          onChange={(e) => setWhen(e.target.value)}
+          onChange={(e) => {
+            setWhen(e.target.value)
+            setAmbiguous(false)
+            setDaylightSaving(undefined)
+          }}
         />
+        {ambiguous && (
+          <Select
+            className="h-7 text-xs"
+            value={daylightSaving === undefined ? '' : String(daylightSaving)}
+            onChange={(e) => setDaylightSaving(e.target.value === '' ? undefined : e.target.value === 'true')}
+          >
+            <option value="">This time happens twice — which one?</option>
+            <option value="true">Earlier (still daylight saving time)</option>
+            <option value="false">Later (already standard time)</option>
+          </Select>
+        )}
       </div>
       <div className="space-y-1">
         <Label htmlFor={`add-kind-${date}`} className="text-xs">
@@ -659,8 +731,8 @@ function AddPunchForm({ employeeId, date, onDone }: { employeeId: number; date: 
           placeholder="e.g. forgot to clock in"
         />
       </div>
-      <Button size="sm" disabled={submit.isPending} onClick={() => void handleSubmit()}>
-        {submit.isPending ? 'Submitting…' : 'Submit'}
+      <Button size="sm" disabled={submit.isPending || resolveLocalTime.isPending} onClick={() => void handleSubmit()}>
+        {submit.isPending || resolveLocalTime.isPending ? 'Submitting…' : 'Submit'}
       </Button>
       <Button size="sm" variant="outline" onClick={onDone}>
         Cancel

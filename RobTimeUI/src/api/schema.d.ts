@@ -404,6 +404,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/punches/resolve-local-time": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ResolveLocalPunchTime"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/punches/{id}": {
         parameters: {
             query?: never;
@@ -463,6 +479,38 @@ export interface paths {
         put?: never;
         post: operations["DecidePunchChangeRequest"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/punch-imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListPunchImportBatches"];
+        put?: never;
+        post: operations["ImportPunches"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/punch-imports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["DeletePunchImportBatch"];
         options?: never;
         head?: never;
         patch?: never;
@@ -901,6 +949,8 @@ export interface components {
                 [key: string]: string[];
             };
         };
+        /** Format: binary */
+        IFormFile: string;
         /** Format: date-time */
         Instant: string;
         /** @enum {unknown} */
@@ -909,6 +959,7 @@ export interface components {
         Jurisdiction: "Federal" | "California" | "Colorado" | "PuertoRico" | "Oregon" | "Washington";
         /** Format: date */
         LocalDate: string;
+        LocalDateTime: unknown;
         /** Format: time */
         LocalTime: string;
         MeResponse: {
@@ -988,6 +1039,15 @@ export interface components {
         };
         PagedResultOfPunchChangeRequestResponse: {
             items: components["schemas"]["PunchChangeRequestResponse"][];
+            /** Format: int32 */
+            totalCount: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+        };
+        PagedResultOfPunchImportBatchResponse: {
+            items: components["schemas"]["PunchImportBatchResponse"][];
             /** Format: int32 */
             totalCount: number;
             /** Format: int32 */
@@ -1178,6 +1238,17 @@ export interface components {
         };
         /** @enum {unknown} */
         PunchChangeRequestStatus: "Pending" | "Approved" | "Denied";
+        PunchImportBatchResponse: {
+            /** Format: int32 */
+            id: number;
+            fileName: string;
+            /** Format: int32 */
+            punchCount: number;
+            importedByUserId: string;
+            importedAt: components["schemas"]["Instant"];
+            deletedByUserId?: null | string;
+            deletedAt?: null | components["schemas"]["Instant"];
+        };
         /** @enum {unknown} */
         PunchKind: "In" | "Out" | "FixedDollar" | "FixedHours";
         PunchResponse: {
@@ -1207,6 +1278,14 @@ export interface components {
         };
         /** @enum {unknown} */
         PunchSubtype: "None" | "Break" | "Lunch" | null;
+        ResolveLocalPunchTimeRequest: {
+            punchTime: components["schemas"]["LocalDateTime"];
+            punchTimeZoneId: string;
+            daylightSaving?: null | boolean;
+        };
+        ResolveLocalPunchTimeResponse: {
+            punchTime: components["schemas"]["Instant"];
+        };
         /** @enum {unknown} */
         RoundingStrategy: "None" | "NearestInterval" | "IntervalWithGrace";
         /** @enum {unknown} */
@@ -3032,6 +3111,39 @@ export interface operations {
             };
         };
     };
+    ResolveLocalPunchTime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveLocalPunchTimeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolveLocalPunchTimeResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
     GetPunch: {
         parameters: {
             query?: never;
@@ -3222,6 +3334,86 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    ListPunchImportBatches: {
+        parameters: {
+            query?: {
+                Page?: number;
+                PageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultOfPunchImportBatchResponse"];
+                };
+            };
+        };
+    };
+    ImportPunches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    file: components["schemas"]["IFormFile"];
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PunchImportBatchResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    DeletePunchImportBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PunchImportBatchResponse"];
                 };
             };
         };
