@@ -1006,9 +1006,174 @@ absent-mindedly changed. Every change is logged (`SetBy`/`SetAt`) and effective-
 
 ### Phase 6 — Employee self-service
 Punch entry · own timecard view · punch edit with audit trail surfaced · supervisor punch approval
-and premium override screens (needs the occurrence-level override table — `SupervisorOverride`/
-`EmployeeWaiver` keyed to one shift's premium — the remaining half of Gap I not closed by Phase 0/5's
-client-wide waiver *policy*).
+queue.
+
+> **Occurrence-level premium overrides moved out of this phase (decided 2026-07-27.)** The
+> `SupervisorOverride`/`EmployeeWaiver` table keyed to one shift's premium — the remaining half of
+> Gap I not closed by Phase 0/5's client-wide waiver *policy* — is now **Phase 8**. It's its own
+> entity + endpoints + UI *and* it reaches into the engine's `WaiverEvaluator`, which makes it
+> independent of the punch/timecard work rather than a screen hanging off it. Phase 6 ships a
+> coherent, demoable slice sooner; Gap I stays half-open one phase longer, deliberately.
+
+#### Three things the code doesn't have yet (found while scoping, 2026-07-27)
+
+Each of these would otherwise surface mid-build, so they're prerequisites, not discoveries-in-waiting:
+
+1. **No pay-period configuration exists.** The timecard below is specified per-*pay-period*, and
+   `PayPeriodCalculator.ContainingDate(frequency, date, anchor)` is ready to serve it — but `PayRule`
+   persists only `WorkweekStartDay`. Nothing stores which frequency a client is on, or the anchor a
+   Weekly/BiWeekly cycle counts from, so "which pay period is this?" is currently unanswerable.
+   **Decided 2026-07-27: it goes on `PayRule`**, beside `WorkweekStartDay` — that inherits the
+   effective-dating and versioning every other rule field already has, so a client moving from
+   bi-weekly to semi-monthly becomes a new `PayRule` version with a real effective date instead of an
+   overwrite that silently rewrites history. (`ClientSettings` was the alternative and is the wrong
+   shape: it can't express "changed as of March 1," which is exactly what a pay-period change is.)
+2. **`PunchAuditEntry` is modelled and EF-mapped but never written.** `PunchService.CreateAsync`
+   creates punches without one, despite the entity's own doc comment ("record of one create/edit/
+   delete of a Punch") and an `Action` field whose values include `"Created"`. The whole edit/approve
+   design below assumes this trail is real. Fixing it means backfilling the *create* path too, not
+   just writing entries from the new edit/delete paths.
+3. **`RequirePunchEditApproval` has no home.** Resolved as the `ClientSettings` row this section
+   already anticipated — see the toggle bullet below.
+
+#### Build slices
+
+Prerequisites first; they're small and unblock everything after them.
+
+- **6.0a — Pay-period config.** `PayPeriodFrequency` + anchor date on `PayRule`, plus migration.
+- **6.0b — `ClientSettings`.** New client-wide operational-settings row holding
+  `RequirePunchEditApproval` (default ON) and `ShowFullPayItemizationToEmployees` (default OFF — see
+  the timecard role-gating decision below), plus migration.
+- **6.0c — Make the audit trail real.** Write `PunchAuditEntry` from the existing create path, behind
+  a helper the edit/delete/approve paths all share.
+- **6.1 — Punch read/edit/delete.** The endpoints + service methods that don't exist yet (only
+  `POST /punches` does), each writing an audit entry.
+- **6.2 — `PunchChangeRequest`.** Entity + migration + submit/decide endpoints. The
+  `RequirePunchEditApproval` branch *is* the feature on the API side; approval is what applies the
+  change and writes the audit entry.
+- **6.3 — Timecard endpoint.** `GET /employees/{id}/timecard?from=…&to=…` running `PayCalculator`.
+  Update `TimeCalculation.Api.csproj`'s guard comment when it lands — it already names this as the
+  next planned consumer.
+- **6.4 — Self-service clock: scoping + UI.** *Not* a UI-only slice — see the scoping note below.
+  Backend: the self-service scoping helper, `POST /punches` opened to Employee against their own
+  record, and a new `GET /me/clock-status`. Frontend: the clock itself on `/time`, plus role-gating
+  the top nav.
+- **6.5 — Timecard view UI.** Header/totals · week→day→shift→pair body · line-item drill-down ·
+  exceptions · edit affordance. Built **once** and mounted twice — see the first/third-person split
+  below.
+- **6.6 — Supervisor pending-request queue UI.**
+- **6.7 — Timecard approval + lock. Done (2026-07-28).** `TimecardApproval` entity (append-only) +
+  migration, approve/unapprove endpoints, locked-state gating wired into every punch-mutating path
+  (`TimecardLockService`, shared by `PunchService` and `PunchChangeRequestService`). Frontend: an
+  approve/unapprove action and a locked-status bar on the 6.5 timecard view, gated Supervisor+ via
+  a new `can.approveTimecard`. Verified: 167 API tests, 302 engine tests, manual browser run of
+  approve → frozen render → unapprove → live render again.
+  Found while building, worth recording: `PayCalculationSnapshot`'s grouping graph carries
+  `PunchPair.AppliedRule` (the full `PayRule`), which is both unread by the response builder and
+  genuinely unserializable as stored JSON — `PayRule.ActivePremiumCodes`/`ActiveDifferentialCodes`
+  are `IReadOnlySet<string>`, an interface `System.Text.Json` can't instantiate on deserialize. Fixed
+  by stripping `AppliedRule` before freezing the snapshot (`TimecardService.StripAppliedRuleForSnapshot`)
+  rather than adding a converter — the field was redundant with the snapshot's own top-level
+  `PayRuleId`/`Name`/`Version` in the first place. Also found and fixed: `PunchEndpoints.UpdatePunch`/
+  `DeletePunch` and `PunchChangeRequestEndpoints.SubmitPunchChangeRequest` had no `Conflict` branch in
+  their result-mapping `switch` — a pre-existing gap (nothing before this could return `Conflict` from
+  those service calls) that surfaced as a 500 instead of 409 the moment the lock check could.
+  Not done, flagged rather than skipped: fuller rule lineage in the snapshot (only `PayRule` made it
+  in — `DifferentialRule`/`ClientPremiumPolicy`/`HolidayCalendar`/`StateMinimumWage` ids didn't); the
+  pending-request-blocks-approval edge case is period-scoped as designed, but nothing yet re-notifies
+  a requester whose in-flight request is now stuck behind a locked period they can't self-resolve.
+- **6.8 — Fast bulk punch entry UI. Done (2026-07-28).** A keyboard-driven grid for entering a
+  stretch of punches without leaving the keyboard, covering `In`/`Out` and `FixedDollar`/
+  `FixedHours`, with a live pay preview. See the design note below.
+  Backend: `PunchService.CreateBatchAsync` (atomic — validates every row before writing any of
+  them, checks the lock and position per row, two-phase save so audit entries land after their
+  punches) behind `POST /punches/batch`; `TimecardService.PreviewAsync` merges the grid's draft
+  rows with the period's already-saved punches and runs them through `PayCalculator.Calculate` —
+  a running total for what the period *would* be, not the draft rows priced in isolation — behind
+  `POST /employees/{id}/timecard/preview`. Preview never persists anything and deliberately isn't
+  blocked by `TimecardLockService`: previewing a hypothetical change to an already-approved period
+  is exactly the "what would this do" question the endpoint exists to answer.
+  Reusing the Phase 4 §7 what-if path (the design note's original plan) turned out not to work:
+  `PayRuleWhatIfService` only diffs pay rules against already-saved punches, it has no way to accept
+  hypothetical/unsaved punches as input — caught by reading the service before building on it, so a
+  new lightweight preview endpoint was written instead. Draft rows get synthetic negative ids
+  (`-1`, `-2`, ...) when merged with real punches so multiple draft-only shifts don't collide on
+  `Shift.AnchorPunchId`'s zero-id fallback.
+  Frontend: `BulkPunchEntry` — a plain-state (not react-hook-form) row grid, since a spreadsheet-like
+  grid doesn't fit a single-record form abstraction. Rows debounce into the preview endpoint
+  (~400ms after typing stops) and show running Regular/OT/DT hours and gross; Enter on the last row
+  appends a new one, "+ Add day" appends a ready-to-edit In/Out pair for the next day so a full week
+  is a handful of keystrokes away from complete. Mounted both on `/time` (self-entry, any signed-in
+  employee — the batch endpoint self-scopes the same way the single-punch route already does) and on
+  People → Punches (Supervisor+, gated the same way that whole page already is — no separate
+  permission was added since the existing `viewPeople`/self-scoping split already covers it).
+  Position is picked once as a grid-wide default with a per-row override, not per row by default.
+  Verified via 8 new backend integration tests (draft-only preview, draft+real-punch merge producing
+  a correctly combined week total, preview never persisting anything, 404/400/403 scoping, and
+  preview working against an already-locked/approved period); full suite (477 tests) green; frontend
+  typecheck and lint clean.
+  Verified live in-browser once the user signed in (this session has no Cognito credentials of its
+  own, so live verification was blocked until then — same constraint 6.5's e2e suite hit). Exercised
+  on both mounts (`/time` self-entry, People → Punches supervisor entry): live preview tracked typed
+  rows correctly, "Add day" and Enter-to-add-row both worked, and a real `Save punches` round-tripped
+  through the actual API/Postgres and correctly invalidated the `Timecard` above it, which re-rendered
+  the new punch with the right position/rate with no manual refresh. Found and fixed one real bug this
+  way: for an `In`/`Out` row (whose Value/Options cells are empty), Tab naturally lands on the trailing
+  Remove-row button last — without a handler there, Enter on it deleted the row just filled in instead
+  of adding a new one, the opposite of what every other field in the row does. Fixed by wiring the same
+  Enter-to-add-row handler onto that button. Also confirmed, not fixed (a native browser constraint,
+  not an app bug): a real Enter keypress while focus is inside the `datetime-local` field itself is
+  swallowed by Chromium's own segmented date/time widget before it becomes a page-visible keydown, so
+  Enter only advances a row from the Kind/Position/Value/Options/Remove controls, not from the When
+  field — documented in `BulkPunchEntry.tsx`'s `handleRowKeyDown` rather than silently left unclear.
+
+#### `/time` is first-person; per-employee data stays under People (decided 2026-07-28)
+
+The screen inventory lists the timecard under `Time`, which reads as "Time is the employee's
+destination and supervisors get something else there." That's the wrong cut: a supervisor reviewing
+a subordinate's timecard is the *same artifact*, just someone else's — and it's the supervisor who
+signs one off before payroll (§7's "Timecard approval"). Splitting `/time` by role would fork one
+component into two screens for no reason.
+
+Split by **whose data it is** instead:
+
+| Route | Whose | Who goes there |
+|---|---|---|
+| `/time` | **mine** — my clock, my timecard, requests awaiting *my* approval | anyone; the clock only renders for an account with a linked `Employee` |
+| `/people/$employeeId?tab=punches` | **theirs** — that employee's punches + timecard | Supervisor+ |
+
+The People tab already exists, stubbed with "Punches and timecards land in Phase 6," and sits beside
+that employee's Positions & Rates and Pay Rule tabs — per-employee data already lives there. So 6.5
+builds the timecard component once and mounts it in both places, differing only in where `employeeId`
+comes from (`me.employeeId` vs. the route param). The auth split falls out for free: `/time` needs
+6.4's own-record scoping, while the People tab is Supervisor+ and already works against 6.3's
+endpoint unchanged. 6.6's queue belongs on `/time` because it's *my* inbox — work waiting on me — not
+a view of any one employee.
+
+#### The scoping debt 6.1–6.3 deferred, paid here
+
+"It needs no new auth — it's just an authenticated `POST /punches`" (above) is wrong, and was wrong
+when written. Every endpoint the clock needs is Supervisor-or-higher today: `POST /punches`,
+`GET /punches`, `GET /employees/{id}/timecard`, `POST /punch-change-requests`. Each of those slices
+shipped with a comment deferring per-employee scoping to 6.4; this is where that comes due.
+
+The mechanism is one helper, built once and reused by 6.5/6.6: resolve the caller's own `EmployeeId`
+from their `AppUser` row and reject any attempt to act on a different one. **The employee id must
+come from the server-side profile, never from a caller-supplied parameter** — a self-service route
+that trusts a client-sent `employeeId` is strictly worse than the Supervisor-only route it replaced.
+Supervisor+ keeps acting on any employee in-tenant; only the Employee role is pinned to itself.
+
+6.4 applies it to the clock endpoints only. 6.5 and 6.6 annotate their own routes with the same
+helper when they need it — small reviewable diffs rather than one broad grant to screens that don't
+exist yet.
+
+**Also in 6.4: role-gate the top nav.** `__root.tsx`'s `NAV` array is currently ungated, so all four
+destinations render for every role. 6.4 is the first slice where a real Employee-role user signs in,
+and they'd see People and Setup — both of which would render empty or 403. Filter it through
+`lib/permissions.ts` like every other affordance.
+
+Out of this phase by design: the **kiosk clock** (ship-gated on device/badge auth, §11) and
+**notifications** (§11).
 
 **Punch edit approval — `PunchChangeRequest` (decided 2026-07-24).** When approval is required,
 editing a punch is not a direct mutation: an employee's proposed change (edit an existing punch,
@@ -1041,6 +1206,166 @@ produces the audit entry with no request).
   (supervisor on a new request, requester on approve/deny) are the obvious enhancement and just as
   obviously a rabbit hole (Lambda + email/in-app), so they are a tracked future item, not a Phase 6
   blocker — the synchronous flow is complete without them.
+
+**Timecard approval and locking (decided 2026-07-28, mechanics open).** A `Timecard` isn't a stored
+row — it's `PayResult` rendered for one employee over one pay period (§8, "what it is and what it
+shows"). Locking it therefore means locking the underlying `Punch`es for that employee/period, not
+flipping a flag on a row that doesn't exist yet, so this needs a new small entity: proposed
+`TimecardApproval` (`ClientId`, `EmployeeId`, period bounds matching `PayPeriodCalculator`'s
+boundaries, `ApprovedByUserId`/`ApprovedAt`, nullable `UnapprovedByUserId`/`UnapprovedAt`, and a
+reference to the `PayCalculationSnapshot` frozen at approval).
+
+**Append-only, not a mutable current-state row (decided 2026-07-28).** Current lock state is "the
+latest row for (`EmployeeId`, period) has no `UnapprovedAt`"; approving again after an un-approve
+writes a *new* row rather than reusing the old one. The deciding argument is the snapshot below: an
+un-approve → edit → re-approve cycle produces a materially *different* pay result, and "we paid X on
+the 14th, then corrected to Y on the 20th" is the record payroll actually needs — a mutable row
+would overwrite exactly the history that matters. It also matches `PayCalculationSnapshot`'s own
+append-only contract and the domain's existing precedent in `RetroactiveBonusRecalculator` (FLSA
+§778.209), which already thinks in terms of recalculating a closed period and paying the delta.
+
+- **Lock on approve, unlock on un-approve** — no separate "unlock" concept needed while
+  approval-based locking is the only kind that exists. Approve/un-approve authority defaults to
+  Supervisor+, matching decision 16 (wage visibility) and `PunchChangeRequest`'s existing
+  decide-authority — flag if that's wrong.
+- **Locking blocks all three punch-mutating paths**, not just direct edits: `POST /punches`,
+  `PUT`/`DELETE /punches/{id}`, and submitting a new `PunchChangeRequest` against that period. A
+  "signed off for payroll" period should read as frozen, not just harder to change.
+- **A `Pending` `PunchChangeRequest` blocks approval (decided 2026-07-28).** Approval is refused
+  while any request against that employee/period is still pending, rather than approval implicitly
+  denying them — a supervisor signing off should have to actually decide the outstanding requests,
+  not have them silently swept. Two consequences for 6.5/6.6: the timecard needs a "can't approve —
+  N requests pending" state that links into 6.6's queue filtered to that employee/period, and the
+  approve endpoint returns a 409 (not a validation error) when requests are outstanding.
+- **This is the §11 "Timecard approval" item, pulled into Phase 6 scope** — but only its
+  approval-triggered half. Locking a timecard purely by age (independent of approval), with an
+  emergency-unlock path for that case, is a related but separate mechanism and stays deferred — see
+  §11 and decision 22. A tentative default if/when it's built: auto-lock an unapproved timecard after
+  ~2 pay periods have elapsed.
+
+**Storing engine results — snapshot on approval, not an eager recalc pipeline (decided 2026-07-28).**
+Raised while settling 6.7: if pay is recalculated after it has been paid out, a bug fix or small
+feature change in the engine can silently change a number someone was already paid. Two designs were
+considered — freeze the result when pay is approved, or always precompute (recalc on punch/pay-rule
+change, store, make the timecard a dumb display). **Freeze on approval.** The eager pipeline is not
+adopted, now or as a later replacement for the snapshot.
+
+The reasoning, in the order that decided it:
+
+- **These look like one problem but are two.** Reproducibility of paid pay is an *audit* concern:
+  write-once at a business moment, never invalidated. Display/report performance is a *cache*
+  concern: invalidated whenever inputs change. One mechanism serving both is either a cache that must
+  never be invalidated (incoherent) or a snapshot that goes stale (wrong).
+- **The lock alone does not solve this** — worth stating plainly, because it's easy to assume 6.7
+  already covers it. Locking freezes the *punches*; it does nothing about the *code that interprets
+  them*. Redeploy the engine and a locked period's displayed pay can still move. The snapshot is the
+  actual fix, which makes it part of 6.7 rather than a follow-on.
+- **The lock is what makes the snapshot correct, though.** An approved period's inputs can't change
+  by construction, so the snapshot has no invalidation problem at all. Lock and snapshot are two
+  halves of one feature.
+- **Invalidation fan-in kills the eager pipeline.** A pay result depends on punches, `PayRule`
+  version, `PayRuleAssignment`, `EmployeePositionAssignment` (rate), `Position`, `DifferentialRule`,
+  `PayRule.ActiveDifferentialCodes`, `HolidayCalendar`, `ClientPremiumPolicy`, and
+  `StateMinimumWage` — ten-plus invalidation edges, each of which must stay wired correctly forever,
+  with every future config entity adding another. Miss one and the system serves *wrong pay* from a
+  stale row, silently. Snapshot-on-approval has exactly one write trigger.
+- **The snapshot gets most of the performance win anyway.** Old timecards and long-range reports are
+  precisely the approved ones, so they read frozen rows and never touch `PayCalculator`. What stays
+  compute-on-read is the open period — one employee, one or two periods, tens of punches through a
+  pure pipeline. That is not the load problem worth building a worker queue for.
+- **Deferred, not rejected:** an eager/background recalc still makes sense someday as an *optimization
+  over closed data* (it's already open decision #6 in `TimeCalculation.Persistence/README.md`,
+  and the calculation being pure and idempotent means any queue can drive it). It must never become
+  the source of truth for paid pay — the snapshot stays authoritative either way.
+
+**Reproducing from lineage doesn't work today, so the payload must be stored.** `PayCalculationSnapshot`
+was designed to reference "the rule versions used" so a calculation could be re-run and reproduced
+(`PLAN.md` §5 asserts every config entity is versioned and never mutated). That has drifted: only
+`PayRule` actually carries `RuleFamilyId`/`Version` with copy-on-edit semantics. `DifferentialRule`,
+`ClientPremiumPolicy`, `HolidayCalendar`, `Position`, and `EmployeePositionAssignment` are all edited
+in place, so a snapshot referencing them by id alone is *not* reproducible. Storing the full
+`PayResult` graph as `jsonb` (the shape the Persistence README already anticipated) is therefore
+mandatory rather than an optimization — re-running is not a fallback that currently exists.
+
+**Gaps to close in `PayCalculationSnapshot` when it's persisted** — it's a model record today with no
+`DbSet`, so this is the moment to fix its shape:
+
+- **Engine/code version stamp** — the single most load-bearing addition given what prompted this.
+  The record captures *which rules* were used but not *which build interpreted them*, so after a
+  pipeline bug fix there's no way to identify which snapshots came from the defective version. Cheap
+  to write, impossible to reconstruct later.
+- **`ClientId`** — every other tenant-scoped entity got one in Phase 0, and it's the prerequisite for
+  the Postgres RLS option (§11).
+- **Pay period bounds** — it has `CalculatedAt` but nothing identifying *which period* it covers, so
+  it can't be looked up the way the timecard needs.
+- **Fuller rule lineage** — `PayRuleVersions` + `PositionIds` predate `DifferentialRule`,
+  `ClientPremiumPolicy`, `HolidayCalendar`, and `StateMinimumWage` all existing. Even unversioned,
+  recording which ones applied is worth more than recording nothing.
+- Keep the existing **no-PII** constraint (`EmployeeId` only) — snapshots are retained indefinitely,
+  and that doc comment is deliberate.
+
+**Payroll export reads the snapshot, never recalculates (decided 2026-07-28).** If the export re-runs
+`PayCalculator`, the snapshot is decorative and the whole design buys nothing. And a genuine bug
+affecting already-paid pay is fixed by calculating *forward* — a new snapshot plus a correction for
+the delta — never by mutating the frozen one.
+
+**A frozen `PayResult` alone cannot render the timecard — the snapshot must also freeze punch-level
+detail (decided 2026-07-28).** Checked against the model rather than assumed, and the current shape
+falls short: `PayResult` carries **no punch times whatsoever**. Its only reference to a punch is
+`ShiftPay.AnchorPunchId`/`PayLineItem.AnchorPunchId` — a single int per shift. Nothing in it holds
+in/out times, raw-vs-rounded, inferred `Break`/`Lunch` subtype, per-pair position, or the incomplete
+(orphan In-only/Out-only) pairs the exceptions section surfaces. Rendering an approved timecard from
+the snapshot as it stands would show week totals, shift gross, and line items, and silently lose the
+entire punch grid in the middle — the layer §8 describes as "week → day → shift → punch pair."
+
+**Joining live `Punch` rows back by `AnchorPunchId` does not rescue this**, which is the finding that
+settles the design:
+
+- **Shift membership is a pipeline output, not stored data.** Which punches belong to which shift is
+  decided by `ShiftBuilder` (a new shift when the gap exceeds `DistanceBetweenShiftsHours`), and only
+  the *anchor* survives into `PayResult`. Reconstructing the other punches of a shift means re-running
+  that grouping — precisely the engine-version-dependent computation the snapshot exists to freeze.
+  A join would make historical display depend on current code again, through the back door.
+- **Corrections break the join.** Decision 21's append-only approvals exist so an un-approve → edit →
+  re-approve cycle keeps both results. If display joins live punches, the *older* snapshot renders
+  frozen pay beside since-changed times — the two halves of one screen disagreeing.
+- **Soft-deleted punches** would vanish from the grid while their pay remained in the totals.
+
+So the snapshot needs a **purpose-built frozen display projection** alongside the `PayResult`: per
+shift, its pairs with in/out (raw and rounded), subtype, position id, rate, and hours, plus the
+incomplete pairs. Purpose-built rather than freezing the engine's own `Shift`/`PunchPair`/`Workweek`
+intermediates — snapshots are retained indefinitely, so pinning internal pipeline shapes into stored
+JSON forever would make refactoring them a data-migration problem. Keep the existing no-PII rule:
+reference employee and position by id and resolve names at read time, exactly as the record's doc
+comment already insists. Size is not a concern worth optimizing against — a two-week period for one
+employee is on the order of a few KB of `jsonb`.
+
+**Sequencing consequence for 6.5, worth acting on before 6.7 exists.** The timecard must render
+identically whether its data came from a live `PayCalculator` run (open period) or a frozen snapshot
+(approved period). That means 6.5 should define the timecard's **view model as an explicit contract**
+and have the live path produce it, so 6.7 only has to add a second producer. Build 6.5 directly
+against `PayResult` plus ad-hoc punch queries instead, and the frozen path becomes a second rendering
+implementation — the timecard gets built twice, and the two drift.
+
+**Fast bulk punch entry (decided 2026-07-28).** Adding a week of punches one `PunchChangeRequest` or
+one form submission at a time doesn't scale for a supervisor backfilling a whole crew — 6.8 is a
+keyboard-driven entry grid instead: native Tab order moves between cells, Enter on the last row
+appends a new one, no mouse required to enter a full week. Settled:
+
+- **Rounding applies to manually entered punches** — `PunchRounder` runs on hand-typed times the same
+  as clock punches; a typed time isn't treated as already-final.
+- **Live pay preview while entering** — as built, a purpose-written `TimecardService.PreviewAsync`/
+  `POST .../timecard/preview` rather than the Phase 4 §7 what-if path as originally planned here:
+  `PayRuleWhatIfService` turned out to only diff pay rules against already-saved punches, with no way
+  to feed it hypothetical/unsaved ones, so it couldn't do this job. The grid's rows debounce into the
+  new endpoint (~400ms after typing stops) and the week's total updates as punches are typed, rather
+  than saving blind.
+- **Must support `FixedDollar`/`FixedHours` punch kinds**, not just `In`/`Out` — the grid needs a way
+  to pick punch kind per row/entry, not just times.
+- **Still open:** is position set once for the whole batch or per row? Most weeks are one position
+  for one employee, but it shouldn't silently misattribute a week where it isn't. Also inherits 6.7's
+  locked-period question — bulk entry against an approved/locked period should be blocked the same
+  way a single edit would be.
 
 **Time clock UI — two distinct surfaces (planned 2026-07-24).** "Time clock" is really two different
 screens with different audiences, auth, and ship-gates. The plan covers the *authentication* for both
@@ -1076,8 +1401,15 @@ the thing a supervisor signs off before the run — see §11 "Timecard approval"
 It shows, top to bottom:
 - **Header / totals** — employee, pay-period range, the `PayRule` in effect, and period totals
   (regular / OT / doubletime hours, premium $, gross). Role-gated per decision 16: an employee sees
-  their own hours and pay; how much of the *itemized FLSA regular-rate math* to expose to the employee
-  vs. reserve for Supervisor+ is a small open question to settle when this is built.
+  their own hours and pay. **How much of the itemized FLSA regular-rate math an employee sees is
+  client-configurable (decided 2026-07-27)** — `ClientSettings.ShowFullPayItemizationToEmployees`,
+  **default OFF**. Off, an employee sees shifts, hours, their rate, gross, and premiums owed, but not
+  the weighted regular-rate derivation; Supervisor+ always sees the full `PayLineItem` breakdown. On,
+  the employee sees exactly what a supervisor does. The default is off because the RROP calculation
+  reliably reads as "why is my rate not my rate" without context — but transparency is a legitimate
+  client posture (and in some shops a bargained one), so RobTime doesn't hard-code the answer. Costs
+  a second render path to test, which is the real price of making it configurable rather than picking
+  one.
 - **Grouped body** — week → day → shift → punch pair. Each pair shows in/out (raw and rounded when
   they differ), inferred subtype (Break/Lunch), position + rate, and hours. This is the `ShiftPay`/
   shift-and-pair structure rendered directly.
@@ -1100,6 +1432,21 @@ not calculation" stays honestly qualified rather than quietly violated.
 ### Phase 7 — Full impact preview
 Worker queue (open decision #6) · client-wide impact jobs · per-employee/per-shift diff drill-down ·
 "what changed and why" explanation trail.
+
+### Phase 8 — Occurrence-level premium overrides *(closes the rest of Gap I)*
+Split out of Phase 6 on 2026-07-27 — see that phase's note for why. Ordering against Phase 7 is open;
+they're independent, so take whichever is worth more when the time comes.
+
+The client-wide waiver *policy* landed in Phase 0 (schema) and Phase 5 (attestation UI). This is the
+other half: a `SupervisorOverride`/`EmployeeWaiver` record keyed to **one shift's premium**, for the
+case where a specific occurrence is waived or overridden rather than a standing client policy being
+set. Distinct from `ClientPremiumPolicy` in both grain and authority — policy is client-wide,
+effective-dated, and attested by a ClientAdmin; an override is a single shift, a single premium, and
+(depending on kind) a supervisor's call or an employee's own waiver.
+
+Reaches into the engine, not just the API: `WaiverEvaluator` currently answers from policy alone, so
+it grows an occurrence-level input. Expect engine tests alongside the API/UI work — that's the part
+that makes this its own phase rather than a screen.
 
 ---
 
@@ -1152,17 +1499,68 @@ Settled — say the word and I'll rework any of them.
     approval is what applies the change and writes the `PunchAuditEntry`. Off = direct edit, still
     audited. Notifications on request/decision are a deferred enhancement (§11), not part of the core
     synchronous flow (Phase 6).
+18. **Pay-period frequency and anchor live on `PayRule`**, not on `ClientSettings` — a pay-period
+    change is a dated event with payroll consequences, so it needs the effective-dating and
+    versioning every other `PayRule` field already has (Phase 6.0a). Discovered missing entirely
+    while scoping Phase 6 on 2026-07-27: `PayPeriodCalculator` takes frequency/anchor as parameters,
+    but nothing persisted them.
+19. **How much itemized regular-rate math an employee sees on their own timecard is the client's
+    call** — `ClientSettings.ShowFullPayItemizationToEmployees`, default OFF (Phase 6). Same instinct
+    as decision 14: where a disclosure is a legitimate matter of client posture rather than
+    correctness, RobTime ships a conservative default instead of asserting the answer.
+20. **`ClientSettings` is the home for client-wide *operational* settings** — flags that are neither
+    effective-dated nor premium-scoped, which is what makes `ClientPremiumPolicy` a poor fit for
+    them. First two occupants: `RequirePunchEditApproval` (17) and
+    `ShowFullPayItemizationToEmployees` (19). Note the contrast with 18: settings land here only when
+    they genuinely have no dated history worth keeping.
+21. **Approving a timecard locks it for that employee/period; un-approving reopens it (Phase 6.7).**
+    Pulls the §11 "Timecard approval" item into scope, but only its approval-triggered half —
+    locking blocks direct edits, punch add/delete, and new `PunchChangeRequest` submissions alike.
+    Mechanics (entity shape, the pending-request-at-approval-time edge case) are flagged as open in
+    §8 and need answers before 6.7 is buildable.
+22. **Age-based auto-lock is deferred; only a tentative default is recorded.** Locking an unapproved
+    timecard once it's ~2 pay periods old, plus an emergency-unlock path for that case (distinct from
+    un-approving, since there's nothing to un-approve), is the likely eventual design — noted so
+    decision 21's schema doesn't quietly preclude it, not scheduled. See §11.
+23. **A `Pending` `PunchChangeRequest` blocks timecard approval** — approval is refused rather than
+    implicitly denying the outstanding requests. Signing off should require actually deciding them
+    (Phase 6.7).
+24. **Pay results are frozen into a `PayCalculationSnapshot` when a timecard is approved; an eager
+    recalc-on-change pipeline is explicitly not adopted.** Locking punches doesn't stop an engine
+    deploy from changing a paid period's numbers — the snapshot does. Approval is the one write
+    trigger, versus ten-plus invalidation edges for an always-precomputed design, and because old
+    timecards are exactly the approved ones, the snapshot also absorbs most of the read-performance
+    motive. Background recalculation stays available later as an optimization over closed data
+    (Persistence open decision #6) but never as the source of truth for paid pay. Full reasoning and
+    the gaps to close in the existing model record are in §8.
+25. **Payroll export reads the snapshot and never recalculates**, and the snapshot must therefore
+    freeze **punch-level display detail alongside the `PayResult`** — the latter carries no punch
+    times at all, only an `AnchorPunchId` per shift, and shift membership is a pipeline output that
+    can't be reconstructed by joining live punches. Consequence for Phase 6.5: define the timecard's
+    view model as an explicit contract now, so the frozen path added in 6.7 is a second producer of
+    the same shape rather than a second rendering of the timecard (§8).
 
 ## 10. Follow-on questions
 
-None blocking. Two remain (the other two — `SystemAdmin` scoping and `Supervisor` wage visibility —
-were answered 2026-07-22 and moved into §5/§9):
+Both now answered (the other two — `SystemAdmin` scoping and `Supervisor` wage visibility — were
+answered 2026-07-22 and moved into §5/§9). Kept here with their answers rather than deleted, so the
+reasoning stays findable.
 
-1. **Client self-signup, or do you onboard them?** Determines whether Phase 1 needs a registration
-   flow and email verification at all, or just SystemAdmin-creates-ClientAdmin.
-2. **Where do employees get their initial password?** Admin-set temporary password vs. emailed invite
-   link. The invite flow is more work but is the only sane answer at any real headcount — and it
-   becomes moot for shop-floor staff once badge auth lands.
+1. **Client self-signup, or do you onboard them?** — **Onboarded, not self-signup.** Settled in
+   practice rather than by explicit decision: `allow_admin_create_user_only = true` on the Cognito
+   pool and `AdminCreateUser` in `CognitoUserProvisioner` mean there is no registration flow and
+   never was one. Recorded 2026-07-27 to stop it reading as still-open.
+2. **Where do employees get their initial password?** — **Emailed invite, via Cognito itself
+   (decided 2026-07-27).** No SES, no custom token, no `/accept-invite` page: `AdminCreateUser`
+   already passes `DesiredDeliveryMediums = ["EMAIL"]` and never suppresses the message, so Cognito
+   emails a temporary password on every provision; the Hosted UI then detects the account's
+   `FORCE_CHANGE_PASSWORD` state and collects a new password before completing the OAuth redirect
+   back to the SPA. The only thing that needed building was the message itself — an
+   `invite_message_template` on the user pool (`infra/modules/identity/main.tf`), with the sign-in
+   URL threaded in as `app_url`. A custom branded invite-link page was the alternative and was
+   rejected as real added scope (SES domain verification, a public unauthenticated route, and a token
+   issuance/expiry design) for a nicer email. Still becomes moot for shop-floor staff once badge auth
+   lands (§11).
 
 ## 11. Future improvements
 
@@ -1178,9 +1576,10 @@ Deliberately deferred. Recorded here so the design doesn't accidentally preclude
 | **Postgres RLS** | Defense-in-depth under the EF filters, not instead of them (`PLAN.md` open decision #5). | Denormalized `ClientId` on every tenant-scoped table (Phase 0) is the prerequisite either way. |
 | **Column-level encryption for Tier A PII** | Triggered by SSN / bank details / DOB arriving — i.e. by W-2 or direct deposit (§5). | Tier A data lands in `employee_sensitive`, never as columns on `employees`. Per-tenant keys from day one. |
 | **SOC 2 Type II** | Expect an enterprise customer to demand it before any regulator does. | Read auditing on pay data, log redaction, and key management are the controls that take longest to retrofit. |
-| **Timecard approval** | Manager signs off before payroll runs. | `PLAN.md` §9 item 14 — model shouldn't preclude it. |
+| **Age-based timecard auto-lock + emergency unlock** | Locking an unapproved timecard once it ages past ~2 pay periods, independent of the approval-triggered lock now in scope (Phase 6.7, decision 21) — needs its own emergency-unlock path since there's no approval to remove. Explicitly out of scope until planned (decision 22). | Don't let 6.7's `TimecardApproval` shape assume approval is the only way a period becomes locked. |
 | **Effective-dated `Employee.State`** | `PLAN.md` §9 item 12 — employee moves CA→NV mid-period. | Reuse `<EffectiveDatedTimeline>`; no new UI concept. |
 | **Bulk employee import** | CSV onboarding for a new client. | Response DTOs and validation shapes should be reusable per-row, not just per-request. |
+| **Punch import** | Bulk-load historical punches (CSV, or a prior timekeeping system's export) rather than typing them one shift at a time. Raised 2026-07-28 alongside the Phase 6.5 timecard UI design discussion — the keyboard-fast bulk-entry grid planned for that phase covers "a supervisor types a week by hand," not "load a quarter of backfill." | Should reuse `PunchService.CreateAsync`'s validation per-row rather than a separate bulk-insert path, same reusability instinct as bulk employee import above; punches created this way still need `PunchAuditEntry` writes. |
 | **Punch geofencing / IP restriction** | Explicitly out of scope in `PLAN.md`. | None — device registration is the natural hook when it arrives. |
 | **Cross-client dashboards/reports for `SystemAdmin`** | Aggregate metrics across all clients — explicitly wanted eventually, explicitly not a `SystemAdmin` permission today (§5). | Build as its own audited reporting path (`IgnoreQueryFilters` behind a dedicated endpoint), never as a loosened per-request tenant filter. |
 | **Restricted-visibility `Supervisor` tier** | A second supervisor role that approves punches without seeing wage rates/pay amounts, alongside today's full-visibility `Supervisor` (§5). | `lib/permissions.ts` centralizes the check now specifically so this is a new role + branch later, not a scattered retrofit. |
