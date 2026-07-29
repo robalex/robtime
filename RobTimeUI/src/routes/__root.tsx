@@ -5,15 +5,22 @@ import { useAuth } from '@/auth/AuthProvider'
 import { useMe } from '@/auth/useMe'
 import { ClientSwitcher } from '@/features/clients/ClientSwitcher'
 import { Button } from '@/components/ui/button'
+import { can } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 
 // The four top-level destinations, no more (UI_PLAN.md §6 Rule 1). Nested config areas live *inside*
 // Setup as a card grid, never as more top-level nav — the whole point of the four-destination rule.
+//
+// `visible` gates each one by role (added in Phase 6.4, the first slice where a real Employee-role
+// user signs in — before that every account could reach everything, so an ungated array was
+// harmless). Dashboard and Time are unconditional: everyone has a landing page, and Time is where an
+// employee's own clock/timecard lives. Same caveat as lib/permissions.ts itself — this hides
+// destinations that would render empty or 403, it does not secure them; the API is what enforces.
 const NAV = [
-  { to: '/', label: 'Dashboard' },
-  { to: '/people', label: 'People' },
-  { to: '/time', label: 'Time' },
-  { to: '/setup', label: 'Setup' },
+  { to: '/', label: 'Dashboard', visible: () => true },
+  { to: '/people', label: 'People', visible: can.viewPeople },
+  { to: '/time', label: 'Time', visible: () => true },
+  { to: '/setup', label: 'Setup', visible: can.viewSetup },
 ] as const
 
 // Reachable without a session. Everything else redirects to /login.
@@ -28,7 +35,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 })
 
 function RootLayout() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, signIn } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const isPublic = PUBLIC_ROUTES.includes(location.pathname)
@@ -37,18 +44,35 @@ function RootLayout() {
   // token is deliberately in memory only), which router loaders can't read. One guard at the root
   // also means a new route is protected by default — the safer failure mode than opt-in protection,
   // where forgetting the guard silently exposes a screen.
+  //
+  // Goes straight to Cognito (signIn), not to our own /login page — this is what makes a page
+  // refresh recover invisibly instead of needing a click. AuthProvider's own doc comment already
+  // promises this: tokens are memory-only, so a refresh always drops isAuthenticated, but Cognito's
+  // *own* session cookie means the round trip is silent when that cookie is still good — the whole
+  // point falls apart if we stop at a local page requiring a click first. /login still exists as the
+  // fallback for when signIn() itself can't even start (e.g. missing VITE_COGNITO_* env config) and
+  // as the retry target auth/callback.tsx uses after a real failure (the user denied consent, etc.).
   useEffect(() => {
     if (!isAuthenticated && !isPublic) {
-      navigate({ to: '/login', search: { redirect: location.pathname }, replace: true })
+      // location.href, not location.pathname — the latter silently drops any search string (e.g.
+      // ?tab=punches), so a reload on a non-default tab would round-trip through Cognito and land
+      // back on the bare path. See auth.callback.tsx's matching use of `href` (not `to`) to actually
+      // honour it on the way back.
+      signIn(location.href).catch(() =>
+        navigate({ to: '/login', search: { redirect: location.href }, replace: true }),
+      )
     }
-  }, [isAuthenticated, isPublic, location.pathname, navigate])
+  }, [isAuthenticated, isPublic, location.href, navigate, signIn])
 
   if (isPublic) {
     return <Outlet />
   }
 
   if (!isAuthenticated) {
-    return null // redirecting
+    // Covers both the instant before signIn()'s redirect actually takes effect and a genuinely
+    // logged-out visit to Cognito's hosted login page and back — a blank frame here would otherwise
+    // flash on every single navigation while that's in flight.
+    return <p className="py-16 text-center text-muted-foreground">Redirecting to sign in…</p>
   }
 
   return <AuthenticatedLayout />
@@ -105,7 +129,7 @@ function AuthenticatedLayout() {
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
           <span className="font-semibold tracking-tight">RobTime</span>
           <nav className="flex items-center gap-1">
-            {NAV.map((item) => (
+            {NAV.filter((item) => item.visible(me)).map((item) => (
               <Link
                 key={item.to}
                 to={item.to}

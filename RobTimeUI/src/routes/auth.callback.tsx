@@ -35,7 +35,10 @@ function AuthCallback() {
     exchangeStarted.current = true
 
     completeSignIn(code, state)
-      .then((returnTo) => router.navigate({ to: returnTo, replace: true }))
+      // `href`, not `to`: returnTo is a fully-built path+search+hash string (location.href), and
+      // `to` is meant for typed route paths — it won't reparse an embedded "?tab=punches" back into
+      // search params the way `href` does.
+      .then((returnTo) => router.navigate({ href: returnTo, replace: true }))
       .catch((err: unknown) => setFailure(err instanceof Error ? err.message : 'Sign-in failed.'))
   }, [code, state, error, completeSignIn, router])
 

@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // so an expired session lands on the sign-in screen rather than an error page.
   sessionExpiredHandler.current = () => setIdToken(null)
 
-  const signIn = useCallback(async (returnTo = window.location.pathname) => {
+  const signIn = useCallback(async (returnTo = window.location.pathname + window.location.search + window.location.hash) => {
     const config = getCognitoConfig()
     const verifier = createVerifier()
     const state = createState()
