@@ -48,8 +48,12 @@
          GET /employees/{id}/timecard (2026-07-28) is the third: TimecardService runs PayCalculator
          once over the employee's real assignment history for their actual current pay period
          (UI_PLAN.md's Phase 6 "Timecard" design — a role-gated rendering of PayResult, not a new
-         data shape). Still no endpoint should invoke PayCalculator for its own sake outside these
-         purposes — this project does CRUD, not calculation. -->
+         data shape). POST /differentials/sandbox (2026-07-29) is the fourth: DifferentialSandboxService
+         builds a PipelineContext the same way and calls DifferentialZoneProjector directly — not the
+         full PayCalculator, since this slice has no punches to run through it — to project where a
+         DifferentialRule would apply over a date window, for the Setup UI's differential calendar.
+         Still no endpoint should invoke PayCalculator for its own sake outside these purposes — this
+         project does CRUD, not calculation. -->
     <ProjectReference Include="..\TimeCalculation\TimeCalculation.csproj" />
   </ItemGroup>
 

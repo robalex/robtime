@@ -30,6 +30,12 @@ const AREAS = [
     visible: can.manageDifferentialRules,
   },
   {
+    to: '/setup/differentials/sandbox',
+    title: 'Differential sandbox',
+    description: "See a real employee's week as a calendar, with every enabled differential drawn where it applies.",
+    visible: can.manageDifferentialRules,
+  },
+  {
     to: '/setup/holidaycalendars',
     title: 'Holiday calendars',
     description: 'Observed holiday dates for holiday-based differentials and premiums.',

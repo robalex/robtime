@@ -1,3 +1,4 @@
+import { toWireLocalDateTime } from '@/lib/dates'
 import { toApiProblem } from '@/lib/problem'
 import type { ResolveLocalPunchTimeRequest } from './queries'
 
@@ -5,12 +6,6 @@ export type ResolveOutcome =
   | { kind: 'resolved'; instant: string }
   | { kind: 'ambiguous'; message: string }
   | { kind: 'error'; message: string }
-
-/** `<input type="datetime-local">` gives "2026-06-01T09:00" — no seconds. NodaTime's LocalDateTime
- * wire format (LocalDateTimePattern.ExtendedIso) wants them present. */
-function toLocalDateTimeWire(when: string): string {
-  return when.length === 16 ? `${when}:00` : when
-}
 
 /**
  * Turns a `<input type="datetime-local">` string + IANA zone into a real Instant via
@@ -28,7 +23,7 @@ export async function resolveRowInstant(
 ): Promise<ResolveOutcome> {
   try {
     const resolved = await resolveLocalTime({
-      punchTime: toLocalDateTimeWire(when),
+      punchTime: toWireLocalDateTime(when),
       punchTimeZoneId: timeZoneId,
       daylightSaving,
     })

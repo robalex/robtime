@@ -40,13 +40,9 @@ public static class RangeDifferentialQualifier
         {
             rangeStartByCode[rule.Code] = rule.DayOfWeekRangeStart;
 
-            var failingAnchors = shifts
-                .SelectMany(s => s.Differentials
-                    .Where(d => d.Code == rule.Code)
-                    .Select(d => (Anchor: DayOfWeekRange.OccurrenceAnchor(s.ShiftDate, rule.DayOfWeekRangeStart), d.Hours)))
-                .GroupBy(x => x.Anchor)
-                .Where(g => g.Sum(x => x.Hours) < rule.MinHoursInRange)
-                .Select(g => g.Key)
+            var failingAnchors = RangeOccurrenceHours.SumByOccurrenceAnchor(rule, shifts)
+                .Where(kv => kv.Value < rule.MinHoursInRange)
+                .Select(kv => kv.Key)
                 .ToHashSet();
 
             if (failingAnchors.Count > 0) failingAnchorsByCode[rule.Code] = failingAnchors;

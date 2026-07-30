@@ -28,3 +28,11 @@ export function formatLocalDate(date: LocalDate): string {
 export function todayLocalDate(): LocalDate {
   return LocalDate.now()
 }
+
+/** `<input type="datetime-local">` gives "2026-06-01T09:00" — no seconds. NodaTime's LocalDateTime
+ * wire format (LocalDateTimePattern.ExtendedIso) wants them present. Shared by every screen that
+ * collects a local punch time by hand (BulkPunchEntry, Timecard's Add/Edit forms, the differential
+ * sandbox's test punches) so they all feed the backend's DST-aware resolver identically. */
+export function toWireLocalDateTime(when: string): string {
+  return when.length === 16 ? `${when}:00` : when
+}

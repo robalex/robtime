@@ -1,4 +1,4 @@
-﻿using NodaTime;
+using NodaTime;
 using TimeCalculation.Model;
 
 namespace TimeCalculation.Pipeline.Differentials;
@@ -6,24 +6,40 @@ namespace TimeCalculation.Pipeline.Differentials;
 public static class PerDayQualifyingHoursCalculator
 {
     public static decimal Calculate(DifferentialRule rule, PunchPair pair, PipelineContext ctx)
+        => Segments(rule, pair, ctx).Sum(s => (decimal)(s.End - s.Start).TotalHours);
+
+    /// <summary>
+    /// The actual qualifying intervals — where the rule was both active (day schedule) and inside
+    /// its time-of-day window, intersected with real worked time. Distinct from
+    /// DifferentialZoneProjector's zones, which show where a rule *could* apply with no punches
+    /// involved; these show what actually happened. Calculate() above is just the sum of these
+    /// segments' hours — one implementation of the overlap math, two consumers (the applier's
+    /// totals, and the sandbox explainer's detail).
+    /// </summary>
+    public static IReadOnlyList<QualifyingSegment> Segments(DifferentialRule rule, PunchPair pair, PipelineContext ctx)
     {
-        decimal hours = 0;
-        foreach (var segment in SplitWorkedIntervalIntoDaySegments(pair, ctx.EmployeeTimeZone))
+        var segments = new List<QualifyingSegment>();
+        foreach (var daySegment in SplitWorkedIntervalIntoDaySegments(pair, ctx.EmployeeTimeZone))
         {
-            if (!RuleAppliesOn(rule, segment.Date, ctx))
+            if (!DifferentialDaySchedule.AppliesOn(rule, daySegment.Date, ctx.HolidayCalendar))
             {
                 continue;
             }
 
-            int overlapSec = CalculateWindowOverlapSeconds(segment.StartSec, segment.EndSec, rule);
-
-            if (overlapSec > 0)
+            foreach (var range in WindowOverlapRanges(daySegment.StartSec, daySegment.EndSec, rule))
             {
-                hours += (decimal)overlapSec / 3600m;
+                if (range.End <= range.Start)
+                {
+                    continue;
+                }
+                segments.Add(new QualifyingSegment
+                {
+                    Start = daySegment.DayStart + Duration.FromSeconds(range.Start),
+                    End = daySegment.DayStart + Duration.FromSeconds(range.End),
+                });
             }
         }
-
-        return hours;
+        return segments;
     }
 
     private static IEnumerable<DaySegment> SplitWorkedIntervalIntoDaySegments(PunchPair workedPair, DateTimeZone timeZone)
@@ -34,49 +50,48 @@ public static class PerDayQualifyingHoursCalculator
         {
             var zdt = current.InZone(timeZone);
             var date = zdt.Date;
+            var dayStart = date.AtMidnight().InZoneLeniently(timeZone).ToInstant();
             var nextMidnight = date.PlusDays(1).AtMidnight().InZoneLeniently(timeZone).ToInstant();
             var segEnd = end < nextMidnight ? end : nextMidnight;
 
             int startSec = SecondsOf(zdt.TimeOfDay);
             int endSec = segEnd == nextMidnight ? NodaConstants.SecondsPerDay : SecondsOf(segEnd.InZone(timeZone).TimeOfDay);
 
-            yield return new DaySegment(date, startSec, endSec);
+            yield return new DaySegment(date, dayStart, startSec, endSec);
             current = nextMidnight;
         }
     }
 
-    private static int CalculateWindowOverlapSeconds(int workTimeStart, int workTimeEnd, DifferentialRule rule)
+    // Same overlap logic this class always had, restructured to hand back the actual overlapping
+    // second-ranges (up to two, for a midnight-wrapping window) instead of just their summed
+    // duration — Calculate() sums their lengths, Segments() converts them to real Instants.
+    private static IEnumerable<SecondsRange> WindowOverlapRanges(int workTimeStart, int workTimeEnd, DifferentialRule rule)
     {
         if (rule.IsAllDay)
         {
-            return workTimeEnd - workTimeStart;
+            yield return new SecondsRange(workTimeStart, workTimeEnd);
+            yield break;
         }
 
         int windowStartSeconds = SecondsOf(rule.WindowStart);
         int windowEndSeconds = SecondsOf(rule.WindowEnd);
         var windowSpansMidnight = windowStartSeconds >= windowEndSeconds;
 
-        return windowSpansMidnight
-            ? Overlap(workTimeStart, workTimeEnd, windowStartSeconds, NodaConstants.SecondsPerDay) + Overlap(workTimeStart, workTimeEnd, 0, windowEndSeconds)  // wraps midnight
-            : Overlap(workTimeStart, workTimeEnd, windowStartSeconds, windowEndSeconds);  // same-day window
+        if (windowSpansMidnight)
+        {
+            yield return Overlap(workTimeStart, workTimeEnd, windowStartSeconds, NodaConstants.SecondsPerDay);
+            yield return Overlap(workTimeStart, workTimeEnd, 0, windowEndSeconds);
+        }
+        else
+        {
+            yield return Overlap(workTimeStart, workTimeEnd, windowStartSeconds, windowEndSeconds);
+        }
     }
 
-    // A single DayScheduleMode decides which days a rule is active on — the modes are mutually
-    // exclusive, so this is a straight switch rather than a chain of ANDed filters.
-    private static bool RuleAppliesOn(DifferentialRule rule, LocalDate date, PipelineContext ctx)
-        => rule.DayScheduleMode switch
-        {
-            DayScheduleMode.EveryDay => true,
-            DayScheduleMode.DaysOfWeek => rule.DaysOfWeek.Contains(date.DayOfWeek),
-            DayScheduleMode.ConsecutiveDayRange =>
-                DayOfWeekRange.Contains(date.DayOfWeek, rule.DayOfWeekRangeStart, rule.DayOfWeekRangeEnd),
-            DayScheduleMode.SpecificDates => rule.SpecificDates.Contains(date),
-            DayScheduleMode.Holidays => ctx.HolidayCalendar?.IsHoliday(date) == true,
-            _ => true,
-        };
-
-    private static int Overlap(int aStart, int aEnd, int bStart, int bEnd)
-    => Math.Max(0, Math.Min(aEnd, bEnd) - Math.Max(aStart, bStart));
+    private static SecondsRange Overlap(int aStart, int aEnd, int bStart, int bEnd)
+        => new(Math.Max(aStart, bStart), Math.Min(aEnd, bEnd));
 
     private static int SecondsOf(LocalTime t) => t.Hour * 3600 + t.Minute * 60 + t.Second;
+
+    private readonly record struct SecondsRange(int Start, int End);
 }

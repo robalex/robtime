@@ -10,6 +10,12 @@ public static class ContinuousRangeQualifyingHoursCalculator
     // covered. A pair (at most one shift long) can reach the occurrence its start date anchors to,
     // or — when that date sits in the gap before the range begins — the next one, so both are summed.
     public static decimal Calculate(DifferentialRule rule, PunchPair pair, PipelineContext ctx)
+        => Segments(rule, pair, ctx).Sum(s => (decimal)(s.End - s.Start).TotalHours);
+
+    /// <summary>Same reasoning as PerDayQualifyingHoursCalculator.Segments: the actual qualifying
+    /// intervals (up to two, one per occurrence a pair can reach) rather than just their summed
+    /// hours. Calculate() above sums these.</summary>
+    public static IReadOnlyList<QualifyingSegment> Segments(DifferentialRule rule, PunchPair pair, PipelineContext ctx)
     {
         var zone = ctx.EmployeeTimeZone;
         var inInstant = pair.InPunch!.EffectiveTime;
@@ -18,7 +24,7 @@ public static class ContinuousRangeQualifyingHoursCalculator
         var baseAnchor = DayOfWeekRange.OccurrenceAnchor(inInstant.InZone(zone).Date, rule.DayOfWeekRangeStart);
         int rangeLengthDays = DayOfWeekRange.Length(rule.DayOfWeekRangeStart, rule.DayOfWeekRangeEnd);
 
-        decimal hours = 0;
+        var segments = new List<QualifyingSegment>();
         foreach (var anchor in new[] { baseAnchor, baseAnchor.PlusDays(7) })
         {
             var span = OccurrenceSpan(rule, anchor, rangeLengthDays, zone);
@@ -26,11 +32,11 @@ public static class ContinuousRangeQualifyingHoursCalculator
             var overlapEnd = outInstant < span.End ? outInstant : span.End;
             if (overlapEnd > overlapStart)
             {
-                hours += (decimal)(overlapEnd - overlapStart).TotalHours;
+                segments.Add(new QualifyingSegment { Start = overlapStart, End = overlapEnd });
             }
         }
 
-        return hours;
+        return segments;
     }
 
     // The [start, end) span of the range occurrence anchored on `anchor` (a range-start weekday).
@@ -38,7 +44,11 @@ public static class ContinuousRangeQualifyingHoursCalculator
     // after the last. Otherwise WindowStart on the first day to WindowEnd on the last. end is always
     // after start: PipelineContext rejects a single-day range, so start and end sit on different
     // days and the day gap dominates any within-day window difference.
-    private static Interval OccurrenceSpan(
+    //
+    // internal (not private): DifferentialZoneProjector reuses this exact span arithmetic to project
+    // where a ConsecutiveDayRange rule *could* apply, independent of any punches — same reasoning as
+    // DifferentialDaySchedule.AppliesOn being shared rather than reimplemented.
+    internal static Interval OccurrenceSpan(
         DifferentialRule rule, LocalDate anchor, int rangeLengthDays, DateTimeZone zone)
     {
         if (rule.IsAllDay)

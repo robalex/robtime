@@ -98,32 +98,11 @@ public static class DifferentialApplier
             })));
         }
 
-        var applied = ResolveExclusivity(candidates);
+        var applied = ExclusivityResolver.Resolve(candidates)
+            .Where(o => o.Won)
+            .Select(o => o.Candidate.Applied)
+            .ToList();
         return applied.Count == 0 ? shift : shift with { Differentials = applied };
-    }
-
-    // Ungrouped differentials all apply; within each exclusivity group only the highest-amount
-    // one survives (ties broken by Code). Original evaluation order is preserved.
-    private static List<AppliedDifferential> ResolveExclusivity(
-        List<DifferentialCandidate> candidates)
-    {
-        var winningGroupCodes = candidates
-            .Where(c => !string.IsNullOrEmpty(c.Rule.ExclusivityGroup))
-            .GroupBy(c => c.Rule.ExclusivityGroup)
-            .Select(g => g
-                .OrderByDescending(c => c.Applied.Amount)
-                .ThenBy(c => c.Rule.Code, StringComparer.Ordinal)
-                .First().Rule.Code)
-            .ToHashSet();
-
-        var result = new List<AppliedDifferential>();
-        foreach (var (rule, applied) in candidates)
-        {
-            bool grouped = !string.IsNullOrEmpty(rule.ExclusivityGroup);
-            if (!grouped || winningGroupCodes.Contains(rule.Code))
-                result.Add(applied);
-        }
-        return result;
     }
 
     // Qualifying hours a single pair contributes to a rule. ConsecutiveDayRange treats the window

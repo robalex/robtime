@@ -63,8 +63,10 @@ public static class PayCalculator
         };
     }
 
-    /// <summary>Stages 1–6: raw punches → rounded, paired, enriched, built, subtyped, and dated shifts.</summary>
-    private static IReadOnlyList<Shift> PrepareShifts(IReadOnlyList<Punch> punches, PipelineContext ctx)
+    /// <summary>Stages 1–6: raw punches → rounded, paired, enriched, built, subtyped, and dated shifts.
+    /// internal (not private): DifferentialExplainer runs this same preparation to get the shift list
+    /// differentials are evaluated against, without re-listing the stage sequence itself.</summary>
+    internal static IReadOnlyList<Shift> PrepareShifts(IReadOnlyList<Punch> punches, PipelineContext ctx)
     {
         var rounded = PunchRounder.RoundPunches(punches, ctx);
         var (pairs, fixedEntries) = PunchPairer.PairPunches(rounded, ctx);

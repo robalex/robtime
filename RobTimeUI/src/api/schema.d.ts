@@ -276,6 +276,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/differentials/sandbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RunDifferentialSandbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/holidaycalendars": {
         parameters: {
             query?: never;
@@ -879,6 +895,19 @@ export interface components {
         };
         /** @enum {unknown} */
         DifferentialAdjustmentType: "FlatPerHour" | "Multiplier" | "FixedBonus";
+        DifferentialEvaluationResponse: {
+            code: string;
+            outcome: components["schemas"]["DifferentialOutcome"];
+            /** Format: double */
+            qualifyingHours: number;
+            /** Format: double */
+            amount: number;
+            segments: components["schemas"]["QualifyingSegmentResponse"][];
+            supersededByCode?: null | string;
+            explanation: string;
+        };
+        /** @enum {unknown} */
+        DifferentialOutcome: "Applied" | "SupersededByExclusivityGroup" | "BelowMinHoursInWindow" | "BelowMinHoursInRange" | "NotActiveOnAnyWorkedDay" | "NoWindowOverlap" | "NotEnabledByPayRule" | "ShiftHasMissingPunches";
         DifferentialRuleResponse: {
             /** Format: int32 */
             id: number;
@@ -901,6 +930,30 @@ export interface components {
             /** Format: double */
             minHoursInRange: number;
             exclusivityGroup?: null | string;
+        };
+        DifferentialSandboxRequest: {
+            /** Format: int32 */
+            employeeId: number;
+            /** Format: int32 */
+            payRuleId: number;
+            /** Format: int32 */
+            holidayCalendarId?: null | number;
+            windowStart: components["schemas"]["LocalDate"];
+            /** Format: int32 */
+            dayCount: number;
+            testPunches?: components["schemas"]["SandboxTestPunch"][];
+        };
+        DifferentialSandboxResponse: {
+            windowStart: components["schemas"]["LocalDate"];
+            /** Format: int32 */
+            dayCount: number;
+            zones: components["schemas"]["DifferentialZoneResponse"][];
+            shifts: components["schemas"]["ShiftDifferentialExplanationResponse"][];
+        };
+        DifferentialZoneResponse: {
+            code: string;
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
         };
         DraftPunchEntry: {
             punchTime: components["schemas"]["Instant"];
@@ -1278,6 +1331,10 @@ export interface components {
         };
         /** @enum {unknown} */
         PunchSubtype: "None" | "Break" | "Lunch" | null;
+        QualifyingSegmentResponse: {
+            start: components["schemas"]["Instant"];
+            end: components["schemas"]["Instant"];
+        };
         ResolveLocalPunchTimeRequest: {
             punchTime: components["schemas"]["LocalDateTime"];
             punchTimeZoneId: string;
@@ -1288,8 +1345,20 @@ export interface components {
         };
         /** @enum {unknown} */
         RoundingStrategy: "None" | "NearestInterval" | "IntervalWithGrace";
+        SandboxTestPunch: {
+            punchTime: components["schemas"]["LocalDateTime"];
+            punchTimeZoneId?: null | string;
+            daylightSaving?: null | boolean;
+            kind: components["schemas"]["PunchKind"];
+        };
         /** @enum {unknown} */
         ShiftDateStrategy: "FirstPunchLocalDate" | "LastPunchLocalDate" | "MajorityHoursLocalDate" | "SplitAtMidnight";
+        ShiftDifferentialExplanationResponse: {
+            shiftDate: components["schemas"]["LocalDate"];
+            /** Format: int32 */
+            anchorPunchId: number;
+            evaluations: components["schemas"]["DifferentialEvaluationResponse"][];
+        };
         StateMinimumWageResponse: {
             /** Format: int32 */
             id: number;
@@ -2604,6 +2673,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    RunDifferentialSandbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DifferentialSandboxRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DifferentialSandboxResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
             };
         };
     };
