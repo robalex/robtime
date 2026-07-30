@@ -10,6 +10,7 @@ import { Select } from '@/components/ui/select'
 import type { PayRuleTemplate } from './queries'
 import type { PremiumRuleMetadata } from '@/features/premiumRules/queries'
 import type { DifferentialRule } from '@/features/differentialRules/queries'
+import type { HolidayCalendar } from '@/features/holidayCalendars/queries'
 
 const WORKWEEK_DAYS = [
   'Monday',
@@ -60,6 +61,7 @@ const payRuleFormSchema = z.object({
   shiftDateStrategy: z.string().min(1),
   activePremiumCodes: z.array(z.string()),
   activeDifferentialCodes: z.array(z.string()),
+  holidayCalendarId: z.string().optional(),
 })
 
 export type PayRuleFormValues = z.infer<typeof payRuleFormSchema>
@@ -108,6 +110,9 @@ interface PayRuleFormProps {
   /** The pay rule's own client's differentials — jurisdiction templates don't preset these (they're
    * client-authored), so unlike premiums there's no "modified from template" diff for this field. */
   differentialRules: DifferentialRule[]
+  /** The pay rule's own client's holiday calendars — which one (if any) this rule observes for
+   * Holidays-mode differentials. */
+  holidayCalendars: HolidayCalendar[]
   defaultValues: PayRuleFormValues
   submitLabel: string
   onSubmit: (values: PayRuleFormValues) => Promise<unknown>
@@ -118,6 +123,7 @@ export function PayRuleForm({
   template,
   premiumRules,
   differentialRules,
+  holidayCalendars,
   defaultValues,
   submitLabel,
   onSubmit,
@@ -376,6 +382,17 @@ export function PayRuleForm({
                 {SHIFT_DATE_STRATEGIES.map((strategy) => (
                   <option key={strategy} value={strategy}>
                     {strategy}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payrule-holidayCalendarId">Holiday calendar</Label>
+              <Select id="payrule-holidayCalendarId" {...form.register('holidayCalendarId')}>
+                <option value="">None</option>
+                {holidayCalendars.map((calendar) => (
+                  <option key={calendar.id} value={calendar.id}>
+                    {calendar.name}
                   </option>
                 ))}
               </Select>

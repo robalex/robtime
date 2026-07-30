@@ -146,6 +146,57 @@ public class PayRuleWhatIfEndpointsTests(ApiFixture fixture)
         Assert.Empty(body.ShiftDiffs);
     }
 
+    [Fact]
+    public async Task DraftHasHolidayCalendar_HolidaysModeDifferentialApplies()
+    {
+        // The what-if half of the holiday-differential gap regression: PayRuleWhatIfService.RunAsync
+        // must attach draftRule's HolidayCalendar to draftCtx — before this fix, a Holidays-mode
+        // differential never fired in a what-if preview either, regardless of the draft rule's config.
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync(
+            $"WhatIf Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var employeeId = await CreateEmployeeAsync(api, clientId, minimumWage: 20m);
+
+        var calendarId = await CreateHolidayCalendarAsync(api, clientId, new LocalDate(2026, 1, 5));
+        var holidayCode = await CreateDifferentialRuleAsync(api, clientId, "HOLIDAY", adjustmentValue: 3m, DayScheduleMode.Holidays);
+
+        var baselineId = await CreatePayRuleAsync(api, clientId, "Baseline", activeDifferentialCodes: []);
+        await AssignPayRuleAsync(api, employeeId, baselineId, Date("2026-01-01"));
+
+        var proposedId = await CreatePayRuleAsync(
+            api, clientId, "Proposed", activeDifferentialCodes: [holidayCode], holidayCalendarId: calendarId);
+
+        // One 8-hr shift, Monday Jan 5 2026 — the date the holiday calendar names.
+        await CreatePunchAsync(api, employeeId, Instant.FromUtc(2026, 1, 5, 9, 0), PunchKind.In);
+        await CreatePunchAsync(api, employeeId, Instant.FromUtc(2026, 1, 5, 17, 0), PunchKind.Out);
+
+        var response = await api.PostAsJsonAsync(
+            $"/payrules/{proposedId}/what-if",
+            new WhatIfRequest { EmployeeId = employeeId, PeriodStart = Date("2026-01-05"), PeriodEnd = Date("2026-01-06") },
+            TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<WhatIfResponse>(TestJson.Options, TestContext.Current.CancellationToken);
+
+        // straight 8x20=160 either way; the draft additionally earns the all-day HOLIDAY differential: 8x3=24.
+        Assert.Equal(160m, body!.Current.GrossPay);
+        Assert.Equal(184m, body.Draft.GrossPay);
+
+        var diff = Assert.Single(body.ShiftDiffs);
+        Assert.Contains(diff.DraftLineItems, l => l.Code == "HOLIDAY" && l.Type == PayLineType.Differential);
+        Assert.DoesNotContain(diff.CurrentLineItems, l => l.Code == "HOLIDAY");
+    }
+
+    private static async Task<int> CreateHolidayCalendarAsync(HttpClient api, int clientId, LocalDate date)
+    {
+        var response = await api.PostAsJsonAsync(
+            "/holidaycalendars",
+            new CreateHolidayCalendarRequest { ClientId = clientId, Name = $"Calendar {Guid.NewGuid()}", Dates = [date] },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+        var calendar = await response.Content.ReadFromJsonAsync<HolidayCalendarResponse>(TestJson.Options, TestContext.Current.CancellationToken);
+        return calendar!.Id;
+    }
+
     private static async Task<int> CreateEmployeeAsync(HttpClient api, int clientId, decimal minimumWage)
     {
         var response = await api.PostAsJsonAsync(
@@ -163,11 +214,15 @@ public class PayRuleWhatIfEndpointsTests(ApiFixture fixture)
     }
 
     private static async Task<int> CreatePayRuleAsync(
-        HttpClient api, int clientId, string name, HashSet<string> activeDifferentialCodes)
+        HttpClient api, int clientId, string name, HashSet<string> activeDifferentialCodes, int? holidayCalendarId = null)
     {
         var response = await api.PostAsJsonAsync(
             "/payrules",
-            new CreatePayRuleRequest { ClientId = clientId, Name = name, ActiveDifferentialCodes = activeDifferentialCodes },
+            new CreatePayRuleRequest
+            {
+                ClientId = clientId, Name = name, ActiveDifferentialCodes = activeDifferentialCodes,
+                HolidayCalendarId = holidayCalendarId,
+            },
             TestJson.Options, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
         var payRule = await response.Content.ReadFromJsonAsync<PayRuleResponse>(
@@ -185,7 +240,7 @@ public class PayRuleWhatIfEndpointsTests(ApiFixture fixture)
     }
 
     private static async Task<string> CreateDifferentialRuleAsync(
-        HttpClient api, int clientId, string code, decimal adjustmentValue)
+        HttpClient api, int clientId, string code, decimal adjustmentValue, DayScheduleMode dayScheduleMode = DayScheduleMode.EveryDay)
     {
         var response = await api.PostAsJsonAsync(
             "/differentialrules",
@@ -193,7 +248,7 @@ public class PayRuleWhatIfEndpointsTests(ApiFixture fixture)
             {
                 ClientId = clientId,
                 Code = code,
-                DayScheduleMode = DayScheduleMode.EveryDay,
+                DayScheduleMode = dayScheduleMode,
                 AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
                 AdjustmentValue = adjustmentValue,
             },

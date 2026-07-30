@@ -24,6 +24,16 @@ public class PayRuleService(PayrollDbContext db)
             return ServiceResult<PayRule>.NotFound($"No client with id {request.ClientId}.");
         }
 
+        if (request.HolidayCalendarId is { } createHolidayCalendarId)
+        {
+            var calendarExists = await db.HolidayCalendars.AnyAsync(
+                h => h.Id == createHolidayCalendarId && h.ClientId == request.ClientId, ct);
+            if (!calendarExists)
+            {
+                return ServiceResult<PayRule>.NotFound($"No holiday calendar with id {createHolidayCalendarId} for this client.");
+            }
+        }
+
         var payRule = PayRuleRequestMapper.BuildFromRequest(request);
 
         var consistencyErrors = PayRuleRequestValidator.ValidateConsistency(payRule);
@@ -91,6 +101,16 @@ public class PayRuleService(PayrollDbContext db)
                 $"Pay rule {id} is {payRule.Status} and can no longer be edited directly. " +
                 "Active/Superseded rules are never mutated in place (Gap F) — creating a new version " +
                 "is Phase 4 UI work, not yet available.");
+        }
+
+        if (request.HolidayCalendarId is { } updateHolidayCalendarId)
+        {
+            var calendarExists = await db.HolidayCalendars.AnyAsync(
+                h => h.Id == updateHolidayCalendarId && h.ClientId == payRule.ClientId, ct);
+            if (!calendarExists)
+            {
+                return ServiceResult<PayRule>.NotFound($"No holiday calendar with id {updateHolidayCalendarId} for this client.");
+            }
         }
 
         PayRuleRequestMapper.ApplyUpdate(payRule, request);
@@ -226,6 +246,7 @@ public class PayRuleService(PayrollDbContext db)
             ShiftDateStrategy = source.ShiftDateStrategy,
             ActivePremiumCodes = source.ActivePremiumCodes.ToHashSet(),
             ActiveDifferentialCodes = source.ActiveDifferentialCodes.ToHashSet(),
+            HolidayCalendarId = source.HolidayCalendarId,
             WorkweekStartDay = source.WorkweekStartDay,
             OvertimeRule = new OvertimeRule
             {

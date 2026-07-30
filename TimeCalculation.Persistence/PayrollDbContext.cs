@@ -202,6 +202,7 @@ public class PayrollDbContext : DbContext
             });
 
             b.HasOne<Client>().WithMany().HasForeignKey(r => r.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<HolidayCalendar>().WithMany().HasForeignKey(r => r.HolidayCalendarId).OnDelete(DeleteBehavior.Restrict);
             b.HasQueryFilter("Tenant", r => r.ClientId == _tenantClientId);
             b.HasQueryFilter("SoftDelete", r => !r.IsDeleted);
 

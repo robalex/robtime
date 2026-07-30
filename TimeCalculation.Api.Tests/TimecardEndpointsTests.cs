@@ -271,6 +271,63 @@ public class TimecardEndpointsTests(ApiFixture fixture)
         Assert.Equal(Period.DaysBetween(timecard.PeriodStart, timecard.PeriodEnd) + 1, allDates.Count);
     }
 
+    [Fact]
+    public async Task GetTimecard_HolidaysModeDifferential_AppliesWhenPayRuleHasHolidayCalendar()
+    {
+        // The regression test for the holiday-differential gap: TimecardService.ResolvePeriodAsync
+        // must actually attach the effective PayRule's HolidayCalendar to the PipelineContext it runs
+        // — before this fix, DayScheduleMode.Holidays differentials silently never applied here.
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync(
+            $"Timecard Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var employeeId = await CreateEmployeeAsync(api, clientId);
+
+        var calendarResponse = await api.PostAsJsonAsync(
+            "/holidaycalendars",
+            new CreateHolidayCalendarRequest { ClientId = clientId, Name = "Federal", Dates = [new LocalDate(2026, 6, 19)] },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        calendarResponse.EnsureSuccessStatusCode();
+        var calendar = (await calendarResponse.Content.ReadFromJsonAsync<HolidayCalendarResponse>(TestJson.Options, TestContext.Current.CancellationToken))!;
+
+        var diffResponse = await api.PostAsJsonAsync(
+            "/differentialrules",
+            new CreateDifferentialRuleRequest
+            {
+                ClientId = clientId,
+                Code = "HOLIDAY",
+                DayScheduleMode = DayScheduleMode.Holidays,
+                AdjustmentType = DifferentialAdjustmentType.FlatPerHour,
+                AdjustmentValue = 5m,
+            },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        diffResponse.EnsureSuccessStatusCode();
+
+        var payRuleResponse = await api.PostAsJsonAsync(
+            "/payrules",
+            new CreatePayRuleRequest
+            {
+                ClientId = clientId,
+                Name = "Standard",
+                ActiveDifferentialCodes = ["HOLIDAY"],
+                HolidayCalendarId = calendar.Id,
+            },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        payRuleResponse.EnsureSuccessStatusCode();
+        var payRule = (await payRuleResponse.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken))!;
+        await AssignPayRuleAsync(api, employeeId, payRule.Id, "2020-01-01");
+
+        // Employee's HomeTimeZoneId defaults to America/New_York — 13:00Z/21:00Z stays inside
+        // 2026-06-19 local, same as this file's other tests, so it lands squarely on the holiday.
+        await CreatePunchAsync(api, employeeId, "2026-06-19T13:00:00Z", PunchKind.In);
+        await CreatePunchAsync(api, employeeId, "2026-06-19T21:00:00Z", PunchKind.Out);
+
+        var response = await api.GetAsync($"/employees/{employeeId}/timecard?date=2026-06-19", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var timecard = await response.Content.ReadFromJsonAsync<TimecardResponse>(TestJson.Options, TestContext.Current.CancellationToken);
+
+        var lineItems = timecard!.Workweeks.SelectMany(w => w.Days).SelectMany(d => d.Shifts).SelectMany(s => s.LineItems).ToList();
+        Assert.Contains(lineItems, li => li.Type == PayLineType.Differential && li.Code == "HOLIDAY");
+    }
+
     private static async Task<int> CreateEmployeeAsync(HttpClient api, int clientId)
     {
         var response = await api.PostAsJsonAsync(

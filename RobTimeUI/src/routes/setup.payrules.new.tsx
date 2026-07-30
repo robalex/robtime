@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useCreatePayRule, usePayRuleTemplates, type PayRuleTemplate } from '@/features/payRules/queries'
 import { usePremiumRules } from '@/features/premiumRules/queries'
 import { useDifferentialRules } from '@/features/differentialRules/queries'
+import { useHolidayCalendars } from '@/features/holidayCalendars/queries'
 import { PayRuleForm, type PayRuleFormValues } from '@/features/payRules/PayRuleForm'
 import { RequiresClient } from '@/components/RequiresClient'
 import { toApiProblem } from '@/lib/problem'
@@ -24,6 +25,7 @@ function NewPayRuleFlow({ clientId }: { clientId: number }) {
   const { data: templates, isPending: templatesPending, isError, error } = usePayRuleTemplates()
   const { data: premiumRules } = usePremiumRules()
   const { data: differentialRules } = useDifferentialRules({ clientId, page: 1, pageSize: 100 })
+  const { data: holidayCalendars } = useHolidayCalendars({ clientId, page: 1, pageSize: 50 })
   const createPayRule = useCreatePayRule()
   const [selectedTemplate, setSelectedTemplate] = useState<PayRuleTemplate | null>(null)
 
@@ -89,6 +91,7 @@ function NewPayRuleFlow({ clientId }: { clientId: number }) {
     shiftDateStrategy: 'FirstPunchLocalDate',
     activePremiumCodes: [...selectedTemplate.activePremiumCodes],
     activeDifferentialCodes: [],
+    holidayCalendarId: '',
   }
 
   return (
@@ -108,6 +111,7 @@ function NewPayRuleFlow({ clientId }: { clientId: number }) {
         template={selectedTemplate}
         premiumRules={premiumRules ?? []}
         differentialRules={differentialRules?.items ?? []}
+        holidayCalendars={holidayCalendars?.items ?? []}
         defaultValues={defaultValues}
         submitLabel="Create pay rule"
         onCancel={() => void navigate({ to: '/setup/payrules' })}
@@ -147,6 +151,7 @@ function NewPayRuleFlow({ clientId }: { clientId: number }) {
             shiftDateStrategy: values.shiftDateStrategy as never,
             activePremiumCodes: values.activePremiumCodes,
             activeDifferentialCodes: values.activeDifferentialCodes,
+            holidayCalendarId: values.holidayCalendarId ? Number(values.holidayCalendarId) : undefined,
           })
           await navigate({ to: '/setup/payrules' })
         }}

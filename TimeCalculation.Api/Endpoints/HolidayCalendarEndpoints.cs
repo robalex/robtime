@@ -86,6 +86,8 @@ public static class HolidayCalendarEndpoints
             ServiceResultKind.Success => TypedResults.NoContent(),
             ServiceResultKind.NotFound => TypedResults.Problem(
                 detail: result.Detail, statusCode: StatusCodes.Status404NotFound),
+            ServiceResultKind.Conflict => TypedResults.Problem(
+                detail: result.Detail, statusCode: StatusCodes.Status409Conflict),
             _ => throw new InvalidOperationException(
                 $"Unexpected {nameof(ServiceResultKind)} '{result.Kind}' for holiday calendar deletion."),
         };

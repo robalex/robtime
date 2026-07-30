@@ -92,6 +92,18 @@ public class HolidayCalendarService(PayrollDbContext db)
             return ServiceResult<HolidayCalendar>.NotFound($"No holiday calendar with id {id}.");
         }
 
+        // Same reference-guard pattern as DifferentialRuleService.DeleteAsync — HolidayCalendarId is
+        // a real FK column (unlike ActiveDifferentialCodes' comma-delimited set), so this pushes
+        // straight into SQL rather than pulling every pay rule client-side.
+        var referencingPayRules = await db.PayRules.Where(r => r.HolidayCalendarId == id).ToListAsync(ct);
+        if (referencingPayRules.Count > 0)
+        {
+            var names = string.Join(", ", referencingPayRules.Select(r => $"'{r.Name}' ({r.Status}, v{r.Version})"));
+            return ServiceResult<HolidayCalendar>.Conflict(
+                $"Holiday calendar '{calendar.Name}' is still referenced by {referencingPayRules.Count} pay " +
+                $"rule(s): {names}. Remove it from those pay rules before deleting.");
+        }
+
         calendar.IsDeleted = true;
         await db.SaveChangesAsync(ct);
 

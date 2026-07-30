@@ -278,6 +278,18 @@ public class TimecardService(PayrollDbContext db, IClock clock)
                 $"No PayRule assignment covers {referenceDate} for employee {employeeId}.");
         }
 
+        // Phase-one simplification (see PipelineContext.HolidayCalendar's own doc comment): one
+        // calendar for the whole run, chosen from whichever PayRule is effective at the reference
+        // date — not a per-instant resolver across an assignment history that might span multiple
+        // PayRules with different calendars.
+        if (effectiveRule.HolidayCalendarId is { } holidayCalendarId)
+        {
+            var holidayCalendar = await db.HolidayCalendars.FirstOrDefaultAsync(h => h.Id == holidayCalendarId, ct);
+            ctx = new PipelineContext(
+                employee, currentAssignments, positionAssignmentsDomain, differentialRules,
+                holidayCalendar, clientPremiumPolicies);
+        }
+
         var period = PayPeriodCalculator.ContainingDate(
             effectiveRule.PayPeriodFrequency, referenceDate, effectiveRule.PayPeriodAnchor);
 

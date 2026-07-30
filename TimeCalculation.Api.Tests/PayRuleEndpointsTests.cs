@@ -282,4 +282,85 @@ public class PayRuleEndpointsTests(ApiFixture fixture)
         var v3 = await v3Response.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken);
         Assert.Equal(3, v3!.Version);
     }
+
+    [Fact]
+    public async Task CreatePayRule_WithHolidayCalendarId_RoundTrips()
+    {
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"PayRule Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var calendarId = await CreateHolidayCalendarAsync(api, clientId);
+
+        var request = new CreatePayRuleRequest { ClientId = clientId, Name = $"Rule {Guid.NewGuid()}", HolidayCalendarId = calendarId };
+        var response = await api.PostAsJsonAsync("/payrules", request, TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Equal(calendarId, body!.HolidayCalendarId);
+    }
+
+    [Fact]
+    public async Task CreatePayRule_UnknownHolidayCalendarId_Returns404()
+    {
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"PayRule Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+
+        var request = new CreatePayRuleRequest { ClientId = clientId, Name = $"Rule {Guid.NewGuid()}", HolidayCalendarId = 999999999 };
+        var response = await api.PostAsJsonAsync("/payrules", request, TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreatePayRule_HolidayCalendarFromAnotherClient_Returns404()
+    {
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"PayRule Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var (otherClientId, otherApi) = await fixture.CreateClientAndScopedClientAsync($"Other Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var otherClientsCalendarId = await CreateHolidayCalendarAsync(otherApi, otherClientId);
+
+        var request = new CreatePayRuleRequest { ClientId = clientId, Name = $"Rule {Guid.NewGuid()}", HolidayCalendarId = otherClientsCalendarId };
+        var response = await api.PostAsJsonAsync("/payrules", request, TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdatePayRule_WithHolidayCalendarId_RoundTrips()
+    {
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"PayRule Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var created = await CreatePayRuleAsync(api, clientId);
+        var calendarId = await CreateHolidayCalendarAsync(api, clientId);
+
+        var update = new UpdatePayRuleRequest { HolidayCalendarId = calendarId };
+        var response = await api.PutAsJsonAsync($"/payrules/{created.Id}", update, TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Equal(calendarId, body!.HolidayCalendarId);
+    }
+
+    [Fact]
+    public async Task CreateNewVersion_CopiesHolidayCalendarIdForward()
+    {
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"Fork Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var calendarId = await CreateHolidayCalendarAsync(api, clientId);
+        var created = await CreatePayRuleAsync(api, clientId);
+        await api.PutAsJsonAsync(
+            $"/payrules/{created.Id}", new UpdatePayRuleRequest { HolidayCalendarId = calendarId },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        await SetStatusAsync(created.Id, PayRuleStatus.Active);
+
+        var response = await api.PostAsync($"/payrules/{created.Id}/versions", null, TestContext.Current.CancellationToken);
+
+        var body = await response.Content.ReadFromJsonAsync<PayRuleResponse>(TestJson.Options, TestContext.Current.CancellationToken);
+        Assert.Equal(calendarId, body!.HolidayCalendarId);
+    }
+
+    private static async Task<int> CreateHolidayCalendarAsync(HttpClient api, int clientId)
+    {
+        var response = await api.PostAsJsonAsync(
+            "/holidaycalendars",
+            new CreateHolidayCalendarRequest { ClientId = clientId, Name = $"Calendar {Guid.NewGuid()}" },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+        var calendar = await response.Content.ReadFromJsonAsync<HolidayCalendarResponse>(TestJson.Options, TestContext.Current.CancellationToken);
+        return calendar!.Id;
+    }
 }

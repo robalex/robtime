@@ -9,6 +9,7 @@ import {
 } from '@/features/payRules/queries'
 import { usePremiumRules } from '@/features/premiumRules/queries'
 import { useDifferentialRules } from '@/features/differentialRules/queries'
+import { useHolidayCalendars } from '@/features/holidayCalendars/queries'
 import { PayRuleForm, type PayRuleFormValues } from '@/features/payRules/PayRuleForm'
 import { WhatIfPanel } from '@/features/payRules/WhatIfPanel'
 import { toApiProblem } from '@/lib/problem'
@@ -28,6 +29,9 @@ function EditPayRule() {
   const { data: premiumRules } = usePremiumRules()
   const { data: differentialRules } = useDifferentialRules(
     rule ? { clientId: rule.clientId, page: 1, pageSize: 100 } : null,
+  )
+  const { data: holidayCalendars } = useHolidayCalendars(
+    rule ? { clientId: rule.clientId, page: 1, pageSize: 50 } : null,
   )
   const updatePayRule = useUpdatePayRule(id)
   const deletePayRule = useDeletePayRule()
@@ -105,6 +109,14 @@ function EditPayRule() {
             <dt className="text-muted-foreground">Differentials</dt>
             <dd>{rule.activeDifferentialCodes.length > 0 ? rule.activeDifferentialCodes.join(', ') : 'None'}</dd>
           </div>
+          <div>
+            <dt className="text-muted-foreground">Holiday calendar</dt>
+            <dd>
+              {rule.holidayCalendarId != null
+                ? (holidayCalendars?.items.find((c) => c.id === rule.holidayCalendarId)?.name ?? `#${rule.holidayCalendarId}`)
+                : 'None'}
+            </dd>
+          </div>
         </dl>
 
         <div className="max-w-2xl space-y-2">
@@ -153,6 +165,7 @@ function EditPayRule() {
     shiftDateStrategy: rule.shiftDateStrategy,
     activePremiumCodes: rule.activePremiumCodes,
     activeDifferentialCodes: rule.activeDifferentialCodes,
+    holidayCalendarId: rule.holidayCalendarId != null ? String(rule.holidayCalendarId) : '',
   }
 
   return (
@@ -177,6 +190,7 @@ function EditPayRule() {
         template={template}
         premiumRules={premiumRules ?? []}
         differentialRules={differentialRules?.items ?? []}
+        holidayCalendars={holidayCalendars?.items ?? []}
         defaultValues={defaultValues}
         submitLabel="Save changes"
         onCancel={() => void navigate({ to: '/setup/payrules' })}
@@ -213,6 +227,7 @@ function EditPayRule() {
             shiftDateStrategy: values.shiftDateStrategy as never,
             activePremiumCodes: values.activePremiumCodes,
             activeDifferentialCodes: values.activeDifferentialCodes,
+            holidayCalendarId: values.holidayCalendarId ? Number(values.holidayCalendarId) : undefined,
           })
         }
       />

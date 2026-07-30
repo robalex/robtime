@@ -82,6 +82,33 @@ public class PayRuleWhatIfService(PayrollDbContext db)
         var currentCtx = new PipelineContext(
             employee, currentAssignments, positionAssignmentsDomain, differentialRules,
             clientPremiumPolicies: clientPremiumPolicies);
+
+        // Label for the "Current" summary — the rule in effect at the period's start. If the
+        // employee's real assignments don't cover that instant (sparse history, or none at all),
+        // there's nothing meaningful to call "current"; the response still needs a summary, so this
+        // falls back to the draft rule's own identity rather than throwing on a labeling lookup that
+        // isn't essential to the diff itself (the per-shift diff below is unaffected either way).
+        // Resolved before Calculate, not just for the label — it also decides which HolidayCalendar
+        // currentCtx runs with, below.
+        var currentRuleFound = currentCtx.TryGetRuleAt(periodStartInstant, out var resolvedCurrentRule);
+        var currentRule = currentRuleFound ? resolvedCurrentRule : draftRule;
+
+        // Phase-one simplification (see PipelineContext.HolidayCalendar's own doc comment): one
+        // calendar for the whole run, chosen from whichever PayRule is effective at the period's
+        // start — not a per-instant resolver across an assignment history that might span multiple
+        // PayRules with different calendars.
+        if (currentRuleFound && resolvedCurrentRule.HolidayCalendarId is { } currentHolidayCalendarId)
+        {
+            var currentHolidayCalendar = await db.HolidayCalendars.FirstOrDefaultAsync(h => h.Id == currentHolidayCalendarId, ct);
+            currentCtx = new PipelineContext(
+                employee, currentAssignments, positionAssignmentsDomain, differentialRules,
+                currentHolidayCalendar, clientPremiumPolicies);
+        }
+
+        var draftHolidayCalendar = draftRule.HolidayCalendarId is { } draftHolidayCalendarId
+            ? await db.HolidayCalendars.FirstOrDefaultAsync(h => h.Id == draftHolidayCalendarId, ct)
+            : null;
+
         // The synthetic assignment must cover more than [PeriodStart, PeriodEnd): PayCalculator
         // resolves the overtime rule from each *workweek's* start instant (PayCalculator.cs,
         // CalculateWorkweekPay), which for a punch near PeriodStart can fall up to 6 days earlier
@@ -93,7 +120,8 @@ public class PayRuleWhatIfService(PayrollDbContext db)
             [new PayRuleAssignment(draftRule, request.PeriodStart.PlusDays(-7), request.PeriodEnd.PlusDays(7))],
             positionAssignmentsDomain,
             differentialRules,
-            clientPremiumPolicies: clientPremiumPolicies);
+            draftHolidayCalendar,
+            clientPremiumPolicies);
 
         PayResult currentResult;
         try
@@ -112,13 +140,6 @@ public class PayRuleWhatIfService(PayrollDbContext db)
         // The synthetic single-assignment draftCtx always fully covers [PeriodStart, PeriodEnd), so
         // this can't throw the same way.
         var draftResult = PayCalculator.Calculate(punches, draftCtx);
-
-        // Label for the "Current" summary — the rule in effect at the period's start. If the
-        // employee's real assignments don't cover that instant (sparse history, or none at all),
-        // there's nothing meaningful to call "current"; the response still needs a summary, so this
-        // falls back to the draft rule's own identity rather than throwing on a labeling lookup that
-        // isn't essential to the diff itself (the per-shift diff below is unaffected either way).
-        var currentRule = currentCtx.TryGetRuleAt(periodStartInstant, out var rule) ? rule : draftRule;
 
         var response = WhatIfDiffBuilder.Build(request, currentRule, currentResult, draftRule, draftResult);
         return ServiceResult<WhatIfResponse>.Success(response);

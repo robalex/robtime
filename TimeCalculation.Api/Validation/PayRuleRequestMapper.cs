@@ -93,6 +93,11 @@ public static class PayRuleRequestMapper
             payRule.PayPeriodAnchor = payPeriodAnchor;
         }
 
+        if (request.HolidayCalendarId is { } holidayCalendarId)
+        {
+            payRule.HolidayCalendarId = holidayCalendarId;
+        }
+
         if (request.ActivePremiumCodes is { } premiumCodes)
         {
             payRule.ActivePremiumCodes = premiumCodes;

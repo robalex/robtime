@@ -34,6 +34,8 @@ public sealed record PayRuleResponse
     public required PayPeriodFrequency PayPeriodFrequency { get; init; }
     public required LocalDate PayPeriodAnchor { get; init; }
 
+    public int? HolidayCalendarId { get; init; }
+
     // HashSet, not IReadOnlySet — see PayRuleFieldsRequest's comment on the same fields; a .NET
     // client (this project's own integration tests included) can't deserialize an interface-typed
     // collection with System.Text.Json's default converters.
@@ -71,6 +73,7 @@ public sealed record PayRuleResponse
         WorkweekStartDay = payRule.WorkweekStartDay,
         PayPeriodFrequency = payRule.PayPeriodFrequency,
         PayPeriodAnchor = payRule.PayPeriodAnchor,
+        HolidayCalendarId = payRule.HolidayCalendarId,
         ActivePremiumCodes = payRule.ActivePremiumCodes.ToHashSet(),
         ActiveDifferentialCodes = payRule.ActiveDifferentialCodes.ToHashSet(),
         WeeklyOvertimeThresholdHours = payRule.OvertimeRule.WeeklyOvertimeThresholdHours,

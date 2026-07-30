@@ -71,6 +71,32 @@ public class HolidayCalendarEndpointsTests(ApiFixture fixture)
     }
 
     [Fact]
+    public async Task DeleteHolidayCalendar_ReferencedByPayRule_Returns409AndNamesTheRule()
+    {
+        var (clientId, api) = await fixture.CreateClientAndScopedClientAsync($"Holiday Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var createResponse = await api.PostAsJsonAsync(
+            "/holidaycalendars", new CreateHolidayCalendarRequest { ClientId = clientId, Name = "Federal" },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        var created = (await createResponse.Content.ReadFromJsonAsync<HolidayCalendarResponse>(TestJson.Options, TestContext.Current.CancellationToken))!;
+
+        var payRuleName = $"Rule {Guid.NewGuid()}";
+        var payRuleResponse = await api.PostAsJsonAsync(
+            "/payrules",
+            new CreatePayRuleRequest { ClientId = clientId, Name = payRuleName, HolidayCalendarId = created.Id },
+            TestJson.Options, TestContext.Current.CancellationToken);
+        payRuleResponse.EnsureSuccessStatusCode();
+
+        var deleteResponse = await api.DeleteAsync($"/holidaycalendars/{created.Id}", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Conflict, deleteResponse.StatusCode);
+        var body = await deleteResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains(payRuleName, body);
+
+        var getAfterFailedDelete = await api.GetAsync($"/holidaycalendars/{created.Id}", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, getAfterFailedDelete.StatusCode);
+    }
+
+    [Fact]
     public async Task GetUsFederalHolidays_ReturnsElevenObservedDates()
     {
         var (_, api) = await fixture.CreateClientAndScopedClientAsync($"Holiday Test Co {Guid.NewGuid()}", TestContext.Current.CancellationToken);

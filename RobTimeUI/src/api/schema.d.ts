@@ -826,6 +826,8 @@ export interface components {
             workweekStartDay?: null | components["schemas"]["IsoDayOfWeek"];
             payPeriodFrequency?: null | components["schemas"]["PayPeriodFrequency"];
             payPeriodAnchor?: null | components["schemas"]["LocalDate"];
+            /** Format: int32 */
+            holidayCalendarId?: null | number;
             activePremiumCodes?: null | string[];
             activeDifferentialCodes?: null | string[];
             /** Format: double */
@@ -1178,6 +1180,8 @@ export interface components {
             workweekStartDay: components["schemas"]["IsoDayOfWeek"];
             payPeriodFrequency: components["schemas"]["PayPeriodFrequency"];
             payPeriodAnchor: components["schemas"]["LocalDate"];
+            /** Format: int32 */
+            holidayCalendarId?: null | number;
             activePremiumCodes: string[];
             activeDifferentialCodes: string[];
             /** Format: double */
@@ -1556,6 +1560,8 @@ export interface components {
             workweekStartDay?: null | components["schemas"]["IsoDayOfWeek"];
             payPeriodFrequency?: null | components["schemas"]["PayPeriodFrequency"];
             payPeriodAnchor?: null | components["schemas"]["LocalDate"];
+            /** Format: int32 */
+            holidayCalendarId?: null | number;
             activePremiumCodes?: null | string[];
             activeDifferentialCodes?: null | string[];
             /** Format: double */

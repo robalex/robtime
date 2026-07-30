@@ -75,5 +75,13 @@ public class PayRule
     // Overtime
     public OvertimeRule OvertimeRule { get; set; } = new OvertimeRule();
 
+    // Which of the client's HolidayCalendars this rule observes for DifferentialRule's
+    // DayScheduleMode.Holidays mode (see DifferentialDaySchedule.AppliesOn). Null means no calendar —
+    // Holidays-mode differentials simply never fire for this rule. Lives on PayRule rather than
+    // ClientSettings because a client can own several calendars (e.g. US Federal, California) and
+    // different rule sets may legitimately want different ones — the same reasoning already used for
+    // PayPeriodFrequency above.
+    public int? HolidayCalendarId { get; set; }
+
     public bool IsDeleted { get; set; }
 }
