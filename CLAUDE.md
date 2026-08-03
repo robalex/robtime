@@ -64,11 +64,6 @@ code isn't retroactively rewritten to match just because a rule was added after 
   types, depend on abstractions rather than concretions where it genuinely helps testability, small
   well-named methods over long ones.
 
-  *Currently out of compliance, not yet fixed:* all four existing endpoints
-  (`ClientEndpoints`/`EmployeeEndpoints`/`PayRuleEndpoints`/`PunchEndpoints`) inject `PayrollDbContext`
-  directly and call it inline. Flagged rather than silently left — ask before assuming whether/when
-  to refactor these versus applying the rule fresh starting with the next endpoint work.
-
 ## Architecture
 
 RobTime is a payroll time-calculation library: raw clock punches in, an itemized `PayResult` out.
