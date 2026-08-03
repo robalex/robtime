@@ -134,9 +134,48 @@ public class PersistenceModelTests
         Assert.NotEmpty(policy.GetDeclaredQueryFilters());
     }
 
+    [Fact]
+    public void PayrollEarningCodeMapping_HasUniqueLineKeyIndex_PartialOnNotDeleted()
+    {
+        // One earning code per (LineType, LineCode) per profile — soft-deleting a mapping must not
+        // permanently block recreating the same one, hence the partial filter.
+        using var ctx = NewContext();
+        var mapping = ctx.Model.FindEntityType(typeof(PayrollEarningCodeMapping))!;
+
+        var index = mapping.GetIndexes().Single(i =>
+            i.Properties.Select(p => p.Name).SequenceEqual(
+                new[] { "ClientId", "ProfileId", "LineType", "LineCode" }));
+
+        Assert.True(index.IsUnique);
+        Assert.Equal("is_deleted = false", index.GetFilter());
+    }
+
+    [Fact]
+    public void PayrollEmployeeIdentifier_HasTwoUniqueIndexes_BothPartialOnNotDeleted()
+    {
+        // Two independent guarantees: one identifier per employee per profile, and — the one that
+        // actually protects a paycheck — at most one employee per provider id within a profile, so
+        // two RobTime employees can never silently merge into one payroll payment.
+        using var ctx = NewContext();
+        var identifier = ctx.Model.FindEntityType(typeof(PayrollEmployeeIdentifier))!;
+
+        var byEmployee = identifier.GetIndexes().Single(i =>
+            i.Properties.Select(p => p.Name).SequenceEqual(new[] { "ProfileId", "EmployeeId" }));
+        var byExternalId = identifier.GetIndexes().Single(i =>
+            i.Properties.Select(p => p.Name).SequenceEqual(new[] { "ProfileId", "ExternalEmployeeId" }));
+
+        Assert.True(byEmployee.IsUnique);
+        Assert.Equal("is_deleted = false", byEmployee.GetFilter());
+        Assert.True(byExternalId.IsUnique);
+        Assert.Equal("is_deleted = false", byExternalId.GetFilter());
+    }
+
     [Theory]
     [InlineData(typeof(TimeCalculation.Model.DifferentialRule))]
     [InlineData(typeof(TimeCalculation.Model.HolidayCalendar))]
+    [InlineData(typeof(PayrollExportProfile))]
+    [InlineData(typeof(PayrollEarningCodeMapping))]
+    [InlineData(typeof(PayrollEmployeeIdentifier))]
     public void NewTenantScopedEntities_HaveQueryFilter(Type entityType)
     {
         using var ctx = NewContext();

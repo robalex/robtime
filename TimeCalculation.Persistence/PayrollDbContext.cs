@@ -51,6 +51,9 @@ public class PayrollDbContext : DbContext
     public DbSet<PunchChangeRequest> PunchChangeRequests => Set<PunchChangeRequest>();
     public DbSet<TimecardApproval> TimecardApprovals => Set<TimecardApproval>();
     public DbSet<PunchImportBatch> PunchImportBatches => Set<PunchImportBatch>();
+    public DbSet<PayrollExportProfile> PayrollExportProfiles => Set<PayrollExportProfile>();
+    public DbSet<PayrollEarningCodeMapping> PayrollEarningCodeMappings => Set<PayrollEarningCodeMapping>();
+    public DbSet<PayrollEmployeeIdentifier> PayrollEmployeeIdentifiers => Set<PayrollEmployeeIdentifier>();
 
     /// <summary>
     /// Snake-cases every generated identifier so columns match the already snake_cased table names
@@ -378,6 +381,64 @@ public class PayrollDbContext : DbContext
             b.HasIndex(i => new { i.ClientId, i.ImportedAt });
             b.HasOne<Client>().WithMany().HasForeignKey(i => i.ClientId).OnDelete(DeleteBehavior.Restrict);
             b.HasQueryFilter(i => i.ClientId == _tenantClientId);
+        });
+
+        model.Entity<PayrollExportProfile>(b =>
+        {
+            b.ToTable("payroll_export_profiles");
+            b.HasKey(p => p.Id);
+            b.HasOne<Client>().WithMany().HasForeignKey(p => p.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasQueryFilter("Tenant", p => p.ClientId == _tenantClientId);
+            b.HasQueryFilter("SoftDelete", p => !p.IsDeleted);
+        });
+
+        model.Entity<PayrollEarningCodeMapping>(b =>
+        {
+            b.ToTable("payroll_earning_code_mappings");
+            b.HasKey(m => m.Id);
+            b.HasOne<Client>().WithMany().HasForeignKey(m => m.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<PayrollExportProfile>().WithMany().HasForeignKey(m => m.ProfileId).OnDelete(DeleteBehavior.Restrict);
+
+            // Filtered on this entity's own ClientId, never through the ProfileId navigation — same
+            // reasoning EmployeePositionAssignmentEntity's own comment gives: the two are set from the
+            // same client at creation and never re-parented, so filtering the owned column directly
+            // stays sargable without depending on a join.
+            b.HasQueryFilter("Tenant", m => m.ClientId == _tenantClientId);
+            b.HasQueryFilter("SoftDelete", m => !m.IsDeleted);
+
+            // The export's hot read: "every mapping for this profile."
+            b.HasIndex(m => new { m.ClientId, m.ProfileId });
+
+            // One earning code per line kind per profile. Partial on is_deleted=false — without the
+            // filter, soft-deleting a mapping would permanently block recreating the same one.
+            b.HasIndex(m => new { m.ClientId, m.ProfileId, m.LineType, m.LineCode })
+                .IsUnique()
+                .HasFilter("is_deleted = false");
+        });
+
+        model.Entity<PayrollEmployeeIdentifier>(b =>
+        {
+            b.ToTable("payroll_employee_identifiers");
+            b.HasKey(i => i.Id);
+            b.HasOne<Client>().WithMany().HasForeignKey(i => i.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<PayrollExportProfile>().WithMany().HasForeignKey(i => i.ProfileId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Employee>().WithMany().HasForeignKey(i => i.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+            b.HasQueryFilter("Tenant", i => i.ClientId == _tenantClientId);
+            b.HasQueryFilter("SoftDelete", i => !i.IsDeleted);
+
+            b.HasIndex(i => new { i.ClientId, i.ProfileId });
+
+            // One identifier per employee per profile.
+            b.HasIndex(i => new { i.ProfileId, i.EmployeeId })
+                .IsUnique()
+                .HasFilter("is_deleted = false");
+
+            // The constraint that actually protects a paycheck: two RobTime employees can never map
+            // to the same provider id within one profile, which would otherwise silently merge two
+            // people's pay into one.
+            b.HasIndex(i => new { i.ProfileId, i.ExternalEmployeeId })
+                .IsUnique()
+                .HasFilter("is_deleted = false");
         });
     }
 }
