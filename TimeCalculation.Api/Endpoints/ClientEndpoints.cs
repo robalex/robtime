@@ -21,7 +21,7 @@ public static class ClientEndpoints
             .RequireAuthorization(AuthorizationPolicies.ClientAdmin);
     }
 
-    private static async Task<Results<Created<ClientResponse>, ValidationProblem>> CreateClient(
+    private static async Task<Results<Created<ClientResponse>, ValidationProblem, ProblemHttpResult>> CreateClient(
         CreateClientRequest request, ClaimsPrincipal user, ClientService service, CancellationToken ct)
     {
         var createdBy = user.FindFirst(TenantClaimTypes.Sub)?.Value ?? string.Empty;
@@ -31,6 +31,8 @@ public static class ClientEndpoints
             ServiceResultKind.Success => TypedResults.Created(
                 $"/clients/{result.Value!.Id}", ClientResponse.FromEntity(result.Value)),
             ServiceResultKind.ValidationFailed => TypedResults.ValidationProblem(result.ValidationErrors!),
+            ServiceResultKind.Conflict => TypedResults.Problem(
+                detail: result.Detail, statusCode: StatusCodes.Status409Conflict),
             _ => throw new InvalidOperationException(
                 $"Unexpected {nameof(ServiceResultKind)} '{result.Kind}' for client creation."),
         };

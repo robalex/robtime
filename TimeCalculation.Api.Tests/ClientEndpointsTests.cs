@@ -40,6 +40,22 @@ public class ClientEndpointsTests(ApiFixture fixture)
     }
 
     [Fact]
+    public async Task CreateClient_DuplicateName_Returns409Problem()
+    {
+        // Regression test: ClientEndpoints.CreateClient's switch previously had no case for
+        // ServiceResultKind.Conflict, so a duplicate name fell into the `_ => throw` branch and
+        // 500'd instead of returning the 409 ClientService.CreateAsync actually produces.
+        var name = $"Duplicate Co {Guid.NewGuid()}";
+        await CreateAsync(name);
+
+        var response = await fixture.SystemAdminClient.PostAsJsonAsync(
+            "/clients", new CreateClientRequest { Name = name }, TestJson.Options, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
     public async Task CreateClient_BlankName_Returns400ValidationProblem()
     {
         var request = new CreateClientRequest { Name = "" };

@@ -17,6 +17,17 @@ public class ClientService(PayrollDbContext db, IClock clock)
             return ServiceResult<Client>.ValidationFailed(errors);
         }
 
+        // Bypasses the default `c.Id == _tenantClientId` tenant filter deliberately, same reasoning
+        // as VisibleTo below: Create is SystemAdmin-only, and a SystemAdmin carries no
+        // custom:client_id claim, so that filter matches zero rows for every caller who can ever
+        // reach this method — checking against the unfiltered `db.Clients` is what makes the
+        // duplicate-name check see other clients at all.
+        if (await db.Clients.IgnoreQueryFilters()
+            .AnyAsync(c => !c.IsDeleted && c.Name.ToLower().Trim() == request.Name.ToLower().Trim(), ct))
+        {
+            return ServiceResult<Client>.Conflict($"A client with name '{request.Name}' already exists.");
+        }
+
         var client = new Client
         {
             Name = request.Name,
