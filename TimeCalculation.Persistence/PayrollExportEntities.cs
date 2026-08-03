@@ -1,3 +1,4 @@
+using NodaTime;
 using TimeCalculation.Model;
 
 namespace TimeCalculation.Persistence;
@@ -133,4 +134,40 @@ public class PayrollEmployeeIdentifier
     public int EmployeeId { get; set; }
     public string ExternalEmployeeId { get; set; } = string.Empty;
     public bool IsDeleted { get; set; }
+}
+
+/// <summary>
+/// One payroll export run — the historical record of what was actually generated and (once
+/// downloaded) handed to a provider. The generated file is stored verbatim on <see cref="FileContent"/>
+/// rather than regenerated on request: like <c>TimecardApproval.SnapshotJson</c> freezing pay so a
+/// later engine change can never retroactively alter what was already paid, storing the bytes here
+/// freezes the export so a later mapping/identifier edit can't silently change what "download this
+/// batch again" returns. Typical file sizes are KB, not MB — a bytea column costs nothing worth
+/// avoiding for that guarantee.
+///
+/// Follows <see cref="PunchImportBatch"/>'s shape, not the standard IsDeleted pattern the other three
+/// Payroll* entities use: a batch is never truly removed, only voided. <see cref="VoidedAt"/> being
+/// null is "currently valid" — same UnapprovedAt-style naming <see cref="TimecardApproval"/> already
+/// uses for "this row is superseded but stays in history." Re-exporting the same
+/// (ProfileId, PeriodStart, PeriodEnd) is hard-blocked while a non-voided batch exists for it (a
+/// partial unique index, not just a service-level check) — double-paying a period is not a mistake
+/// this schema lets you make by accident.
+/// </summary>
+public class PayrollExportBatch
+{
+    public int Id { get; set; }
+    public int ClientId { get; set; }
+    public int ProfileId { get; set; }
+    public LocalDate PeriodStart { get; set; }
+    public LocalDate PeriodEnd { get; set; }
+    public int EmployeeCount { get; set; }
+    public int RowCount { get; set; }
+    public decimal TotalAmount { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public byte[] FileContent { get; set; } = [];
+    public string ExportedByUserId { get; set; } = string.Empty;
+    public Instant ExportedAt { get; set; }
+
+    public string? VoidedByUserId { get; set; }
+    public Instant? VoidedAt { get; set; }
 }

@@ -95,6 +95,8 @@ public class PersistenceModelTests
     [InlineData(typeof(PayRuleAssignmentEntity), "EmployeeId", typeof(TimeCalculation.Model.Employee))]
     [InlineData(typeof(EmployeePositionAssignmentEntity), "ClientId", typeof(TimeCalculation.Model.Client))]
     [InlineData(typeof(EmployeePositionAssignmentEntity), "EmployeeId", typeof(TimeCalculation.Model.Employee))]
+    [InlineData(typeof(PayrollExportBatch), "ClientId", typeof(TimeCalculation.Model.Client))]
+    [InlineData(typeof(PayrollExportBatch), "ProfileId", typeof(PayrollExportProfile))]
     public void OwnershipColumns_HaveEnforcedForeignKeys(Type dependent, string fkProperty, Type principal)
     {
         // These were plain int columns with no constraint, so nothing stopped an orphaned row.
@@ -170,12 +172,43 @@ public class PersistenceModelTests
         Assert.Equal("is_deleted = false", byExternalId.GetFilter());
     }
 
+    [Fact]
+    public void PayrollExportBatch_HasUniquePeriodIndex_PartialOnNotVoided()
+    {
+        // The guard that prevents double-paying a period: at most one non-voided batch per
+        // (ProfileId, PeriodStart, PeriodEnd). Partial on voided_at IS NULL, not is_deleted = false —
+        // this entity has no IsDeleted column at all (see its own doc comment); a batch is voided,
+        // never soft-deleted, and voiding is exactly what should free the period up to re-export.
+        using var ctx = NewContext();
+        var batch = ctx.Model.FindEntityType(typeof(PayrollExportBatch))!;
+
+        var index = batch.GetIndexes().Single(i =>
+            i.Properties.Select(p => p.Name).SequenceEqual(
+                new[] { "ProfileId", "PeriodStart", "PeriodEnd" }));
+
+        Assert.True(index.IsUnique);
+        Assert.Equal("voided_at IS NULL", index.GetFilter());
+    }
+
+    [Fact]
+    public void PayrollExportBatch_HasNoSoftDeleteFilter_OnlyTenant()
+    {
+        // Unlike the other three Payroll* entities, this one has exactly one declared filter —
+        // there's no IsDeleted column to filter on, so a second named "SoftDelete" filter would be
+        // meaningless. Pins the deliberate deviation so it doesn't look like an oversight later.
+        using var ctx = NewContext(tenant: 42);
+        var batch = ctx.Model.FindEntityType(typeof(PayrollExportBatch))!;
+
+        Assert.Single(batch.GetDeclaredQueryFilters());
+    }
+
     [Theory]
     [InlineData(typeof(TimeCalculation.Model.DifferentialRule))]
     [InlineData(typeof(TimeCalculation.Model.HolidayCalendar))]
     [InlineData(typeof(PayrollExportProfile))]
     [InlineData(typeof(PayrollEarningCodeMapping))]
     [InlineData(typeof(PayrollEmployeeIdentifier))]
+    [InlineData(typeof(PayrollExportBatch))]
     public void NewTenantScopedEntities_HaveQueryFilter(Type entityType)
     {
         using var ctx = NewContext();

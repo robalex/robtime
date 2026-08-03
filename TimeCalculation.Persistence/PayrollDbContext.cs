@@ -54,6 +54,7 @@ public class PayrollDbContext : DbContext
     public DbSet<PayrollExportProfile> PayrollExportProfiles => Set<PayrollExportProfile>();
     public DbSet<PayrollEarningCodeMapping> PayrollEarningCodeMappings => Set<PayrollEarningCodeMapping>();
     public DbSet<PayrollEmployeeIdentifier> PayrollEmployeeIdentifiers => Set<PayrollEmployeeIdentifier>();
+    public DbSet<PayrollExportBatch> PayrollExportBatches => Set<PayrollExportBatch>();
 
     /// <summary>
     /// Snake-cases every generated identifier so columns match the already snake_cased table names
@@ -439,6 +440,32 @@ public class PayrollDbContext : DbContext
             b.HasIndex(i => new { i.ProfileId, i.ExternalEmployeeId })
                 .IsUnique()
                 .HasFilter("is_deleted = false");
+        });
+
+        model.Entity<PayrollExportBatch>(b =>
+        {
+            b.ToTable("payroll_export_batches");
+            b.HasKey(x => x.Id);
+            b.HasOne<Client>().WithMany().HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<PayrollExportProfile>().WithMany().HasForeignKey(x => x.ProfileId).OnDelete(DeleteBehavior.Restrict);
+
+            // No "SoftDelete" named filter — this entity has no IsDeleted column. A batch is never
+            // truly removed, only voided (VoidedAt), same reasoning PunchImportBatch's own block
+            // gives for the identical shape.
+            b.HasQueryFilter(x => x.ClientId == _tenantClientId);
+
+            b.Property(x => x.TotalAmount).HasPrecision(19, 4);
+
+            // History lookup: "this profile's export runs, newest first."
+            b.HasIndex(x => new { x.ClientId, x.ProfileId, x.ExportedAt });
+
+            // The guard that actually prevents double-paying a period: at most one non-voided batch
+            // per (ProfileId, PeriodStart, PeriodEnd). The service checks this too, for a real error
+            // message, but this index is what makes it true under concurrent requests, not just the
+            // common case.
+            b.HasIndex(x => new { x.ProfileId, x.PeriodStart, x.PeriodEnd })
+                .IsUnique()
+                .HasFilter("voided_at IS NULL");
         });
     }
 }

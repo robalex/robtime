@@ -169,6 +169,7 @@ builder.Services.AddScoped<ClientPremiumPolicyService>();
 builder.Services.AddScoped<PayrollExportProfileService>();
 builder.Services.AddScoped<PayrollEarningCodeMappingService>();
 builder.Services.AddScoped<PayrollEmployeeIdentifierService>();
+builder.Services.AddScoped<PayrollExportService>();
 builder.Services.AddScoped<CurrentUserService>();
 // No DB dependency (reads a static in-engine registry), so Singleton — no PayrollDbContext lifetime
 // to match, and there's nothing about it that needs a fresh instance per request.
@@ -343,6 +344,7 @@ app.MapClientPremiumPolicyEndpoints();
 app.MapPayrollExportProfileEndpoints();
 app.MapPayrollEarningCodeMappingEndpoints();
 app.MapPayrollEmployeeIdentifierEndpoints();
+app.MapPayrollExportBatchEndpoints();
 app.MapPunchEndpoints();
 app.MapPunchChangeRequestEndpoints();
 app.MapPunchImportEndpoints();
