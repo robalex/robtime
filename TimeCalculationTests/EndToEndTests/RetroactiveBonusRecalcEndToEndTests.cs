@@ -31,7 +31,7 @@ public class RetroactiveBonusRecalcEndToEndTests : EndToEndTests
         var weeks = BuildWeeks(punches, ctx);
         Assert.Equal(2, weeks.Count);
 
-        var result = RetroactiveBonusRecalculator.Recalculate(400m, weeks, new FederalOvertimeRule(), emp.MinimumWage);
+        var result = RetroactiveBonusRecalculator.Recalculate(400m, weeks, new FederalOvertimeRule(), _ => emp.MinimumWage);
 
         // Each week: 50 hrs (40 reg + 10 OT), equal hours -> $200 bonus/week.
         // Rate increase = 200/50 = $4/hr; additional OT premium = 10×0.5×4 = $20/week -> $40 total.

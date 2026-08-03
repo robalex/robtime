@@ -26,7 +26,7 @@ public class RegularRateCalculatorTests
     public void SingleRate_RegularRateEqualsThatRate()
     {
         var week = WeekOf(new Shift { PunchPairs = [Pair(9, 17, 20m)] });   // 8 hrs @ $20
-        var result = RegularRateCalculator.Calculate(week, 15m);
+        var result = RegularRateCalculator.Calculate(week, _ => 15m);
 
         Assert.Equal(160m, result.StraightTimeEarnings);
         Assert.Equal(8m, result.TotalHours);
@@ -38,7 +38,7 @@ public class RegularRateCalculatorTests
     {
         // 8 hrs @ $20 = 160, 2 hrs @ $30 = 60 → (160+60)/10 = 22
         var week = WeekOf(new Shift { PunchPairs = [Pair(9, 17, 20m), Pair(18, 20, 30m)] });
-        var result = RegularRateCalculator.Calculate(week, 15m);
+        var result = RegularRateCalculator.Calculate(week, _ => 15m);
 
         Assert.Equal(10m, result.TotalHours);
         Assert.Equal(22m, result.RegularRate);
@@ -51,7 +51,7 @@ public class RegularRateCalculatorTests
         var bonus = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 2, 12, 0), PunchKind.FixedDollar, _emp)
             with { Amount = 100m, BonusKind = BonusKind.NonDiscretionary };
         var shift = new Shift { PunchPairs = [Pair(9, 19, 20m)], FixedEntries = [bonus] };
-        var result = RegularRateCalculator.Calculate(WeekOf(shift), 15m);
+        var result = RegularRateCalculator.Calculate(WeekOf(shift), _ => 15m);
 
         Assert.Equal(100m, result.NonDiscretionaryBonuses);
         Assert.Equal(30m, result.RegularRate);
@@ -63,7 +63,7 @@ public class RegularRateCalculatorTests
         var bonus = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 2, 12, 0), PunchKind.FixedDollar, _emp)
             with { Amount = 100m, BonusKind = BonusKind.Discretionary };
         var shift = new Shift { PunchPairs = [Pair(9, 19, 20m)], FixedEntries = [bonus] };
-        var result = RegularRateCalculator.Calculate(WeekOf(shift), 15m);
+        var result = RegularRateCalculator.Calculate(WeekOf(shift), _ => 15m);
 
         Assert.Equal(0m, result.NonDiscretionaryBonuses);
         Assert.Equal(20m, result.RegularRate);   // unchanged
@@ -78,7 +78,7 @@ public class RegularRateCalculatorTests
             PunchPairs = [Pair(9, 19, 20m)],
             Differentials = [new AppliedDifferential { Code = "NIGHT", Hours = 5m, Amount = 50m }],
         };
-        var result = RegularRateCalculator.Calculate(WeekOf(shift), 15m);
+        var result = RegularRateCalculator.Calculate(WeekOf(shift), _ => 15m);
 
         Assert.Equal(50m, result.Differentials);
         Assert.Equal(25m, result.RegularRate);
@@ -87,7 +87,7 @@ public class RegularRateCalculatorTests
     [Fact]
     public void NoHours_RegularRateIsZero()
     {
-        var result = RegularRateCalculator.Calculate(WeekOf(), 15m);
+        var result = RegularRateCalculator.Calculate(WeekOf(), _ => 15m);
         Assert.Equal(0m, result.RegularRate);
         Assert.Equal(0m, result.TotalHours);
     }
@@ -99,7 +99,7 @@ public class RegularRateCalculatorTests
         var leave = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 2, 18, 0), PunchKind.FixedHours, _emp)
             with { Hours = 5m };
         var shift = new Shift { PunchPairs = [Pair(9, 17, 20m)], FixedEntries = [leave] };
-        var result = RegularRateCalculator.Calculate(WeekOf(shift), 15m);
+        var result = RegularRateCalculator.Calculate(WeekOf(shift), _ => 15m);
 
         Assert.Equal(8m, result.TotalHours);
         Assert.Equal(0m, result.FixedHoursEarnings);
@@ -113,7 +113,7 @@ public class RegularRateCalculatorTests
         var fixedHours = TestEntityCreator.CreateTestPunch(Instant.FromUtc(2023, 1, 2, 20, 0), PunchKind.FixedHours, _emp)
             with { Hours = 5m, CountsTowardRegularRate = true };
         var shift = new Shift { PunchPairs = [Pair(9, 19, 20m)], FixedEntries = [fixedHours] };
-        var result = RegularRateCalculator.Calculate(WeekOf(shift), 15m);
+        var result = RegularRateCalculator.Calculate(WeekOf(shift), _ => 15m);
 
         Assert.Equal(15m, result.TotalHours);
         Assert.Equal(75m, result.FixedHoursEarnings);

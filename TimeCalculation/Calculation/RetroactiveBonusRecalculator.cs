@@ -21,8 +21,12 @@ public record RetroBonusResult
 /// </summary>
 public static class RetroactiveBonusRecalculator
 {
+    /// <param name="fixedHoursRate">Passed straight through to <see cref="RegularRateCalculator"/> —
+    /// must be the same resolver the original calculation used, or the recomputed base rate would
+    /// value paid leave differently than the pay it is adjusting.</param>
     public static RetroBonusResult Recalculate(
-        decimal bonusAmount, IReadOnlyList<Workweek> coveredWeeks, IOvertimeRule overtimeRule, decimal minimumWage)
+        decimal bonusAmount, IReadOnlyList<Workweek> coveredWeeks, IOvertimeRule overtimeRule,
+        Func<Punch, decimal> fixedHoursRate)
     {
         var totalHours = coveredWeeks.Sum(w => w.TotalHours);
         var perWeek = new List<WeekRetroAdjustment>(coveredWeeks.Count);
@@ -30,7 +34,7 @@ public static class RetroactiveBonusRecalculator
 
         foreach (var week in coveredWeeks)
         {
-            var baseRate = RegularRateCalculator.Calculate(week, minimumWage);
+            var baseRate = RegularRateCalculator.Calculate(week, fixedHoursRate);
             if (baseRate.TotalHours <= 0 || totalHours <= 0)
             {
                 perWeek.Add(new WeekRetroAdjustment(week.StartDate, 0, 0));

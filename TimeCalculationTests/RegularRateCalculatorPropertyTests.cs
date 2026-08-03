@@ -108,7 +108,7 @@ public class RegularRateCalculatorPropertyTests
                 .Select(p => p.Rate ?? 0m)
                 .ToList();
 
-            var result = RegularRateCalculator.Calculate(week, MinimumWage);
+            var result = RegularRateCalculator.Calculate(week, _ => MinimumWage);
 
             // With no bonuses, differentials or fixed entries in play, the rate is a pure weighted
             // average and cannot escape the range of its inputs.
@@ -140,8 +140,8 @@ public class RegularRateCalculatorPropertyTests
                 })],
             };
 
-            var baseline = RegularRateCalculator.Calculate(week, MinimumWage);
-            var actual = RegularRateCalculator.Calculate(scaled, MinimumWage);
+            var baseline = RegularRateCalculator.Calculate(week, _ => MinimumWage);
+            var actual = RegularRateCalculator.Calculate(scaled, _ => MinimumWage);
 
             AssertClose(baseline.RegularRate * factor, actual.RegularRate, $"scaling by {factor}");
             AssertClose(baseline.TotalHours, actual.TotalHours, "hours must not move when only rates scale");
@@ -161,9 +161,9 @@ public class RegularRateCalculatorPropertyTests
             var week = GenerateWeek(rng);
             decimal bonus = rng.Next(1, 401) * 0.25m;
 
-            var baseline = RegularRateCalculator.Calculate(week, MinimumWage);
+            var baseline = RegularRateCalculator.Calculate(week, _ => MinimumWage);
             var withBonus = RegularRateCalculator.Calculate(
-                WithFirstShiftEntries(week, [FixedDollar(bonus, BonusKind.NonDiscretionary)]), MinimumWage);
+                WithFirstShiftEntries(week, [FixedDollar(bonus, BonusKind.NonDiscretionary)]), _ => MinimumWage);
 
             AssertClose(
                 baseline.RegularRate + (bonus / baseline.TotalHours), withBonus.RegularRate,
@@ -176,7 +176,7 @@ public class RegularRateCalculatorPropertyTests
 
     [Theory]
     [InlineData(1)] [InlineData(42)] [InlineData(99)] [InlineData(2024)] [InlineData(31337)]
-    public void AddingCountingFixedHours_MovesRateTowardMinimumWage_ByTheDocumentedFormula(int seed)
+    public void AddingCountingFixedHours_MovesRateTowardTheResolvedLeaveRate(int seed)
     {
         var rng = new Random(seed);
 
@@ -185,17 +185,25 @@ public class RegularRateCalculatorPropertyTests
             var week = GenerateWeek(rng);
             decimal extraHours = rng.Next(1, 17) * 0.25m;
 
-            var baseline = RegularRateCalculator.Calculate(week, MinimumWage);
-            var withEntry = RegularRateCalculator.Calculate(
-                WithFirstShiftEntries(week, [FixedHours(extraHours, countsTowardRegularRate: true)]), MinimumWage);
+            // Deliberately NOT MinimumWage. Paid leave is valued by the caller's resolver, so a
+            // resolver returning some other rate must be the rate that shows up in the result — if
+            // the calculator ever fell back to minimum wage internally, this would catch it, which
+            // a resolver returning MinimumWage could not.
+            decimal leaveRate = rng.Next(80, 401) * 0.25m;
 
-            // Documented behaviour: hours join the denominator, pay joins the numerator at minimum
-            // wage — so the result is the blend of the old rate and minimum wage.
-            var expectedNumerator = (baseline.RegularRate * baseline.TotalHours) + (extraHours * MinimumWage);
+            var baseline = RegularRateCalculator.Calculate(week, _ => leaveRate);
+            var withEntry = RegularRateCalculator.Calculate(
+                WithFirstShiftEntries(week, [FixedHours(extraHours, countsTowardRegularRate: true)]),
+                _ => leaveRate);
+
+            // Hours join the denominator, pay joins the numerator at the resolved rate — so the
+            // result is the blend of the old rate and that rate.
+            var expectedNumerator = (baseline.RegularRate * baseline.TotalHours) + (extraHours * leaveRate);
             var expectedHours = baseline.TotalHours + extraHours;
 
             AssertClose(expectedHours, withEntry.TotalHours, $"{extraHours}h of counting FixedHours");
-            AssertClose(expectedNumerator / expectedHours, withEntry.RegularRate, $"{extraHours}h at minimum wage");
+            AssertClose(
+                expectedNumerator / expectedHours, withEntry.RegularRate, $"{extraHours}h at ${leaveRate}");
         }
     }
 
@@ -223,8 +231,8 @@ public class RegularRateCalculatorPropertyTests
             };
             days[0] = days[0] with { Shifts = shifts };
 
-            var baseline = RegularRateCalculator.Calculate(week, MinimumWage);
-            var withDifferential = RegularRateCalculator.Calculate(week with { Days = days }, MinimumWage);
+            var baseline = RegularRateCalculator.Calculate(week, _ => MinimumWage);
+            var withDifferential = RegularRateCalculator.Calculate(week with { Days = days }, _ => MinimumWage);
 
             // Counted exactly once, on the one shift carrying it — a day holding several shifts must
             // not multiply it, which is the classic shape of a misplaced accumulation.
@@ -248,7 +256,7 @@ public class RegularRateCalculatorPropertyTests
         for (int i = 0; i < 100; i++)
         {
             var week = GenerateWeek(rng);
-            var baseline = RegularRateCalculator.Calculate(week, MinimumWage);
+            var baseline = RegularRateCalculator.Calculate(week, _ => MinimumWage);
 
             // Each of these is documented as excluded, and "excluded" has to mean the whole result is
             // byte-identical — not merely that the rate happens to land in the same place.
@@ -260,7 +268,7 @@ public class RegularRateCalculatorPropertyTests
 
             foreach (var entry in inertEntries)
             {
-                var actual = RegularRateCalculator.Calculate(WithFirstShiftEntries(week, [entry]), MinimumWage);
+                var actual = RegularRateCalculator.Calculate(WithFirstShiftEntries(week, [entry]), _ => MinimumWage);
                 Assert.True(
                     baseline == actual,
                     $"{entry.Kind}/{entry.BonusKind}/counts={entry.CountsTowardRegularRate} changed the result: " +
@@ -278,7 +286,7 @@ public class RegularRateCalculatorPropertyTests
         for (int i = 0; i < 100; i++)
         {
             var week = GenerateWeek(rng);
-            var baseline = RegularRateCalculator.Calculate(week, MinimumWage);
+            var baseline = RegularRateCalculator.Calculate(week, _ => MinimumWage);
 
             // An In with no Out (someone forgot to clock out) has no knowable duration. It must not
             // reach the denominator — an orphan silently contributing 0 hours at a real rate would
@@ -295,7 +303,7 @@ public class RegularRateCalculatorPropertyTests
             shifts[0] = shifts[0] with { PunchPairs = [.. shifts[0].PunchPairs, orphan] };
             days[0] = days[0] with { Shifts = shifts };
 
-            var actual = RegularRateCalculator.Calculate(week with { Days = days }, MinimumWage);
+            var actual = RegularRateCalculator.Calculate(week with { Days = days }, _ => MinimumWage);
 
             Assert.True(
                 baseline == actual,
@@ -313,7 +321,7 @@ public class RegularRateCalculatorPropertyTests
         for (int i = 0; i < 100; i++)
         {
             var week = GenerateWeek(rng);
-            var baseline = RegularRateCalculator.Calculate(week, MinimumWage);
+            var baseline = RegularRateCalculator.Calculate(week, _ => MinimumWage);
 
             // Every pair becomes two adjacent halves at its own rate. Same hours, same money, far
             // more objects for the traversal to walk — a boundary split (PunchPairer does this for
@@ -329,7 +337,7 @@ public class RegularRateCalculatorPropertyTests
                 })],
             };
 
-            var actual = RegularRateCalculator.Calculate(split, MinimumWage);
+            var actual = RegularRateCalculator.Calculate(split, _ => MinimumWage);
 
             AssertClose(baseline.TotalHours, actual.TotalHours, "hours after splitting every pair");
             AssertClose(baseline.RegularRate, actual.RegularRate, "rate after splitting every pair");
@@ -345,7 +353,7 @@ public class RegularRateCalculatorPropertyTests
         for (int i = 0; i < 100; i++)
         {
             var week = GenerateWeek(rng);
-            var baseline = RegularRateCalculator.Calculate(week, MinimumWage);
+            var baseline = RegularRateCalculator.Calculate(week, _ => MinimumWage);
 
             var reversed = week with
             {
@@ -354,7 +362,7 @@ public class RegularRateCalculatorPropertyTests
                     .Reverse()],
             };
 
-            var actual = RegularRateCalculator.Calculate(reversed, MinimumWage);
+            var actual = RegularRateCalculator.Calculate(reversed, _ => MinimumWage);
 
             Assert.True(
                 baseline == actual,

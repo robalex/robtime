@@ -11,8 +11,8 @@ namespace TimeCalculation.Calculation;
 /// Composition per shift (FLSA premium view, no double-counting):
 ///   Regular          = one line per punch pair: that pair's hours × its own rate
 ///   + Differential(s)= each AppliedDifferential
-///   + Bonus(es)      = each FixedDollar entry (both bonus kinds are paid)
-///   + FixedHours     = flat-hour entries, valued at minimum wage (simplification)
+///   + Bonus(es)      = each FixedDollar entry (both bonus kinds are paid), Code = the BonusKind
+///   + FixedHours     = flat-hour entries, valued by the caller's fixedHoursRate resolver
 ///   + OvertimePremium= this pair's share of the week's OT/DT premium (see attribution below);
 ///                      split into separate OVERTIME/DOUBLETIME lines when a pair straddles both
 ///   + Premium(s)     = meal/rest statutory penalties actually paid
@@ -33,12 +33,16 @@ namespace TimeCalculation.Calculation;
 /// </summary>
 public static class PaySummarizer
 {
+    /// <param name="fixedHoursRate">Resolves what one FixedHours hour is worth for a given entry —
+    /// in the real pipeline, the employee's effective rate at that instant. Must be the same resolver
+    /// handed to <see cref="RegularRateCalculator.Calculate"/> for this week, or the line items and
+    /// the regular rate would disagree about the value of paid leave.</param>
     public static WorkweekPay Summarize(
         Workweek week,
         IReadOnlyList<Shift> premiumEnrichedShifts,
         RegularRateResult regularRate,
         OvertimeResult overtime,
-        decimal minimumWage)
+        Func<Punch, decimal> fixedHoursRate)
     {
         var remainingRegular = overtime.Allocation.RegularHours;
         var remainingOvertime = overtime.Allocation.OvertimeHours;
@@ -139,6 +143,11 @@ public static class PaySummarizer
                     lines.Add(new PayLineItem
                     {
                         Type = PayLineType.Bonus,
+                        // The kind is structured, not just prose in the Description: a consumer keying
+                        // on (Type, Code) — payroll export maps earning codes that way — otherwise
+                        // cannot tell a discretionary bonus from a non-discretionary one, and the two
+                        // are treated differently under §778 and often paid under different codes.
+                        Code = entry.BonusKind?.ToString() ?? string.Empty,
                         Description = $"Bonus ({entry.BonusKind})",
                         Amount = entry.Amount ?? 0,
                         ShiftDate = shift.ShiftDate,
@@ -148,13 +157,14 @@ public static class PaySummarizer
                 else if (entry.Kind == PunchKind.FixedHours)
                 {
                     var hrs = entry.Hours ?? 0;
+                    var leaveRate = fixedHoursRate(entry);
                     lines.Add(new PayLineItem
                     {
                         Type = PayLineType.FixedHours,
                         Description = "Fixed hours",
                         Hours = hrs,
-                        Amount = hrs * minimumWage,
-                        BaseRate = minimumWage,
+                        Amount = hrs * leaveRate,
+                        BaseRate = leaveRate,
                         Multiplier = 1.0m,
                         ShiftDate = shift.ShiftDate,
                         AnchorPunchId = shift.AnchorPunchId,

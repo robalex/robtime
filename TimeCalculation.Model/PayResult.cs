@@ -25,8 +25,11 @@ public record PayLineItem
     public PayLineType Type { get; init; }
 
     /// <summary>Structured identifier distinguishing multiple lines of the same Type on one
-    /// shift — the differential/premium rule code, or "OVERTIME"/"DOUBLETIME" for the two possible
-    /// OvertimePremium lines. Empty for Regular/Bonus/FixedHours, where Type alone is unambiguous.</summary>
+    /// shift — the differential/premium rule code, "OVERTIME"/"DOUBLETIME" for the two possible
+    /// OvertimePremium lines, or the <see cref="BonusKind"/> name for a Bonus (the two kinds are
+    /// treated differently under §778 and are often paid under different earning codes, so the
+    /// distinction has to survive as data rather than only as prose in Description). Empty for
+    /// Regular/FixedHours, where Type alone is unambiguous.</summary>
     public string Code { get; init; } = string.Empty;
 
     public string Description { get; init; } = string.Empty;

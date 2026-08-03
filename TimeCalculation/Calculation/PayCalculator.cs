@@ -86,7 +86,13 @@ public static class PayCalculator
         PipelineContext ctx,
         Func<Shift, IReadOnlyList<OverrideKind>>? overridesForShift)
     {
-        var regularRate = RegularRateCalculator.Calculate(week, ctx.Employee.MinimumWage);
+        // Paid leave is worth the employee's own effective rate at that instant, not minimum wage.
+        // GetRateAt's own fallback chain ends at Employee.MinimumWage, so an employee with no
+        // position assignment still resolves to exactly what this used to hardcode. Shared by the
+        // regular-rate numerator and the line item below so the two can never disagree.
+        Func<Punch, decimal> fixedHoursRate = entry => ctx.GetRateAt(entry.EffectiveTime, entry.PositionId);
+
+        var regularRate = RegularRateCalculator.Calculate(week, fixedHoursRate);
 
         var overtimeRule = OvertimeRuleFactory.FromConfig(ctx.GetRuleAt(week.StartInstant).OvertimeRule);
         var overtime = OvertimeCalculator.Calculate(week, overtimeRule, regularRate.RegularRate);
@@ -96,6 +102,6 @@ public static class PayCalculator
             weekShifts, ctx, _ => regularRate.RegularRate, overridesForShift);
 
         return PaySummarizer.Summarize(
-            week, shiftsWithPremiums, regularRate, overtime, ctx.Employee.MinimumWage);
+            week, shiftsWithPremiums, regularRate, overtime, fixedHoursRate);
     }
 }

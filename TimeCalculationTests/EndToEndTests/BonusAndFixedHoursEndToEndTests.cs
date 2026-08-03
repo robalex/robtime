@@ -48,28 +48,57 @@ public class BonusAndFixedHoursEndToEndTests : EndToEndTests
         Assert.Equal(100m, discretionary.LineItems.Single(l => l.Code == "OVERTIME").Amount);
         Assert.Equal(1200m, discretionary.GrossPay);
         Assert.Contains(discretionary.LineItems, l => l.Type == PayLineType.Bonus && l.Amount == 100m);
+
+        // The kind survives as structured data on Code, not only as prose in Description. Two
+        // bonuses of identical Type and Amount are otherwise indistinguishable to a consumer keying
+        // on (Type, Code) — payroll export maps earning codes exactly that way, and the two kinds
+        // are commonly paid under different codes.
+        Assert.Equal(
+            nameof(BonusKind.NonDiscretionary),
+            nonDiscretionary.LineItems.Single(l => l.Type == PayLineType.Bonus).Code);
+        Assert.Equal(
+            nameof(BonusKind.Discretionary),
+            discretionary.LineItems.Single(l => l.Type == PayLineType.Bonus).Code);
     }
 
     [Fact]
     public void FixedHours_CountsTowardRegularRate_ChangesOvertimePremium_EndToEnd()
     {
-        // 45 clock hrs @ $20 (5 OT hrs, federal). Plus a 5-hr FixedHours entry valued at a
-        // minimum wage ($30) higher than the clock rate. With the flag off, it's excluded from
-        // RROP entirely; with it on, it raises the RROP (and thus the OT premium) — proving the
-        // flag actually reaches the regular-rate calculation through the whole pipeline.
-        var emp = new Employee { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 30m };
-        var pos = new Position { Id = 1, BaseRate = 20m };
+        // 45 clock hrs @ $20 (5 OT hrs, federal). Plus a 5-hr FixedHours entry stamped with a
+        // SECOND position paying $30, so paid leave is genuinely worth more per hour than the clock
+        // work. With the flag off it's excluded from RROP entirely; with it on it raises the RROP
+        // (and thus the OT premium) — proving the flag actually reaches the regular-rate
+        // calculation through the whole pipeline.
+        //
+        // The rate separation used to come from setting MinimumWage above the clock rate, because
+        // FixedHours was hardcoded to minimum wage. Now that leave is valued at the employee's own
+        // effective rate, minimum wage no longer creates any separation — a distinct position does,
+        // and it additionally proves GetRateAt honours the punch's PositionId override.
+        var emp = new Employee { Id = 1, HomeTimeZoneId = "UTC", MinimumWage = 7.25m };
+        var clockPos = new Position { Id = 1, BaseRate = 20m };
+        var leavePos = new Position { Id = 2, BaseRate = 30m };
         var ctx = new PipelineContext(emp,
             [new PayRuleAssignment(new PayRule(), new LocalDate(2000, 1, 1))],
-            [new EmployeePositionAssignment(pos, new LocalDate(2000, 1, 1))]);
+            [
+                new EmployeePositionAssignment(clockPos, new LocalDate(2000, 1, 1)),
+                new EmployeePositionAssignment(leavePos, new LocalDate(2000, 1, 1)),
+            ]);
 
         List<Punch> BuildPunches(bool countsTowardRegularRate)
         {
             var punches = new List<Punch>();
-            for (int d = 2; d <= 6; d++) { punches.Add(In(emp, At(d, 8))); punches.Add(Out(emp, At(d, 17))); }
+            // Both positions are effective over the same dates, so every punch names its own —
+            // without that the clock pairs would resolve ambiguously to whichever assignment sorts
+            // first, which is how this test first failed.
+            for (int d = 2; d <= 6; d++)
+            {
+                punches.Add(In(emp, At(d, 8), clockPos.Id));
+                punches.Add(Out(emp, At(d, 17), clockPos.Id));
+            }
+
             punches.Add(TestEntityCreator.CreateTestPunch(At(4, 12), PunchKind.FixedHours, emp)
                 with
-            { Hours = 5m, CountsTowardRegularRate = countsTowardRegularRate });
+            { Hours = 5m, CountsTowardRegularRate = countsTowardRegularRate, PositionId = leavePos.Id });
             return punches;
         }
 

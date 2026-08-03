@@ -12,13 +12,17 @@ namespace TimeCalculation.Calculation;
 /// premiums (statutory penalties) are not part of Differentials and never enter here.
 ///
 /// FixedHours entries with Punch.CountsTowardRegularRate = true contribute their hours to the
-/// denominator and their pay (at minimumWage) to the numerator — matching how PaySummarizer
-/// values these entries. Entries with the flag false (the default, e.g. paid leave) are excluded
-/// entirely: they are not "hours worked" and must not dilute or inflate the rate.
+/// denominator and their pay to the numerator — valued by <paramref name="fixedHoursRate"/>, the
+/// same resolver PaySummarizer uses for the corresponding line item, so the two can never disagree
+/// about what an hour of paid leave was worth. Entries with the flag false (the default, e.g. paid
+/// leave) are excluded entirely: they are not "hours worked" and must not dilute or inflate the rate.
 /// </summary>
 public static class RegularRateCalculator
 {
-    public static RegularRateResult Calculate(Workweek week, decimal minimumWage)
+    /// <param name="fixedHoursRate">Resolves what one FixedHours hour is worth for a given entry —
+    /// in the real pipeline, the employee's effective rate at that instant. Required rather than
+    /// defaulted: valuing paid leave is a pay decision, and a wrong default here silently underpays.</param>
+    public static RegularRateResult Calculate(Workweek week, Func<Punch, decimal> fixedHoursRate)
     {
         decimal straight = 0, hours = 0, differentials = 0, bonuses = 0, fixedHoursEarnings = 0;
 
@@ -43,7 +47,7 @@ public static class RegularRateCalculator
                 {
                     var entryHours = entry.Hours ?? 0;
                     hours += entryHours;
-                    fixedHoursEarnings += entryHours * minimumWage;
+                    fixedHoursEarnings += entryHours * fixedHoursRate(entry);
                 }
             }
         }
