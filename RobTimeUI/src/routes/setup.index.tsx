@@ -48,6 +48,12 @@ const AREAS = [
     visible: can.manageClientPremiumPolicies,
   },
   {
+    to: '/setup/payrollexportprofiles',
+    title: 'Payroll export',
+    description: 'Map earning codes and employee identifiers, then export approved periods for payroll.',
+    visible: can.managePayrollExport,
+  },
+  {
     to: '/setup/stateminimumwages',
     title: 'State minimum wages',
     description: 'Reference rates shared across every client, not specific to one.',

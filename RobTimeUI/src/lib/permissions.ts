@@ -36,6 +36,10 @@ export const can = {
   manageDifferentialRules: (me: Me | undefined) => atLeast(me, 'ClientAdmin'),
   manageHolidayCalendars: (me: Me | undefined) => atLeast(me, 'ClientAdmin'),
   manageClientPremiumPolicies: (me: Me | undefined) => atLeast(me, 'ClientAdmin'),
+  /** Every payroll-export endpoint (profiles, mappings, identifiers, and export runs) is
+   * ClientAdmin-gated server-side — an export run affects every employee in the tenant at once,
+   * closer in kind to Position/PayRule administration than a supervisor's per-employee edit. */
+  managePayrollExport: (me: Me | undefined) => atLeast(me, 'ClientAdmin'),
   /** A bulk import can create or hard-delete punches for any employee in the tenant at once — closer
    * in kind to Position/PayRule administration than to a supervisor fixing one employee's shift, so
    * it sits at the same bar as those rather than Supervisor's per-punch edit access. */

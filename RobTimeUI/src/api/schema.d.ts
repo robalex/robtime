@@ -388,6 +388,150 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/payroll-export-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListPayrollExportProfiles"];
+        put?: never;
+        post: operations["CreatePayrollExportProfile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payroll-export-profiles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetPayrollExportProfile"];
+        put: operations["UpdatePayrollExportProfile"];
+        post?: never;
+        delete: operations["DeletePayrollExportProfile"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payroll-export-profiles/{profileId}/earning-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListPayrollEarningCodeMappings"];
+        put?: never;
+        post: operations["CreatePayrollEarningCodeMapping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payroll-export-profiles/{profileId}/earning-codes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["UpdatePayrollEarningCodeMapping"];
+        post?: never;
+        delete: operations["DeletePayrollEarningCodeMapping"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payroll-export-profiles/{profileId}/employee-identifiers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListPayrollEmployeeIdentifiers"];
+        put?: never;
+        post: operations["CreatePayrollEmployeeIdentifier"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payroll-export-profiles/{profileId}/employee-identifiers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["UpdatePayrollEmployeeIdentifier"];
+        post?: never;
+        delete: operations["DeletePayrollEmployeeIdentifier"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payroll-export-profiles/{profileId}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListPayrollExports"];
+        put?: never;
+        post: operations["CreatePayrollExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payroll-export-profiles/{profileId}/exports/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["DownloadPayrollExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payroll-export-profiles/{profileId}/exports/{id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["VoidPayrollExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/punches": {
         parameters: {
             query?: never;
@@ -793,6 +937,35 @@ export interface components {
             name: string;
             dates?: null | string[];
         };
+        CreatePayrollEarningCodeMappingRequest: {
+            lineType: components["schemas"]["PayLineType"];
+            lineCode: string;
+            earningCode: string;
+            valueBasis: components["schemas"]["PayrollExportValueBasis"];
+            description?: null | string;
+        };
+        CreatePayrollEmployeeIdentifierRequest: {
+            /** Format: int32 */
+            employeeId: number;
+            externalEmployeeId: string;
+        };
+        CreatePayrollExportProfileRequest: {
+            /** Format: int32 */
+            clientId: number;
+            name: string;
+            provider: components["schemas"]["PayrollProvider"];
+            grouping?: null | components["schemas"]["PayrollExportGrouping"];
+            roundingPolicy?: null | components["schemas"]["PayrollExportRoundingPolicy"];
+            adjustmentEarningCode?: null | string;
+            /** Format: int32 */
+            amountScale?: null | number;
+            /** Format: int32 */
+            hoursScale?: null | number;
+        };
+        CreatePayrollExportRequest: {
+            periodStart: components["schemas"]["LocalDate"];
+            periodEnd: components["schemas"]["LocalDate"];
+        };
         CreatePayRuleAssignmentRequest: {
             /** Format: int32 */
             payRuleId: number;
@@ -1074,6 +1247,24 @@ export interface components {
             /** Format: int32 */
             pageSize: number;
         };
+        PagedResultOfPayrollExportBatchResponse: {
+            items: components["schemas"]["PayrollExportBatchResponse"][];
+            /** Format: int32 */
+            totalCount: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+        };
+        PagedResultOfPayrollExportProfileResponse: {
+            items: components["schemas"]["PayrollExportProfileResponse"][];
+            /** Format: int32 */
+            totalCount: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+        };
         PagedResultOfPayRuleResponse: {
             items: components["schemas"]["PayRuleResponse"][];
             /** Format: int32 */
@@ -1132,6 +1323,68 @@ export interface components {
         PayLineType: "Regular" | "OvertimePremium" | "Differential" | "Bonus" | "FixedHours" | "Premium";
         /** @enum {unknown} */
         PayPeriodFrequency: "Weekly" | "BiWeekly" | "SemiMonthly" | "Monthly";
+        PayrollEarningCodeMappingResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            profileId: number;
+            lineType: components["schemas"]["PayLineType"];
+            lineCode: string;
+            earningCode: string;
+            valueBasis: components["schemas"]["PayrollExportValueBasis"];
+            description: string;
+        };
+        PayrollEmployeeIdentifierResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            profileId: number;
+            /** Format: int32 */
+            employeeId: number;
+            externalEmployeeId: string;
+        };
+        PayrollExportBatchResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            profileId: number;
+            periodStart: components["schemas"]["LocalDate"];
+            periodEnd: components["schemas"]["LocalDate"];
+            /** Format: int32 */
+            employeeCount: number;
+            /** Format: int32 */
+            rowCount: number;
+            /** Format: double */
+            totalAmount: number;
+            fileName: string;
+            exportedByUserId: string;
+            exportedAt: components["schemas"]["Instant"];
+            voidedByUserId?: null | string;
+            voidedAt?: null | components["schemas"]["Instant"];
+        };
+        /** @enum {unknown} */
+        PayrollExportGrouping: "PayPeriod" | "WorkDate";
+        PayrollExportProfileResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            clientId: number;
+            name: string;
+            provider: components["schemas"]["PayrollProvider"];
+            grouping: components["schemas"]["PayrollExportGrouping"];
+            roundingPolicy: components["schemas"]["PayrollExportRoundingPolicy"];
+            adjustmentEarningCode: string;
+            /** Format: int32 */
+            amountScale: number;
+            /** Format: int32 */
+            hoursScale: number;
+        };
+        /** @enum {unknown} */
+        PayrollExportRoundingPolicy: "DistributeRemainder" | "AdjustmentRow";
+        /** @enum {unknown} */
+        PayrollExportValueBasis: "Hours" | "Amount";
+        /** @enum {unknown} */
+        PayrollProvider: "GenericCsv" | "Adp" | "Paychex" | "Gusto";
         PayRuleAssignmentResponse: {
             /** Format: int32 */
             id: number;
@@ -1528,6 +1781,27 @@ export interface components {
         UpdateHolidayCalendarRequest: {
             name: string;
             dates?: null | string[];
+        };
+        UpdatePayrollEarningCodeMappingRequest: {
+            lineType: components["schemas"]["PayLineType"];
+            lineCode: string;
+            earningCode: string;
+            valueBasis: components["schemas"]["PayrollExportValueBasis"];
+            description?: null | string;
+        };
+        UpdatePayrollEmployeeIdentifierRequest: {
+            externalEmployeeId: string;
+        };
+        UpdatePayrollExportProfileRequest: {
+            name: string;
+            provider: components["schemas"]["PayrollProvider"];
+            grouping?: null | components["schemas"]["PayrollExportGrouping"];
+            roundingPolicy?: null | components["schemas"]["PayrollExportRoundingPolicy"];
+            adjustmentEarningCode?: null | string;
+            /** Format: int32 */
+            amountScale?: null | number;
+            /** Format: int32 */
+            hoursScale?: null | number;
         };
         UpdatePayRuleAssignmentRequest: {
             /** Format: int32 */
@@ -3115,6 +3389,472 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    ListPayrollExportProfiles: {
+        parameters: {
+            query: {
+                clientId: number;
+                Page?: number;
+                PageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultOfPayrollExportProfileResponse"];
+                };
+            };
+        };
+    };
+    CreatePayrollExportProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePayrollExportProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollExportProfileResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetPayrollExportProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollExportProfileResponse"];
+                };
+            };
+        };
+    };
+    UpdatePayrollExportProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePayrollExportProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollExportProfileResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    DeletePayrollExportProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListPayrollEarningCodeMappings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollEarningCodeMappingResponse"][];
+                };
+            };
+        };
+    };
+    CreatePayrollEarningCodeMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePayrollEarningCodeMappingRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollEarningCodeMappingResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdatePayrollEarningCodeMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePayrollEarningCodeMappingRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollEarningCodeMappingResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    DeletePayrollEarningCodeMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListPayrollEmployeeIdentifiers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollEmployeeIdentifierResponse"][];
+                };
+            };
+        };
+    };
+    CreatePayrollEmployeeIdentifier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePayrollEmployeeIdentifierRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollEmployeeIdentifierResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdatePayrollEmployeeIdentifier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePayrollEmployeeIdentifierRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollEmployeeIdentifierResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    DeletePayrollEmployeeIdentifier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListPayrollExports: {
+        parameters: {
+            query?: {
+                Page?: number;
+                PageSize?: number;
+            };
+            header?: never;
+            path: {
+                profileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultOfPayrollExportBatchResponse"];
+                };
+            };
+        };
+    };
+    CreatePayrollExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePayrollExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollExportBatchResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    DownloadPayrollExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    VoidPayrollExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollExportBatchResponse"];
+                };
             };
         };
     };
